@@ -70,9 +70,10 @@ function renderTopCards(compare) {
   $("race-label").textContent = `${compare.race.state} ${compare.race.office} (example)`;
 
   $("candidate-a-name").textContent = a.name;
-  $("candidate-a-role").textContent = `${a.office || compare.race.office} • ${a.state || compare.race.state}`;
+  // Use an ASCII separator to avoid encoding artifacts in some Windows shells/editors.
+  $("candidate-a-role").textContent = `${a.office || compare.race.office} | ${a.state || compare.race.state}`;
   $("candidate-b-name").textContent = b.name;
-  $("candidate-b-role").textContent = `${b.office || compare.race.office} • ${b.state || compare.race.state}`;
+  $("candidate-b-role").textContent = `${b.office || compare.race.office} | ${b.state || compare.race.state}`;
 
   const aRate = aCounts && aCounts.total ? aCounts.supported / aCounts.total : NaN;
   const bRate = bCounts && bCounts.total ? bCounts.supported / bCounts.total : NaN;
@@ -98,6 +99,52 @@ function renderTopCards(compare) {
   for (const tag of topTags) {
     aList.insertAdjacentHTML("beforeend", `<li>${escapeHtml(tag)}</li>`);
     bList.insertAdjacentHTML("beforeend", `<li>${escapeHtml(tag)}</li>`);
+  }
+}
+
+function renderContrastBand(compare) {
+  const candidates = compare.candidates.slice(0, 2);
+  if (candidates.length < 2) return;
+  const [a, b] = candidates;
+
+  const countsByCandidate = tallyVerdicts(compare);
+  const aCounts = countsByCandidate.get(a.id);
+  const bCounts = countsByCandidate.get(b.id);
+  if (!aCounts || !bCounts) return;
+
+  const safeRate = (num, den) => (den > 0 ? num / den : NaN);
+  const supportedRate = (bucket) => safeRate(bucket.supported, bucket.total);
+  const contradictedRate = (bucket) => safeRate((bucket.unsupported || 0) + (bucket.insufficient || 0), bucket.total);
+  const unverifiedRate = (bucket) => safeRate(bucket.insufficient || 0, bucket.total);
+
+  const mostSupported = supportedRate(aCounts) >= supportedRate(bCounts) ? a : b;
+  const mostContradicted = contradictedRate(aCounts) >= contradictedRate(bCounts) ? a : b;
+  const mostUnverified = unverifiedRate(aCounts) >= unverifiedRate(bCounts) ? a : b;
+
+  const ms = $("contrast-most-supported");
+  if (ms) ms.textContent = mostSupported.name;
+  const mc = $("contrast-most-contradicted");
+  if (mc) mc.textContent = mostContradicted.name;
+  const mu = $("contrast-most-unverified");
+  if (mu) mu.textContent = mostUnverified.name;
+
+  let splitTag = "";
+  for (const issue of compare.issues || []) {
+    const aItem = issue.items?.find((it) => it.candidate_id === a.id);
+    const bItem = issue.items?.find((it) => it.candidate_id === b.id);
+    if (aItem && bItem && aItem.verdict !== bItem.verdict) {
+      splitTag = issue.issue_tag;
+      break;
+    }
+  }
+
+  const ts = $("contrast-tightest-split");
+  if (ts) ts.textContent = splitTag || (compare.issues?.[0]?.issue_tag ?? "No issues");
+  const tsNote = $("contrast-tightest-split-note");
+  if (tsNote) {
+    tsNote.textContent = splitTag
+      ? `First visible split: ${a.name} vs ${b.name} differ on this issue in the current window.`
+      : "Pick an issue below to see the direct, side-by-side record.";
   }
 }
 
@@ -186,7 +233,7 @@ function renderPanel(compare, issueIndex) {
         ? `<small>Statement source: <a href="${escapeHtml(item.statement_source_url)}" target="_blank" rel="noreferrer">link</a></small>`
         : "";
 
-      const verdictPill = `<span class="mini-tag ${verdictClass(item.verdict)}">${escapeHtml(item.verdict)} • ${Math.round(
+      const verdictPill = `<span class="mini-tag ${verdictClass(item.verdict)}">${escapeHtml(item.verdict)} | ${Math.round(
         item.confidence * 100
       )}% confidence</span>`;
 
@@ -223,6 +270,7 @@ async function init() {
 
     const selected = Number.isFinite(window.__CFA_SELECTED_ISSUE) ? window.__CFA_SELECTED_ISSUE : 0;
     renderTopCards(compare);
+    renderContrastBand(compare);
     renderIssueList(compare, selected);
     renderPanel(compare, selected);
   } catch (err) {

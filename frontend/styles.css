@@ -149,6 +149,9 @@ body::before {
 
 .workspace {
   padding: 2rem;
+  width: 100%;
+  max-width: 1320px;
+  margin: 0 auto;
 }
 
 .hero,
@@ -341,9 +344,13 @@ body::before {
 }
 
 .policy-block ul {
-  margin: 0;
+  margin: 0.6rem 0 0;
   padding-left: 1rem;
   line-height: 1.65;
+}
+
+.policy-block li {
+  margin-bottom: 0.25rem;
 }
 
 .contrast-band {
@@ -426,11 +433,17 @@ body::before {
   gap: 1.2rem;
 }
 
+.issue-list {
+  padding-right: 0.2rem;
+}
+
 .issue-row {
   width: 100%;
   display: grid;
   gap: 0.75rem;
-  padding: 1rem 0;
+  padding: 1rem 0.6rem;
+  border-left: 3px solid transparent;
+  border-radius: 12px;
   border: 0;
   border-bottom: 1px solid var(--line);
   background: transparent;
@@ -442,7 +455,16 @@ body::before {
 
 .issue-row:hover,
 .issue-row.is-selected {
-  transform: translateX(10px);
+  transform: translateX(6px);
+}
+
+.issue-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.issue-row.is-selected {
+  background: rgba(255, 93, 45, 0.08);
+  border-left-color: rgba(255, 93, 45, 0.9);
 }
 
 .issue-name {
@@ -546,6 +568,10 @@ body::before {
   background: rgba(255, 93, 45, 0.06);
 }
 
+.source-link {
+  overflow-wrap: anywhere;
+}
+
 .source-link strong {
   font-size: 1rem;
 }
@@ -580,6 +606,8 @@ body::before {
 
 .stance,
 .evidence-card {
+  display: grid;
+  gap: 0.65rem;
   padding: 1rem;
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.02);
@@ -604,9 +632,16 @@ body::before {
 
 .stance small {
   display: block;
-  margin-top: 0.75rem;
+  margin-top: 0;
   line-height: 1.5;
   color: var(--muted);
+}
+
+.rail-link:focus-visible,
+.issue-row:focus-visible,
+.source-link:focus-visible {
+  outline: 2px solid rgba(255, 93, 45, 0.7);
+  outline-offset: 3px;
 }
 
 .evidence-kind {
