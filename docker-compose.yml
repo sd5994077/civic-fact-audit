@@ -1,0 +1,32 @@
+services:
+  db:
+    image: postgres:16
+    container_name: civic-fact-audit-db
+    environment:
+      POSTGRES_DB: civic_fact_audit
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  api:
+    build:
+      context: ./backend
+    container_name: civic-fact-audit-api
+    depends_on:
+      - db
+    environment:
+      APP_ENV: development
+      APP_VERSION: 0.1.0
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: civic_fact_audit
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "8000:8000"
+
+volumes:
+  postgres_data:
