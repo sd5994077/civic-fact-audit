@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Civic Fact Audit Texas Senate Prototype</title>
+  <title>Civic Fact Audit Prototype</title>
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
@@ -27,14 +27,14 @@
       <div class="rail-note">
         <p class="note-label">Working rule</p>
         <p class="note-copy">Do not just rate the claim. Show the record that earns the rating.</p>
-        <p class="note-copy note-copy-strong">Example dataset: November 5, 2024 Texas U.S. Senate general election.</p>
+        <p class="note-copy note-copy-strong">Example dataset: seeded data for UI development (not an endorsement).</p>
       </div>
     </aside>
 
     <main class="workspace">
       <header class="hero">
         <div class="hero-copy">
-          <p class="eyebrow">Texas Senate Race Example</p>
+          <p class="eyebrow">Texas US Senate (Example)</p>
           <h2>Truth should survive direct comparison.</h2>
           <p class="hero-text">
             This version treats the page as a public fact-check surface. It compares candidate claims,
@@ -46,7 +46,7 @@
         <div class="hero-flags" aria-label="Race context">
           <div>
             <span class="metric-label">Race</span>
-            <strong>Texas U.S. Senate, Nov. 5, 2024</strong>
+            <strong id="race-label">Texas US Senate (seed example)</strong>
           </div>
           <div>
             <span class="metric-label">Focus</span>
@@ -54,7 +54,7 @@
           </div>
           <div>
             <span class="metric-label">Current flashpoint</span>
-            <strong>Election integrity and border claims</strong>
+            <strong>Compare supported vs contradicted claims</strong>
           </div>
         </div>
       </header>
@@ -62,95 +62,75 @@
       <section class="candidate-stage candidate-stage-two" aria-label="Candidates side by side">
         <article class="candidate-card candidate-card-a">
           <div class="candidate-topline">
-            <img
-              class="portrait-image"
-              src="https://commons.wikimedia.org/wiki/Special:FilePath/Colin%20Allred%2C%20official%20portrait%2C%20117th%20Congress.jpg"
-              alt="Official portrait of Colin Allred"
-            >
+            <img class="portrait-image" src="./assets/candidate-a.svg" alt="Candidate A portrait placeholder">
             <div>
               <p class="card-kicker">Candidate A</p>
-              <h3>Colin Allred</h3>
-              <p class="candidate-role">U.S. Representative</p>
+              <h3 id="candidate-a-name">Candidate A</h3>
+              <p class="candidate-role" id="candidate-a-role">US Senate</p>
             </div>
           </div>
 
           <div class="truth-score truth-score-strong">
             <span>Most supported claims</span>
-            <strong>68%</strong>
-            <small>Claim language generally aligns with public votes, filings, and official data.</small>
+            <strong id="candidate-a-supported-rate">--%</strong>
+            <small id="candidate-a-supported-note">Loading from API...</small>
           </div>
 
           <div class="score-breakdown">
             <div>
               <span class="breakdown-label">Supported</span>
-              <strong>17</strong>
+              <strong id="candidate-a-supported-n">--</strong>
             </div>
             <div>
               <span class="breakdown-label">Misleading</span>
-              <strong>4</strong>
+              <strong id="candidate-a-mixed-n">--</strong>
             </div>
             <div>
               <span class="breakdown-label">Unverified</span>
-              <strong>4</strong>
+              <strong id="candidate-a-insufficient-n">--</strong>
             </div>
           </div>
 
           <div class="policy-block">
-            <span class="section-label">Top 5 stance areas</span>
-            <ul>
-              <li>Support abortion access and federal reproductive protections</li>
-              <li>Back bipartisan border staffing and asylum case processing reform</li>
-              <li>Protect ACA coverage and lower prescription drug prices</li>
-              <li>Expand voting access and defend election certification</li>
-              <li>Support energy expansion including grid resilience and clean manufacturing</li>
-            </ul>
+            <span class="section-label">Top issues in this view</span>
+            <ul id="candidate-a-issue-list"></ul>
           </div>
         </article>
 
         <article class="candidate-card candidate-card-b candidate-card-alert">
           <div class="candidate-topline">
-            <img
-              class="portrait-image"
-              src="https://commons.wikimedia.org/wiki/Special:FilePath/Ted%20Cruz%20official%20116th%20portrait.jpg"
-              alt="Official portrait of Ted Cruz"
-            >
+            <img class="portrait-image" src="./assets/candidate-b.svg" alt="Candidate B portrait placeholder">
             <div>
               <p class="card-kicker">Candidate B</p>
-              <h3>Ted Cruz</h3>
-              <p class="candidate-role">Incumbent U.S. Senator</p>
+              <h3 id="candidate-b-name">Candidate B</h3>
+              <p class="candidate-role" id="candidate-b-role">US Senate</p>
             </div>
           </div>
 
           <div class="truth-score truth-score-alert">
             <span>Most contradicted or unverified</span>
-            <strong>41%</strong>
-            <small>Higher share of reviewed claims conflict with public records, legal findings, or cited evidence.</small>
+            <strong id="candidate-b-supported-rate">--%</strong>
+            <small id="candidate-b-supported-note">Loading from API...</small>
           </div>
 
           <div class="score-breakdown">
             <div>
               <span class="breakdown-label">Supported</span>
-              <strong>11</strong>
+              <strong id="candidate-b-supported-n">--</strong>
             </div>
             <div>
               <span class="breakdown-label">Misleading</span>
-              <strong>7</strong>
+              <strong id="candidate-b-mixed-n">--</strong>
             </div>
             <div>
               <span class="breakdown-label">Unverified</span>
-              <strong>9</strong>
+              <strong id="candidate-b-insufficient-n">--</strong>
             </div>
           </div>
 
           <div class="policy-block">
-            <span class="section-label">Top 5 stance areas</span>
-            <ul>
-              <li>Support stricter abortion restrictions and oppose federal protections</li>
-              <li>Push harder border enforcement and broader detention measures</li>
-              <li>Oppose expanded federal healthcare role and defend private market emphasis</li>
-              <li>Advance election fraud rhetoric and stricter voting controls</li>
-              <li>Prioritize fossil fuel expansion and oppose major federal climate rules</li>
-            </ul>
+            <span class="section-label">Top issues in this view</span>
+            <ul id="candidate-b-issue-list"></ul>
           </div>
         </article>
       </section>
@@ -193,37 +173,7 @@
 
         <div class="compare-layout">
           <section class="issue-list" aria-label="Selectable issues">
-            <button class="issue-row is-selected" type="button" data-issue="0">
-              <span class="issue-name">2020 election certification</span>
-              <span class="issue-tags">
-                <span class="mini-tag mini-tag-supported">Allred: lawful certification</span>
-                <span class="mini-tag mini-tag-alert">Cruz: fraud-centered framing</span>
-              </span>
-            </button>
-
-            <button class="issue-row" type="button" data-issue="1">
-              <span class="issue-name">Border security and crossings</span>
-              <span class="issue-tags">
-                <span class="mini-tag mini-tag-mixed">Allred: staffing reform</span>
-                <span class="mini-tag mini-tag-alert">Cruz: invasion rhetoric</span>
-              </span>
-            </button>
-
-            <button class="issue-row" type="button" data-issue="2">
-              <span class="issue-name">Abortion and reproductive rights</span>
-              <span class="issue-tags">
-                <span class="mini-tag mini-tag-supported">Allred: access protections</span>
-                <span class="mini-tag mini-tag-mixed">Cruz: state-choice framing</span>
-              </span>
-            </button>
-
-            <button class="issue-row" type="button" data-issue="3">
-              <span class="issue-name">Healthcare costs</span>
-              <span class="issue-tags">
-                <span class="mini-tag mini-tag-supported">Allred: insulin caps</span>
-                <span class="mini-tag mini-tag-alert">Cruz: unsupported savings attacks</span>
-              </span>
-            </button>
+            <div id="issue-list"></div>
           </section>
 
           <section class="evidence-panel" aria-live="polite">
@@ -232,108 +182,10 @@
               <span class="panel-stamp" id="panel-stamp">Congressional record available</span>
             </div>
 
-            <h4 id="panel-title">2020 election certification</h4>
-            <p class="panel-summary" id="panel-summary">
-              One candidate treats certification as a lawful constitutional process and the January 6 attack
-              as a criminal act. The other continues to frame the 2020 result through fraud rhetoric that was
-              repeatedly rejected in court and not established by the record.
-            </p>
+            <h4 id="panel-title">Loading issues...</h4>
+            <p class="panel-summary" id="panel-summary">Waiting for API response.</p>
 
-            <div class="claim-stance-record">
-              <article class="csr-card">
-                <span class="stance-label">Claim under review</span>
-                <p id="panel-claim-review">
-                  "The 2020 election was stolen and serious fraud justified blocking certification."
-                </p>
-              </article>
-              <article class="csr-card">
-                <span class="stance-label">Real stance</span>
-                <p id="panel-real-stance">
-                  Candidate B has repeatedly supported post-election fraud framing and objected to certification logic, while Candidate A has defended certification and legal process.
-                </p>
-              </article>
-              <article class="csr-card">
-                <span class="stance-label">What the record shows</span>
-                <p id="panel-record-shows">
-                  Courts, state officials, and post-election reviews did not establish outcome-changing fraud that would justify the claim.
-                </p>
-              </article>
-            </div>
-
-            <div class="side-by-side">
-              <article class="stance stance-supported">
-                <span class="stance-label">Candidate A</span>
-                <p id="panel-a-claim">
-                  "Election certification follows the law, and violent attempts to stop it were criminal."
-                </p>
-                <small id="panel-a-verdict">Supported by certification records, court outcomes, and January 6 prosecutions.</small>
-              </article>
-
-              <article class="stance stance-alert">
-                <span class="stance-label">Candidate B</span>
-                <p id="panel-b-claim">
-                  "Fraud justified blocking certification and the process was fundamentally illegitimate."
-                </p>
-                <small id="panel-b-verdict">Contradicted by court rulings, state certifications, and lack of substantiating evidence.</small>
-              </article>
-            </div>
-
-            <div class="policy-diff">
-              <div>
-                <span class="section-label">How they differ</span>
-                <p id="panel-diff">
-                  The difference is not stylistic. One candidate's framing tracks the legal and institutional record.
-                  The other relies on a fraud narrative that the evidentiary record does not sustain.
-                </p>
-              </div>
-              <div>
-                <span class="section-label">Why it matters</span>
-                <p id="panel-impact">
-                  This changes how voters understand democratic legitimacy, willingness to accept certified results,
-                  and whether a candidate continues to amplify claims the record does not support.
-                </p>
-              </div>
-            </div>
-
-            <div class="evidence-stack">
-              <div class="evidence-card">
-                <span class="evidence-kind">Primary evidence</span>
-                <p id="panel-primary-title">Court rulings and state certification records</p>
-                <small id="panel-primary-note">Public filings and certification documents do not establish outcome-changing fraud.</small>
-              </div>
-              <div class="evidence-card">
-                <span class="evidence-kind evidence-kind-alt">Public record</span>
-                <p id="panel-secondary-title">Congressional objections and January 6 case record</p>
-                <small id="panel-secondary-note">The record shows political objections and criminal prosecutions, not proof of a stolen election.</small>
-              </div>
-            </div>
-
-            <div class="source-list-block">
-              <div class="source-list-header">
-                <p class="eyebrow">Linked Sources</p>
-                <span class="source-list-note">Two-line summaries plus outbound reading</span>
-              </div>
-
-              <div class="source-list" id="source-list">
-                <a class="source-link" id="source-link-1" href="https://www.reuters.com/world/us/" target="_blank" rel="noreferrer">
-                  <span class="source-type source-type-primary">Reuters</span>
-                  <strong id="source-title-1">Election litigation reporting</strong>
-                  <small id="source-summary-1">Independent reporting on court losses and election certification helps anchor the fraud claim against the record.</small>
-                </a>
-
-                <a class="source-link" id="source-link-2" href="https://www.factcheck.org/" target="_blank" rel="noreferrer">
-                  <span class="source-type source-type-secondary">FactCheck.org</span>
-                  <strong id="source-title-2">Election fraud fact checks</strong>
-                  <small id="source-summary-2">Fact-check coverage collects recurring false election claims and compares them with documented evidence.</small>
-                </a>
-
-                <a class="source-link" id="source-link-3" href="https://apnews.com/hub/election-2020" target="_blank" rel="noreferrer">
-                  <span class="source-type source-type-factcheck">AP</span>
-                  <strong id="source-title-3">Certification and recount coverage</strong>
-                  <small id="source-summary-3">Associated Press reporting tracks how state certifications and recounts undercut broad stolen-election claims.</small>
-                </a>
-              </div>
-            </div>
+            <div class="side-by-side" id="panel-side-by-side"></div>
           </section>
         </div>
       </section>

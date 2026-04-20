@@ -131,3 +131,35 @@ class ExtractClaimsResponse(BaseModel):
 class SourceListResponse(BaseModel):
     claim_id: uuid.UUID
     sources: list[SourceRead]
+
+
+class CompareRaceMeta(BaseModel):
+    state: str
+    office: str
+    as_of: datetime
+    disclaimer: str
+
+
+class CompareClaimItem(BaseModel):
+    candidate_id: uuid.UUID
+    claim_id: uuid.UUID
+    claim_text: str
+    issue_tag: str | None
+    statement_source_url: str
+    statement_published_at: datetime
+    verdict: Verdict
+    confidence: float
+    rationale: str
+    citation_notes: str | None
+    sources: list[SourceRead]
+
+
+class CompareIssue(BaseModel):
+    issue_tag: str
+    items: list[CompareClaimItem]
+
+
+class CompareResponse(BaseModel):
+    race: CompareRaceMeta
+    candidates: list[CandidateRead]
+    issues: list[CompareIssue]

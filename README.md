@@ -44,10 +44,22 @@ A standalone project to track political candidate claims, verify them against cr
 6. Open health endpoint:
    - `http://localhost:8000/health`
 
-## Container Run (API + DB)
-```bash
-docker compose up --build api db
-```
+## Container Run (DB + API + Web)
+1. Start everything:
+   ```bash
+   docker compose up -d --build
+   ```
+2. Run migrations:
+   ```bash
+   docker compose run --rm api alembic upgrade head
+   ```
+3. Seed example comparison data:
+   ```bash
+   docker compose run --rm api python -m app.scripts.seed_tx_us_senate_example
+   ```
+4. Open:
+   - API: `http://localhost:8000/health`
+   - Web UI: `http://localhost:3001`
 
 ## Recommended First Codex CLI Prompt
 Use this as your first line in Codex CLI:
