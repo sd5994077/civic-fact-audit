@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import AppError
 from app.models.entities import Claim, Statement
 from app.models.enums import ClaimStatus
+from app.services.claim_reviewability_service import ClaimReviewabilityService
 
 
 @dataclass
@@ -43,13 +44,19 @@ class ClaimExtractionService:
 
         stored_claims: list[Claim] = []
         for proposed in proposed_claims:
+            reviewability = ClaimReviewabilityService.classify_text(proposed.text)
             claim = Claim(
                 statement_id=statement.id,
                 claim_text=proposed.text,
                 issue_tag=proposed.issue_tag,
                 extraction_confidence=proposed.confidence,
                 extraction_method='heuristic_v1',
-                extraction_metadata='{"provider": "local"}',
+                extraction_metadata=ClaimReviewabilityService.build_extraction_metadata(
+                    provider='local',
+                    text=proposed.text,
+                    existing_metadata={},
+                ),
+                fact_checkable=bool(reviewability['fact_checkable']),
                 status=ClaimStatus.draft,
             )
             db.add(claim)

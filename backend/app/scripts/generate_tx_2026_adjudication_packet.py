@@ -20,7 +20,6 @@ from app.models.entities import Source
 from app.services.evaluation_service import EvaluationService
 
 PER_CANDIDATE_LIMIT = 1
-REVIEWER_ID_TEMPLATE = 'tx_2026_human_reviewer'
 
 
 def _select_balanced_batch(rows: list[dict[str, Any]], per_candidate_limit: int) -> list[dict[str, Any]]:
@@ -95,7 +94,9 @@ def main() -> None:
                         'confidence': 0.7,
                         'rationale': 'Human reviewer rationale goes here with concise fact pattern.',
                         'citation_notes': 'Cite which primary and secondary sources support this verdict.',
-                        'reviewer_id': REVIEWER_ID_TEMPLATE,
+                    },
+                    'evaluate_header_template': {
+                        'Authorization': 'Bearer <access_token_from_/v1/auth/login>',
                     },
                 }
             )

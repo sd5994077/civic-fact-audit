@@ -12,6 +12,10 @@ from app.services.source_service import SourceService
 
 class EvaluationService:
     @staticmethod
+    def _fact_checkable_predicate():
+        return Claim.fact_checkable.is_(True)
+
+    @staticmethod
     def _build_review_queue_query(
         *,
         state: str | None,
@@ -64,6 +68,7 @@ class EvaluationService:
                     ClaimEvaluation.created_at == latest_eval.c.latest_created_at,
                 ),
             )
+            .where(EvaluationService._fact_checkable_predicate())
             .group_by(
                 Claim.id,
                 Claim.claim_text,
@@ -158,7 +163,7 @@ class EvaluationService:
         ]
 
     @staticmethod
-    def evaluate_claim(db: Session, claim_id: uuid.UUID, payload: EvaluateClaimRequest) -> ClaimEvaluation:
+    def evaluate_claim(db: Session, claim_id: uuid.UUID, payload: EvaluateClaimRequest, reviewer_id: str) -> ClaimEvaluation:
         claim = db.get(Claim, claim_id)
         if claim is None:
             raise AppError('claim_not_found', 'Claim does not exist.', status_code=404)
@@ -177,7 +182,7 @@ class EvaluationService:
             confidence=payload.confidence,
             rationale=payload.rationale.strip(),
             citation_notes=payload.citation_notes,
-            reviewer_id=payload.reviewer_id,
+            reviewer_id=reviewer_id,
         )
 
         claim.status = ClaimStatus.reviewed

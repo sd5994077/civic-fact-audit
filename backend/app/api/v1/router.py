@@ -1,8 +1,9 @@
 from fastapi import APIRouter
 
-from app.api.v1 import candidates, claims, compare, evaluations, scores, statements
+from app.api.v1 import auth, candidates, claims, compare, evaluations, scores, statements
 
 router = APIRouter(prefix='/v1')
+router.include_router(auth.router, tags=['auth'])
 router.include_router(candidates.router, tags=['candidates'])
 router.include_router(statements.router, tags=['statements'])
 router.include_router(claims.router, tags=['claims'])

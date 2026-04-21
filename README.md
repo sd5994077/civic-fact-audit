@@ -59,7 +59,11 @@ A standalone project to track political candidate claims, verify them against cr
    ```bash
    docker compose run --rm api alembic upgrade head
    ```
-3. Seed example comparison data:
+3. Bootstrap reviewer account for authenticated adjudication:
+   ```bash
+   docker compose run --rm api python -m app.scripts.bootstrap_reviewer_user
+   ```
+4. Seed example comparison data:
    ```bash
    docker compose run --rm api python -m app.scripts.seed_tx_us_senate_example
    ```
@@ -75,27 +79,35 @@ A standalone project to track political candidate claims, verify them against cr
    ```bash
    docker compose run --rm api python -m app.scripts.ingest_tx_2026_statement_batch_round2
    ```
-7. Run Texas 2026 claim extraction batch:
+7. Ingest third Texas 2026 statement batch (narrower factual claims from official candidate pages):
+   ```bash
+   docker compose run --rm api python -m app.scripts.ingest_tx_2026_statement_batch_round3
+   ```
+8. Run Texas 2026 claim extraction batch:
    ```bash
    docker compose run --rm api python -m app.scripts.extract_tx_2026_claims_batch
    ```
-8. Generate Texas 2026 evidence queue report:
+9. Generate Texas 2026 evidence queue report:
    ```bash
    docker compose run --rm api python -m app.scripts.generate_tx_2026_evidence_queue_report
    ```
-9. Attach first-pass Texas 2026 evidence sources for missing claims:
+10. Attach first-pass Texas 2026 evidence sources for missing claims:
    ```bash
    docker compose run --rm api python -m app.scripts.attach_tx_2026_evidence_batch
    ```
-10. Generate the Texas 2026 human review queue report:
+11. Generate the Texas 2026 human review queue report:
    ```bash
    docker compose run --rm api python -m app.scripts.generate_tx_2026_review_queue_report
    ```
-11. Generate a balanced adjudication packet (1 claim per candidate by default):
+12. Backfill Texas 2026 claim reviewability metadata so slogans stay out of the review pipeline:
+   ```bash
+   docker compose run --rm api python -m app.scripts.backfill_tx_2026_claim_reviewability
+   ```
+13. Generate a balanced adjudication packet (1 claim per candidate by default):
    ```bash
    docker compose run --rm api python -m app.scripts.generate_tx_2026_adjudication_packet
    ```
-12. Open:
+14. Open:
    - API: `http://localhost:8000/health`
    - Web UI: `http://localhost:3001`
 
@@ -140,12 +152,14 @@ civic-fact-audit/
 - Candidate race context (`election_cycle`, `race_stage`) and race-aware candidate listing endpoint (`GET /v1/candidates` filters).
 - Texas 2026 U.S. Senate roster ingest script for repeatable race setup.
 - Texas 2026 statement batch ingest script to seed traceable source-backed statement records.
-- Texas 2026 second statement batch and batch claim extraction runner for repeatable intake progression.
+- Texas 2026 second and third statement batches for broader intake and narrower factual-claim intake.
 - Evidence queue endpoint (`GET /v1/claims/evidence-queue`) and Texas queue report script for source-attachment triage.
 - Bulk source attach endpoint (`POST /v1/claims/sources/bulk`) for reviewer batch operations.
-- Texas 2026 evidence attachment batch script to reduce missing-source queue items.
+- Texas 2026 evidence attachment batch script with targeted source mappings for known factual claims.
 - Review queue endpoint (`GET /v1/claims/review-queue`) and Texas report script for human adjudication triage.
-- Frontend human-review panel for queue selection and `POST /v1/claims/{id}/evaluate` submission.
+- Reviewer authentication endpoints (`POST /v1/auth/login`, `GET /v1/auth/me`) with signed bearer tokens.
+- Frontend human-review panel sign-in flow and authenticated `POST /v1/claims/{id}/evaluate` submission.
+- Claim reviewability heuristics so rhetorical slogans are excluded from evidence/review/compare workflows.
 - Scoring service with transparent numerators/denominators and formula versioning.
 - Unit tests for score calculations and denominator policy behavior.
 

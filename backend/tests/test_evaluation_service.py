@@ -16,6 +16,7 @@ def test_build_review_queue_query_has_race_filters_and_minimum_evidence_having()
     assert 'lower(candidates.office)' in compiled
     assert 'candidates.election_cycle =' in compiled
     assert 'candidates.race_stage =' in compiled
+    assert 'claims.fact_checkable' in compiled
     assert 'HAVING' in compiled
 
 

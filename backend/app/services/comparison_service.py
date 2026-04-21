@@ -6,7 +6,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
-from app.models.entities import Candidate, Claim, ClaimEvaluation, Source, Statement
+from app.models.entities import Candidate, Claim, ClaimEvaluation, IssueFrame, Source, Statement
 from app.models.enums import RaceStage, Verdict
 from app.schemas.api import CandidateRead, CompareClaimItem, CompareIssue, CompareRaceMeta, CompareResponse, SourceRead
 
@@ -23,6 +23,14 @@ class _CompareRow:
     confidence: float
     rationale: str
     citation_notes: str | None
+
+
+def _resolve_issue_tag(issue_frame_title: str | None, issue_tag: str | None) -> str | None:
+    if issue_frame_title:
+        return issue_frame_title.strip() or None
+    if issue_tag:
+        return issue_tag.strip() or None
+    return None
 
 
 def _select_top_issue_tags(rows: list[_CompareRow], limit_issues: int) -> list[str]:
@@ -52,6 +60,10 @@ def _pick_representatives(rows: list[_CompareRow]) -> dict[tuple[uuid.UUID, str]
 
 
 class ComparisonService:
+    @staticmethod
+    def _fact_checkable_predicate():
+        return Claim.fact_checkable.is_(True)
+
     @staticmethod
     def _candidate_filters(
         *,
@@ -128,6 +140,7 @@ class ComparisonService:
                     Statement.candidate_id,
                     Claim.id,
                     Claim.claim_text,
+                    IssueFrame.title.label('issue_frame_title'),
                     Claim.issue_tag,
                     Statement.source_url,
                     Statement.published_at,
@@ -138,6 +151,7 @@ class ComparisonService:
                 )
                 .join(Claim, Claim.statement_id == Statement.id)
                 .join(claim_latest_eval, claim_latest_eval.c.claim_id == Claim.id)
+                .outerjoin(IssueFrame, IssueFrame.id == Claim.issue_frame_id)
                 .join(
                     ClaimEvaluation,
                     and_(
@@ -149,6 +163,7 @@ class ComparisonService:
                     Statement.candidate_id.in_(candidate_ids),
                     Statement.published_at >= window_start,
                     Statement.published_at <= window_end,
+                    ComparisonService._fact_checkable_predicate(),
                 )
                 .order_by(Statement.published_at.desc())
             )
@@ -160,7 +175,7 @@ class ComparisonService:
                 candidate_id=row.candidate_id,
                 claim_id=row.id,
                 claim_text=row.claim_text,
-                issue_tag=row.issue_tag,
+                issue_tag=_resolve_issue_tag(row.issue_frame_title, row.issue_tag),
                 statement_source_url=row.source_url,
                 statement_published_at=row.published_at,
                 verdict=row.verdict,

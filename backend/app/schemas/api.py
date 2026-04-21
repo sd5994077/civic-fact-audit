@@ -93,7 +93,23 @@ class EvaluateClaimRequest(BaseModel):
     confidence: float = Field(ge=0, le=1)
     rationale: str = Field(min_length=10)
     citation_notes: str | None = None
-    reviewer_id: str = Field(min_length=1, max_length=255)
+
+
+class AuthLoginRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=255)
+    password: str = Field(min_length=8, max_length=255)
+
+
+class AuthLoginResponse(BaseModel):
+    access_token: str
+    token_type: str
+    reviewer_id: str
+    role: str
+
+
+class AuthMeResponse(BaseModel):
+    reviewer_id: str
+    role: str
 
 
 class ClaimEvaluationRead(BaseModel):

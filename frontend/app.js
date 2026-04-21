@@ -2,8 +2,10 @@ const API_COMPARE_URL = "/api/v1/compare?state=TX&office=US%20Senate&election_cy
 const API_REVIEW_QUEUE_URL =
   "/api/v1/claims/review-queue?state=TX&office=US%20Senate&election_cycle=2026&require_minimum_evidence=true&limit=50";
 const API_EVALUATE_BASE_URL = "/api/v1/claims";
+const API_AUTH_LOGIN_URL = "/api/v1/auth/login";
 
 let reviewQueueRows = [];
+let authToken = localStorage.getItem("cfa_auth_token") || "";
 
 function $(id) {
   return document.getElementById(id);
@@ -61,6 +63,13 @@ function formatAsOf(iso) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleString(undefined, { year: "numeric", month: "short", day: "2-digit" });
+}
+
+function formatVerdictLabel(verdict) {
+  if (verdict === "supported") return "Supported by record";
+  if (verdict === "mixed") return "Mixed or incomplete";
+  if (verdict === "unsupported") return "Contradicted by record";
+  return "Insufficient evidence";
 }
 
 function shortId(id) {
@@ -256,6 +265,50 @@ function renderSources(sources) {
     .join("");
 }
 
+function renderExplanationCards(issue, compare) {
+  const container = $("panel-explanations");
+  if (!container) return;
+
+  const cards = compare.candidates
+    .map((candidate, idx) => {
+      const item = issue.items.find((entry) => entry.candidate_id === candidate.id);
+      if (!item) return "";
+
+      const primaryCount = item.sources.filter((source) => source.source_class === "primary").length;
+      const secondaryCount = item.sources.filter((source) => source.source_class !== "primary").length;
+      const citationNotes = item.citation_notes?.trim() || "No reviewer citation notes recorded yet.";
+
+      return `
+        <article class="explanation-card ${stanceClass(item.verdict)}">
+          <div class="explanation-topline">
+            <span class="stance-label">${escapeHtml(candidate.party || `Candidate ${String.fromCharCode(65 + idx)}`)}</span>
+            <span class="mini-tag ${verdictClass(item.verdict)}">${escapeHtml(formatVerdictLabel(item.verdict))}</span>
+          </div>
+          <h5>${escapeHtml(candidate.name)}</h5>
+          <p class="explanation-claim">${escapeHtml(item.claim_text)}</p>
+          <div class="explanation-grid">
+            <div class="csr-card">
+              <span class="section-label">Why this verdict</span>
+              <p>${escapeHtml(item.rationale)}</p>
+            </div>
+            <div class="csr-card">
+              <span class="section-label">Evidence summary</span>
+              <p>${escapeHtml(`${primaryCount} primary source(s), ${secondaryCount} secondary source(s), ${Math.round(item.confidence * 100)}% confidence`)}</p>
+            </div>
+            <div class="csr-card">
+              <span class="section-label">Citation notes</span>
+              <p>${escapeHtml(citationNotes)}</p>
+            </div>
+          </div>
+        </article>
+      `;
+    })
+    .filter(Boolean)
+    .join("");
+
+  container.innerHTML = cards || `<p class="note-copy">No explanation cards available for this issue.</p>`;
+}
+
 function renderPanel(compare, issueIndex) {
   const issue = compare.issues[issueIndex];
   const candidates = compare.candidates;
@@ -265,6 +318,7 @@ function renderPanel(compare, issueIndex) {
   $("panel-summary").textContent = compare.race.disclaimer;
   $("panel-stamp").textContent = `As of ${formatAsOf(compare.race.as_of)}`;
   $("panel-side-by-side").style.setProperty("--panel-cols", String(Math.min(candidates.length, 3)));
+  renderExplanationCards(issue, compare);
 
   const html = candidates
     .map((c, idx) => {
@@ -364,7 +418,6 @@ function populateReviewForm(claimId) {
   if (!row) return;
 
   const claimIdInput = $("review-claim-id");
-  const reviewerInput = $("reviewer-id");
   const rationaleInput = $("review-rationale");
   const citationNotesInput = $("review-citation-notes");
   const verdictInput = $("review-verdict");
@@ -374,11 +427,48 @@ function populateReviewForm(claimId) {
   if (claimIdInput) claimIdInput.value = row.claim_id;
   if (verdictInput) verdictInput.value = "supported";
   if (confidenceInput) confidenceInput.value = "0.70";
-  if (reviewerInput && !reviewerInput.value) reviewerInput.value = "tx_2026_human_reviewer";
   if (rationaleInput) rationaleInput.value = "";
   if (citationNotesInput) citationNotesInput.value = "";
   if (preview) {
     preview.textContent = `${row.candidate_name} (${row.candidate_party || "Unlisted"}) | ${row.issue_tag || "Unlabeled issue"} | ${row.claim_text}`;
+  }
+}
+
+async function submitLogin(event) {
+  event.preventDefault();
+  const email = $("auth-email")?.value?.trim();
+  const password = $("auth-password")?.value || "";
+  const status = $("auth-status");
+
+  if (!email || !password) {
+    if (status) status.textContent = "Email and password are required.";
+    return;
+  }
+
+  try {
+    if (status) status.textContent = "Signing in...";
+    const res = await fetch(API_AUTH_LOGIN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (!res.ok) {
+      let message = `Sign-in failed (${res.status})`;
+      try {
+        const body = await res.json();
+        if (body?.error?.message) message = body.error.message;
+      } catch (_) {
+      }
+      throw new Error(message);
+    }
+
+    const body = await res.json();
+    authToken = body.access_token;
+    localStorage.setItem("cfa_auth_token", authToken);
+    if (status) status.textContent = `Signed in as ${body.reviewer_id}.`;
+  } catch (err) {
+    if (status) status.textContent = err instanceof Error ? err.message : "Sign-in failed.";
   }
 }
 
@@ -422,11 +512,14 @@ async function submitReview(event) {
   const confidenceRaw = $("review-confidence")?.value;
   const rationale = $("review-rationale")?.value?.trim();
   const citationNotes = $("review-citation-notes")?.value?.trim();
-  const reviewerId = $("reviewer-id")?.value?.trim();
   const status = $("review-submit-status");
 
-  if (!claimId || !verdict || !confidenceRaw || !rationale || !reviewerId) {
-    if (status) status.textContent = "Claim, verdict, confidence, rationale, and reviewer ID are required.";
+  if (!claimId || !verdict || !confidenceRaw || !rationale) {
+    if (status) status.textContent = "Claim, verdict, confidence, and rationale are required.";
+    return;
+  }
+  if (!authToken) {
+    if (status) status.textContent = "Sign in before submitting review.";
     return;
   }
 
@@ -441,14 +534,13 @@ async function submitReview(event) {
     confidence,
     rationale,
     citation_notes: citationNotes || null,
-    reviewer_id: reviewerId,
   };
 
   try {
     if (status) status.textContent = "Submitting review...";
     const res = await fetch(`${API_EVALUATE_BASE_URL}/${encodeURIComponent(claimId)}/evaluate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: `Bearer ${authToken}` },
       body: JSON.stringify(payload),
     });
 
@@ -472,6 +564,14 @@ async function submitReview(event) {
 }
 
 async function init() {
+  const authForm = $("auth-form");
+  if (authForm) {
+    authForm.addEventListener("submit", submitLogin);
+    if (authToken) {
+      const status = $("auth-status");
+      if (status) status.textContent = "Token loaded. You can submit reviews.";
+    }
+  }
   const form = $("review-form");
   if (form) {
     form.addEventListener("submit", submitReview);

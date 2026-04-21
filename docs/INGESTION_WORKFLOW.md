@@ -12,12 +12,17 @@ This workflow keeps race setup and statement intake reproducible and auditable.
 - Example (Texas 2026 U.S. Senate):
   - `python -m app.scripts.ingest_tx_2026_statement_batch`
   - `python -m app.scripts.ingest_tx_2026_statement_batch_round2`
+  - `python -m app.scripts.ingest_tx_2026_statement_batch_round3`
+- Use the later batches to introduce narrower, record-checkable claims after initial campaign-context capture.
 
 ## 3) Extract claims
 - Call `POST /v1/claims/extract` per statement, or run a race-scoped batch extractor.
 - Example (Texas 2026 U.S. Senate):
   - `python -m app.scripts.extract_tx_2026_claims_batch`
 - Keep extraction confidence and metadata for auditability.
+- Apply reviewability heuristics so slogans and campaign rhetoric do not enter evidence or human-review queues.
+- Example (Texas 2026 U.S. Senate):
+  - `python -m app.scripts.backfill_tx_2026_claim_reviewability`
 
 ## 4) Attach evidence
 - Add at least one primary and one independent secondary source for claims that will receive supported/mixed/unsupported verdicts.
@@ -29,8 +34,11 @@ This workflow keeps race setup and statement intake reproducible and auditable.
 
 ## 5) Human evaluation
 - Pull ready items from `GET /v1/claims/review-queue` once minimum evidence is attached.
+- Sign in via `POST /v1/auth/login` and use returned bearer token.
 - Use `POST /v1/claims/{id}/evaluate`.
+- Send header: `Authorization: Bearer <access_token>`.
 - Include rationale and citation notes in every verdict.
+- Only fact-checkable claims should appear here; rhetorical or slogan-only statements stay out of the queue.
 - Example (Texas 2026 U.S. Senate):
   - `python -m app.scripts.generate_tx_2026_review_queue_report`
   - `python -m app.scripts.generate_tx_2026_adjudication_packet`

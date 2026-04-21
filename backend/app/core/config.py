@@ -16,6 +16,11 @@ class Settings(BaseSettings):
     postgres_password: str = 'postgres'
 
     openai_api_key: str = ''
+    auth_secret_key: str = 'change-me-in-prod'
+    auth_token_ttl_minutes: int = 480
+    reviewer_bootstrap_email: str = 'reviewer@local'
+    reviewer_bootstrap_password: str = 'change-me'
+    reviewer_bootstrap_name: str = 'Local Reviewer'
 
     model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8', extra='ignore')
 

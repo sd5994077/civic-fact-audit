@@ -13,6 +13,10 @@ from app.schemas.api import AddSourceRequest, BulkSourceAttachItem
 
 class SourceService:
     @staticmethod
+    def _fact_checkable_predicate():
+        return Claim.fact_checkable.is_(True)
+
+    @staticmethod
     def _bulk_status_from_error_code(error_code: str) -> str:
         if error_code == 'duplicate_source':
             return 'duplicate'
@@ -53,6 +57,7 @@ class SourceService:
             .join(Statement, Statement.id == Claim.statement_id)
             .join(Candidate, Candidate.id == Statement.candidate_id)
             .outerjoin(Source, Source.claim_id == Claim.id)
+            .where(SourceService._fact_checkable_predicate())
             .group_by(
                 Claim.id,
                 Claim.claim_text,

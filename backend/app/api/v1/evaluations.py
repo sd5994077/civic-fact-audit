@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.models.enums import RaceStage
 from app.schemas.api import ClaimEvaluationRead, ErrorResponse, EvaluateClaimRequest, ReviewQueueItem
+from app.services.auth_dependency_service import require_reviewer_or_admin
+from app.services.auth_service import AuthIdentity
 from app.services.evaluation_service import EvaluationService
 
 router = APIRouter(prefix='/claims')
@@ -39,6 +41,11 @@ def review_queue(
 
 
 @router.post('/{claim_id}/evaluate', response_model=ClaimEvaluationRead, responses={400: {'model': ErrorResponse}, 404: {'model': ErrorResponse}, 422: {'model': ErrorResponse}})
-def evaluate_claim(claim_id: uuid.UUID, payload: EvaluateClaimRequest, db: Session = Depends(get_db)) -> ClaimEvaluationRead:
-    evaluation = EvaluationService.evaluate_claim(db, claim_id, payload)
+def evaluate_claim(
+    claim_id: uuid.UUID,
+    payload: EvaluateClaimRequest,
+    db: Session = Depends(get_db),
+    identity: AuthIdentity = Depends(require_reviewer_or_admin),
+) -> ClaimEvaluationRead:
+    evaluation = EvaluationService.evaluate_claim(db, claim_id, payload, reviewer_id=identity.reviewer_id)
     return ClaimEvaluationRead.model_validate(evaluation, from_attributes=True)

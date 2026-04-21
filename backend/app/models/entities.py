@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, Float, ForeignKey, Index, String, Text, UniqueConstraint, func
+from sqlalchemy import DateTime, Enum, Float, ForeignKey, Index, String, Text, UniqueConstraint, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -34,6 +34,17 @@ class Candidate(TimestampMixin, Base):
     score_snapshots: Mapped[list['ScoreSnapshot']] = relationship(back_populates='candidate', cascade='all, delete-orphan')
 
 
+class ReviewerUser(TimestampMixin, Base):
+    __tablename__ = 'reviewer_users'
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    display_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(512), nullable=False)
+    role: Mapped[str] = mapped_column(String(32), nullable=False, default='reviewer')
+    is_active: Mapped[bool] = mapped_column(nullable=False, default=True, server_default=text('true'))
+
+
 class Statement(TimestampMixin, Base):
     __tablename__ = 'statements'
 
@@ -50,23 +61,54 @@ class Statement(TimestampMixin, Base):
     __table_args__ = (Index('ix_statements_candidate_published', 'candidate_id', 'published_at'),)
 
 
+class IssueFrame(TimestampMixin, Base):
+    __tablename__ = 'issue_frames'
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    frame_key: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    comparison_question: Mapped[str] = mapped_column(Text, nullable=False)
+    state: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    office: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    election_cycle: Mapped[int | None] = mapped_column(nullable=True)
+    race_stage: Mapped[RaceStage | None] = mapped_column(Enum(RaceStage, name='race_stage'), nullable=True)
+    is_active: Mapped[bool] = mapped_column(nullable=False, default=True, server_default=text('true'))
+
+    claims: Mapped[list['Claim']] = relationship(back_populates='issue_frame')
+
+    __table_args__ = (
+        Index('ix_issue_frames_scope', 'state', 'office', 'election_cycle', 'race_stage'),
+        Index('ix_issue_frames_active', 'is_active'),
+    )
+
+
 class Claim(TimestampMixin, Base):
     __tablename__ = 'claims'
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     statement_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('statements.id', ondelete='CASCADE'))
+    issue_frame_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey('issue_frames.id', ondelete='SET NULL'),
+        nullable=True,
+    )
     claim_text: Mapped[str] = mapped_column(Text, nullable=False)
     issue_tag: Mapped[str | None] = mapped_column(String(128), nullable=True)
     extraction_confidence: Mapped[float] = mapped_column(Float, nullable=False)
     extraction_method: Mapped[str] = mapped_column(String(64), nullable=False, default='heuristic')
     extraction_metadata: Mapped[str | None] = mapped_column(Text, nullable=True)
+    fact_checkable: Mapped[bool] = mapped_column(nullable=False, default=True, server_default=text('true'))
     status: Mapped[ClaimStatus] = mapped_column(Enum(ClaimStatus, name='claim_status'), default=ClaimStatus.draft)
 
     statement: Mapped['Statement'] = relationship(back_populates='claims')
+    issue_frame: Mapped['IssueFrame | None'] = relationship(back_populates='claims')
     sources: Mapped[list['Source']] = relationship(back_populates='claim', cascade='all, delete-orphan')
     evaluations: Mapped[list['ClaimEvaluation']] = relationship(back_populates='claim', cascade='all, delete-orphan')
 
-    __table_args__ = (Index('ix_claims_statement_status', 'statement_id', 'status'),)
+    __table_args__ = (
+        Index('ix_claims_statement_status', 'statement_id', 'status'),
+        Index('ix_claims_issue_frame_id', 'issue_frame_id'),
+    )
 
 
 class Source(TimestampMixin, Base):

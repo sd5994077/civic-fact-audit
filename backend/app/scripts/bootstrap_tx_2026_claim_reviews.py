@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.db.database import SessionLocal, get_engine
 from app.models.entities import Candidate, Claim, ClaimEvaluation, Statement
 from app.models.enums import ClaimStatus, RaceStage, Verdict
+from app.services.claim_reviewability_service import ClaimReviewabilityService
 
 REVIEWER_ID = 'tx_2026_bootstrap_reviewer'
 
@@ -26,6 +27,7 @@ def _infer_issue_tag(text: str) -> str:
         ('border', 'Border & Immigration'),
         ('immigration', 'Border & Immigration'),
         ('inflation', 'Economy'),
+        ('budget', 'Education'),
         ('tax', 'Economy'),
         ('price', 'Economy'),
         ('health', 'Healthcare'),
@@ -37,6 +39,11 @@ def _infer_issue_tag(text: str) -> str:
         ('israel', 'Foreign Policy'),
         ('crime', 'Public Safety'),
         ('school', 'Education'),
+        ('education', 'Education'),
+        ('supreme court', 'Democracy & Rule of Law'),
+        ('justice', 'Democracy & Rule of Law'),
+        ('lawsuit', 'Democracy & Rule of Law'),
+        ('sued', 'Democracy & Rule of Law'),
         ('election', 'Democracy & Elections'),
         ('vote', 'Democracy & Elections'),
     ]
@@ -82,9 +89,21 @@ def run_bootstrap(db: Session) -> tuple[int, int]:
     claims = _load_target_claims(db)
 
     for claim in claims:
-        if not claim.issue_tag:
-            claim.issue_tag = _infer_issue_tag(claim.claim_text)
+        claim.extraction_metadata = ClaimReviewabilityService.build_extraction_metadata(
+            provider='local',
+            text=claim.claim_text,
+            existing_metadata=ClaimReviewabilityService.parse_metadata(claim.extraction_metadata),
+        )
+        inferred_tag = _infer_issue_tag(claim.claim_text)
+        if not claim.issue_tag or claim.issue_tag == 'Campaign Messaging':
+            claim.issue_tag = inferred_tag
             tagged_count += 1
+
+        metadata = ClaimReviewabilityService.parse_metadata(claim.extraction_metadata)
+        is_fact_checkable = bool(metadata.get('fact_checkable', True))
+        claim.fact_checkable = is_fact_checkable
+        if not is_fact_checkable:
+            continue
 
         if _has_any_evaluation(db, claim.id):
             continue

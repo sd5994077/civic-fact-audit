@@ -86,6 +86,75 @@ SECONDARY_BY_ISSUE: dict[str, tuple[SourceSeed, ...]] = {
     ),
 }
 
+CLAIM_TARGETED_SEEDS: tuple[tuple[str, tuple[SourceSeed, ...], tuple[SourceSeed, ...]], ...] = (
+    (
+        'public education budget by $5 billion',
+        (
+            SourceSeed(
+                url='https://tea.texas.gov/about-tea/news-and-multimedia/newsletters/tetjuly-2011.pdf',
+                publisher='Texas Education Agency',
+                quality_score=0.94,
+            ),
+        ),
+        (
+            SourceSeed(
+                url='https://www.texastribune.org/2015/08/31/texas-schools-still-feeling-2011-budget-cuts/',
+                publisher='Texas Tribune',
+                quality_score=0.82,
+            ),
+        ),
+    ),
+    (
+        'all three of President Trump’s Supreme Court Justices',
+        (
+            SourceSeed(
+                url='https://www.senate.gov/legislative/LIS/roll_call_votes/vote1151/vote_115_1_00111.htm',
+                publisher='U.S. Senate',
+                quality_score=0.95,
+            ),
+            SourceSeed(
+                url='https://www.senate.gov/legislative/LIS/roll_call_votes/vote1152/vote_115_2_00223.htm?congress=115&vote=00223',
+                publisher='U.S. Senate',
+                quality_score=0.95,
+            ),
+            SourceSeed(
+                url='https://www.senate.gov/legislative/LIS/roll_call_votes/vote1162/vote_116_2_00224.htm',
+                publisher='U.S. Senate',
+                quality_score=0.95,
+            ),
+        ),
+        (
+            SourceSeed(
+                url='https://apnews.com/article/5a8e5c4a1a454d53a5f1c1a84d888fff',
+                publisher='Associated Press',
+                quality_score=0.82,
+            ),
+        ),
+    ),
+    (
+        'sued the Biden administration over 100 times',
+        (
+            SourceSeed(
+                url='https://www.oag.state.tx.us/news/releases/attorney-general-ken-paxton-files-100th-lawsuit-against-biden-harris-administration',
+                publisher='Office of the Texas Attorney General',
+                quality_score=0.94,
+            ),
+            SourceSeed(
+                url='https://www.texasattorneygeneral.gov/news/releases/attorney-general-ken-paxton-sues-biden-during-administrations-final-hours-stop-unlawful-ban-offshore',
+                publisher='Office of the Texas Attorney General',
+                quality_score=0.92,
+            ),
+        ),
+        (
+            SourceSeed(
+                url='https://www.dallasnews.com/news/politics/2024/11/12/ag-ken-paxton-files-100th-lawsuit-against-biden-administration/',
+                publisher='Dallas Morning News',
+                quality_score=0.8,
+            ),
+        ),
+    ),
+)
+
 
 def _pick_primary_seed(issue_tag: str | None) -> SourceSeed:
     if issue_tag and issue_tag in PRIMARY_BY_ISSUE:
@@ -97,6 +166,14 @@ def _pick_secondary_seed(issue_tag: str | None) -> SourceSeed:
     if issue_tag and issue_tag in SECONDARY_BY_ISSUE:
         return SECONDARY_BY_ISSUE[issue_tag][0]
     return SECONDARY_GENERIC[0]
+
+
+def _matching_targeted_seeds(claim_text: str, source_class: SourceClass) -> tuple[SourceSeed, ...]:
+    lowered = claim_text.lower()
+    for needle, primary_seeds, secondary_seeds in CLAIM_TARGETED_SEEDS:
+        if needle.lower() in lowered:
+            return primary_seeds if source_class == SourceClass.primary else secondary_seeds
+    return ()
 
 
 def _attach_seed(db: Session, claim_id: uuid.UUID, source_class: SourceClass, seed: SourceSeed) -> bool:
@@ -139,14 +216,18 @@ def run_attach_pass(db: Session, *, limit: int = 500) -> dict[str, int]:
         touched = False
 
         if SourceClass.primary in item['missing_source_classes']:
-            attached = _attach_seed(db, claim_id, SourceClass.primary, _pick_primary_seed(issue_tag))
-            primary_attached += int(attached)
-            touched = touched or attached
+            primary_seeds = _matching_targeted_seeds(item['claim_text'], SourceClass.primary) or (_pick_primary_seed(issue_tag),)
+            for seed in primary_seeds:
+                attached = _attach_seed(db, claim_id, SourceClass.primary, seed)
+                primary_attached += int(attached)
+                touched = touched or attached
 
         if SourceClass.secondary in item['missing_source_classes']:
-            attached = _attach_seed(db, claim_id, SourceClass.secondary, _pick_secondary_seed(issue_tag))
-            secondary_attached += int(attached)
-            touched = touched or attached
+            secondary_seeds = _matching_targeted_seeds(item['claim_text'], SourceClass.secondary) or (_pick_secondary_seed(issue_tag),)
+            for seed in secondary_seeds:
+                attached = _attach_seed(db, claim_id, SourceClass.secondary, seed)
+                secondary_attached += int(attached)
+                touched = touched or attached
 
         claims_touched += int(touched)
 
