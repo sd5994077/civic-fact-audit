@@ -60,6 +60,20 @@ Deliver a local MVP that can ingest candidate statements, extract claims, attach
 - At least 10 seeded claims can be evaluated end-to-end.
 - Score endpoint returns transparent formulas and inputs.
 
+## Post-MVP Expansion
+- Treat `Texas 2026 U.S. Senate` as the first live race implementation, not the final scope.
+- Generalize race intake so roster ingestion, statement ingestion, evidence attachment, and review can be repeated for other priority campaigns.
+- Expand coverage deliberately by race and stage:
+  - Senate primary
+  - Senate runoff
+  - General election
+  - Other high-priority federal and statewide campaigns
+- Add race-priority criteria before broad expansion:
+  - public importance
+  - source availability
+  - reviewer capacity
+  - evidence traceability
+
 ## Risks
 - Source quality inconsistency.
 - AI extraction drift across topics.

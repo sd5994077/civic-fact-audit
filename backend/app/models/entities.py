@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.database import Base
-from app.models.enums import ClaimStatus, SourceClass, StatementSourceType, Verdict
+from app.models.enums import ClaimStatus, RaceStage, SourceClass, StatementSourceType, Verdict
 
 
 class TimestampMixin:
@@ -27,6 +27,8 @@ class Candidate(TimestampMixin, Base):
     party: Mapped[str | None] = mapped_column(String(128), nullable=True)
     office: Mapped[str | None] = mapped_column(String(255), nullable=True)
     state: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    election_cycle: Mapped[int | None] = mapped_column(nullable=True)
+    race_stage: Mapped[RaceStage | None] = mapped_column(Enum(RaceStage, name='race_stage'), nullable=True)
 
     statements: Mapped[list['Statement']] = relationship(back_populates='candidate', cascade='all, delete-orphan')
     score_snapshots: Mapped[list['ScoreSnapshot']] = relationship(back_populates='candidate', cascade='all, delete-orphan')

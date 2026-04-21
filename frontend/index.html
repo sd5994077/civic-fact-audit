@@ -3,8 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>Civic Fact Audit Prototype</title>
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles.css?v=20260421c">
 </head>
 <body>
   <div class="app-shell">
@@ -34,7 +37,7 @@
     <main class="workspace">
       <header class="hero">
         <div class="hero-copy">
-          <p class="eyebrow">Texas US Senate (Example)</p>
+          <p class="eyebrow">Texas US Senate Primary 2026 (Example)</p>
           <h2>Truth should survive direct comparison.</h2>
           <p class="hero-text">
             This version treats the page as a public fact-check surface. It compares candidate claims,
@@ -46,7 +49,7 @@
         <div class="hero-flags" aria-label="Race context">
           <div>
             <span class="metric-label">Race</span>
-            <strong id="race-label">Texas US Senate (seed example)</strong>
+            <strong id="race-label">Texas US Senate Primary 2026 (seed example)</strong>
           </div>
           <div>
             <span class="metric-label">Focus</span>
@@ -59,81 +62,7 @@
         </div>
       </header>
 
-      <section class="candidate-stage candidate-stage-two" aria-label="Candidates side by side">
-        <article class="candidate-card candidate-card-a">
-          <div class="candidate-topline">
-            <img class="portrait-image" src="./assets/candidate-a.svg" alt="Candidate A portrait placeholder">
-            <div>
-              <p class="card-kicker">Candidate A</p>
-              <h3 id="candidate-a-name">Candidate A</h3>
-              <p class="candidate-role" id="candidate-a-role">US Senate</p>
-            </div>
-          </div>
-
-          <div class="truth-score truth-score-strong">
-            <span>Most supported claims</span>
-            <strong id="candidate-a-supported-rate">--%</strong>
-            <small id="candidate-a-supported-note">Loading from API...</small>
-          </div>
-
-          <div class="score-breakdown">
-            <div>
-              <span class="breakdown-label">Supported</span>
-              <strong id="candidate-a-supported-n">--</strong>
-            </div>
-            <div>
-              <span class="breakdown-label">Misleading</span>
-              <strong id="candidate-a-mixed-n">--</strong>
-            </div>
-            <div>
-              <span class="breakdown-label">Unverified</span>
-              <strong id="candidate-a-insufficient-n">--</strong>
-            </div>
-          </div>
-
-          <div class="policy-block">
-            <span class="section-label">Top issues in this view</span>
-            <ul id="candidate-a-issue-list"></ul>
-          </div>
-        </article>
-
-        <article class="candidate-card candidate-card-b candidate-card-alert">
-          <div class="candidate-topline">
-            <img class="portrait-image" src="./assets/candidate-b.svg" alt="Candidate B portrait placeholder">
-            <div>
-              <p class="card-kicker">Candidate B</p>
-              <h3 id="candidate-b-name">Candidate B</h3>
-              <p class="candidate-role" id="candidate-b-role">US Senate</p>
-            </div>
-          </div>
-
-          <div class="truth-score truth-score-alert">
-            <span>Most contradicted or unverified</span>
-            <strong id="candidate-b-supported-rate">--%</strong>
-            <small id="candidate-b-supported-note">Loading from API...</small>
-          </div>
-
-          <div class="score-breakdown">
-            <div>
-              <span class="breakdown-label">Supported</span>
-              <strong id="candidate-b-supported-n">--</strong>
-            </div>
-            <div>
-              <span class="breakdown-label">Misleading</span>
-              <strong id="candidate-b-mixed-n">--</strong>
-            </div>
-            <div>
-              <span class="breakdown-label">Unverified</span>
-              <strong id="candidate-b-insufficient-n">--</strong>
-            </div>
-          </div>
-
-          <div class="policy-block">
-            <span class="section-label">Top issues in this view</span>
-            <ul id="candidate-b-issue-list"></ul>
-          </div>
-        </article>
-      </section>
+      <section class="candidate-stage" id="candidate-cards" aria-label="Candidates side by side"></section>
 
       <section class="contrast-band contrast-band-four" aria-label="Race contrast">
         <article>
@@ -192,6 +121,6 @@
     </main>
   </div>
 
-  <script src="./app.js"></script>
+  <script src="./app.js?v=20260421c"></script>
 </body>
 </html>

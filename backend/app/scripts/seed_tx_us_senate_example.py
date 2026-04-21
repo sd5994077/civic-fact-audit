@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.db.database import SessionLocal, get_engine
 from app.models.entities import Candidate, Claim, ClaimEvaluation, Source, Statement
-from app.models.enums import ClaimStatus, SourceClass, StatementSourceType, Verdict
+from app.models.enums import ClaimStatus, RaceStage, SourceClass, StatementSourceType, Verdict
 
 
 @dataclass(frozen=True)
@@ -34,13 +34,24 @@ class SeedClaim:
     sources_secondary: list[str]
 
 
-def _get_or_create_candidate(db: Session, *, name: str, party: str | None, office: str, state: str) -> Candidate:
+def _get_or_create_candidate(
+    db: Session,
+    *,
+    name: str,
+    party: str | None,
+    office: str,
+    state: str,
+    election_cycle: int,
+    race_stage: RaceStage,
+) -> Candidate:
     existing = (
         db.execute(
             select(Candidate).where(
                 Candidate.name == name,
                 Candidate.office == office,
                 Candidate.state == state,
+                Candidate.election_cycle == election_cycle,
+                Candidate.race_stage == race_stage,
             )
         )
         .scalars()
@@ -49,7 +60,14 @@ def _get_or_create_candidate(db: Session, *, name: str, party: str | None, offic
     if existing is not None:
         return existing
 
-    candidate = Candidate(name=name, party=party, office=office, state=state)
+    candidate = Candidate(
+        name=name,
+        party=party,
+        office=office,
+        state=state,
+        election_cycle=election_cycle,
+        race_stage=race_stage,
+    )
     db.add(candidate)
     db.commit()
     db.refresh(candidate)
@@ -120,10 +138,28 @@ def main() -> None:
     try:
         office = 'US Senate'
         state = 'TX'
+        election_cycle = 2026
+        race_stage = RaceStage.primary
 
         # Example candidates for UI wiring only.
-        candidate_a = _get_or_create_candidate(db, name='Candidate A (Example)', party='Example', office=office, state=state)
-        candidate_b = _get_or_create_candidate(db, name='Candidate B (Example)', party='Example', office=office, state=state)
+        candidate_a = _get_or_create_candidate(
+            db,
+            name='Candidate A (Example)',
+            party='Example',
+            office=office,
+            state=state,
+            election_cycle=election_cycle,
+            race_stage=race_stage,
+        )
+        candidate_b = _get_or_create_candidate(
+            db,
+            name='Candidate B (Example)',
+            party='Example',
+            office=office,
+            state=state,
+            election_cycle=election_cycle,
+            race_stage=race_stage,
+        )
 
         published = datetime(2026, 4, 1, 12, 0, tzinfo=timezone.utc)
 
@@ -224,4 +260,3 @@ def main() -> None:
 
 if __name__ == '__main__':
     main()
-

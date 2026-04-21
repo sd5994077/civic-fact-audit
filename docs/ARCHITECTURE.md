@@ -18,3 +18,4 @@
 - Deterministic scoring with transparent formulas.
 - Immutable source provenance where possible.
 - Separation of extraction vs adjudication.
+- Race context should be explicit (`state`, `office`, `election_cycle`, `race_stage`) so comparisons do not mix primary and general-election records.

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
 from app.models.entities import Candidate, Claim, ClaimEvaluation, Source, Statement
-from app.models.enums import Verdict
+from app.models.enums import RaceStage, Verdict
 from app.schemas.api import CandidateRead, CompareClaimItem, CompareIssue, CompareRaceMeta, CompareResponse, SourceRead
 
 
@@ -53,10 +53,30 @@ def _pick_representatives(rows: list[_CompareRow]) -> dict[tuple[uuid.UUID, str]
 
 class ComparisonService:
     @staticmethod
+    def _candidate_filters(
+        *,
+        state: str,
+        office: str,
+        election_cycle: int | None,
+        race_stage: RaceStage | None,
+    ) -> list[object]:
+        filters: list[object] = [
+            func.lower(Candidate.state) == state.strip().lower(),
+            func.lower(Candidate.office) == office.strip().lower(),
+        ]
+        if election_cycle is not None:
+            filters.append(Candidate.election_cycle == election_cycle)
+        if race_stage is not None:
+            filters.append(Candidate.race_stage == race_stage)
+        return filters
+
+    @staticmethod
     def compare_office_state(
         db: Session,
         state: str,
         office: str,
+        election_cycle: int | None,
+        race_stage: RaceStage | None,
         limit_issues: int,
         window_start: datetime,
         window_end: datetime,
@@ -67,7 +87,14 @@ class ComparisonService:
         candidates = (
             db.execute(
                 select(Candidate)
-                .where(func.lower(Candidate.state) == state.strip().lower(), func.lower(Candidate.office) == office.strip().lower())
+                .where(
+                    *ComparisonService._candidate_filters(
+                        state=state,
+                        office=office,
+                        election_cycle=election_cycle,
+                        race_stage=race_stage,
+                    )
+                )
                 .order_by(Candidate.name.asc())
             )
             .scalars()
@@ -78,7 +105,13 @@ class ComparisonService:
                 'insufficient_candidates',
                 'Need at least two candidates for a comparison in the requested state/office.',
                 status_code=404,
-                details={'state': state, 'office': office, 'found': len(candidates)},
+                details={
+                    'state': state,
+                    'office': office,
+                    'election_cycle': election_cycle,
+                    'race_stage': race_stage,
+                    'found': len(candidates),
+                },
             )
 
         candidate_ids = [c.id for c in candidates]
@@ -189,6 +222,8 @@ class ComparisonService:
         meta = CompareRaceMeta(
             state=state,
             office=office,
+            election_cycle=election_cycle,
+            race_stage=race_stage,
             as_of=datetime.now(timezone.utc),
             disclaimer=(
                 'This comparison is evidence-traceable, not an endorsement. '

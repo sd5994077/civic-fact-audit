@@ -1,4 +1,4 @@
-const API_COMPARE_URL = "/api/v1/compare?state=TX&office=US%20Senate&limit_issues=8";
+const API_COMPARE_URL = "/api/v1/compare?state=TX&office=US%20Senate&election_cycle=2026&limit_issues=8";
 
 function $(id) {
   return document.getElementById(id);
@@ -29,6 +29,24 @@ function shortName(full) {
   return parts[0];
 }
 
+function formatCandidateContext(candidate, race) {
+  const party = candidate.party || "Unlisted";
+  const stage = candidate.race_stage ? String(candidate.race_stage).replaceAll("_", " ") : "current stage";
+  const office = candidate.office || race.office;
+  const state = candidate.state || race.state;
+  return `${party} | ${office} | ${state} | ${stage}`;
+}
+
+function initials(full) {
+  const name = String(full || "").trim();
+  if (!name) return "C";
+  return name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || "")
+    .join("");
+}
+
 function formatPct(n) {
   if (!Number.isFinite(n)) return "--%";
   return `${Math.round(n * 100)}%`;
@@ -57,69 +75,93 @@ function tallyVerdicts(compare) {
 }
 
 function renderTopCards(compare) {
-  const candidates = compare.candidates.slice(0, 2);
-  if (candidates.length < 2) return;
-
-  const byId = new Map(candidates.map((c) => [c.id, c]));
+  const candidates = compare.candidates;
+  if (candidates.length === 0) return;
   const countsByCandidate = tallyVerdicts(compare);
 
-  const [a, b] = candidates;
-  const aCounts = countsByCandidate.get(a.id);
-  const bCounts = countsByCandidate.get(b.id);
-
-  $("race-label").textContent = `${compare.race.state} ${compare.race.office} (example)`;
-
-  $("candidate-a-name").textContent = a.name;
-  // Use an ASCII separator to avoid encoding artifacts in some Windows shells/editors.
-  $("candidate-a-role").textContent = `${a.office || compare.race.office} | ${a.state || compare.race.state}`;
-  $("candidate-b-name").textContent = b.name;
-  $("candidate-b-role").textContent = `${b.office || compare.race.office} | ${b.state || compare.race.state}`;
-
-  const aRate = aCounts && aCounts.total ? aCounts.supported / aCounts.total : NaN;
-  const bRate = bCounts && bCounts.total ? bCounts.supported / bCounts.total : NaN;
-
-  $("candidate-a-supported-rate").textContent = formatPct(aRate);
-  $("candidate-b-supported-rate").textContent = formatPct(bRate);
-  $("candidate-a-supported-note").textContent = "Supported share among the issues shown below.";
-  $("candidate-b-supported-note").textContent = "Supported share among the issues shown below.";
-
-  $("candidate-a-supported-n").textContent = aCounts ? String(aCounts.supported) : "--";
-  $("candidate-a-mixed-n").textContent = aCounts ? String(aCounts.mixed) : "--";
-  $("candidate-a-insufficient-n").textContent = aCounts ? String(aCounts.insufficient) : "--";
-
-  $("candidate-b-supported-n").textContent = bCounts ? String(bCounts.supported) : "--";
-  $("candidate-b-mixed-n").textContent = bCounts ? String(bCounts.mixed) : "--";
-  $("candidate-b-insufficient-n").textContent = bCounts ? String(bCounts.insufficient) : "--";
-
   const topTags = compare.issues.map((i) => i.issue_tag).slice(0, 5);
-  const aList = $("candidate-a-issue-list");
-  const bList = $("candidate-b-issue-list");
-  aList.innerHTML = "";
-  bList.innerHTML = "";
-  for (const tag of topTags) {
-    aList.insertAdjacentHTML("beforeend", `<li>${escapeHtml(tag)}</li>`);
-    bList.insertAdjacentHTML("beforeend", `<li>${escapeHtml(tag)}</li>`);
-  }
+  const cards = $("candidate-cards");
+  cards.dataset.count = String(candidates.length);
+
+  $("race-label").textContent = `${compare.race.state} ${compare.race.office} ${compare.race.election_cycle ?? ""}`.trim();
+
+  cards.innerHTML = candidates
+    .map((candidate, idx) => {
+      const counts = countsByCandidate.get(candidate.id) || { supported: 0, mixed: 0, unsupported: 0, insufficient: 0, total: 0 };
+      const supportedRate = counts.total ? counts.supported / counts.total : NaN;
+      const contradictedRate = counts.total ? ((counts.unsupported || 0) + (counts.insufficient || 0)) / counts.total : NaN;
+      const scoreTone = idx === 0 ? "truth-score-strong" : idx === 1 ? "truth-score-alert" : "truth-score-neutral";
+      const portraitTone = ["portrait-a", "portrait-b", "portrait-c", "portrait-d"][idx % 4];
+      const topLine = idx === 0 ? "Most supported claims" : idx === 1 ? "Most contradicted or unverified" : "Current reviewed share";
+      const topValue = idx <= 1 ? (idx === 0 ? formatPct(supportedRate) : formatPct(contradictedRate)) : formatPct(supportedRate);
+      const note =
+        idx === 0
+          ? "Supported share among the issues shown below."
+          : idx === 1
+            ? "Contradicted or unverified share among the issues shown below."
+            : "Supported share among currently reviewed claims in this view.";
+
+      return `
+        <article class="candidate-card ${idx === 1 ? "candidate-card-alert" : ""}">
+          <div class="candidate-topline">
+            <div class="portrait ${portraitTone}">${escapeHtml(initials(candidate.name))}</div>
+            <div>
+              <p class="card-kicker">Candidate ${escapeHtml(String.fromCharCode(65 + idx))}</p>
+              <h3>${escapeHtml(candidate.name)}</h3>
+              <p class="candidate-role">${escapeHtml(formatCandidateContext(candidate, compare.race))}</p>
+            </div>
+          </div>
+
+          <div class="truth-score ${scoreTone}">
+            <span>${escapeHtml(topLine)}</span>
+            <strong>${escapeHtml(topValue)}</strong>
+            <small>${escapeHtml(note)}</small>
+          </div>
+
+          <div class="score-breakdown">
+            <div>
+              <span class="breakdown-label">Supported</span>
+              <strong>${escapeHtml(String(counts.supported))}</strong>
+            </div>
+            <div>
+              <span class="breakdown-label">Misleading</span>
+              <strong>${escapeHtml(String(counts.mixed))}</strong>
+            </div>
+            <div>
+              <span class="breakdown-label">Unverified</span>
+              <strong>${escapeHtml(String(counts.insufficient))}</strong>
+            </div>
+          </div>
+
+          <div class="policy-block">
+            <span class="section-label">Top issues in this view</span>
+            <ul>${topTags.map((tag) => `<li>${escapeHtml(tag)}</li>`).join("")}</ul>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
 }
 
 function renderContrastBand(compare) {
-  const candidates = compare.candidates.slice(0, 2);
+  const candidates = compare.candidates;
   if (candidates.length < 2) return;
-  const [a, b] = candidates;
 
   const countsByCandidate = tallyVerdicts(compare);
-  const aCounts = countsByCandidate.get(a.id);
-  const bCounts = countsByCandidate.get(b.id);
-  if (!aCounts || !bCounts) return;
-
   const safeRate = (num, den) => (den > 0 ? num / den : NaN);
-  const supportedRate = (bucket) => safeRate(bucket.supported, bucket.total);
-  const contradictedRate = (bucket) => safeRate((bucket.unsupported || 0) + (bucket.insufficient || 0), bucket.total);
-  const unverifiedRate = (bucket) => safeRate(bucket.insufficient || 0, bucket.total);
+  const supportedRate = (bucket) => safeRate(bucket?.supported || 0, bucket?.total || 0);
+  const contradictedRate = (bucket) => safeRate((bucket?.unsupported || 0) + (bucket?.insufficient || 0), bucket?.total || 0);
+  const unverifiedRate = (bucket) => safeRate(bucket?.insufficient || 0, bucket?.total || 0);
 
-  const mostSupported = supportedRate(aCounts) >= supportedRate(bCounts) ? a : b;
-  const mostContradicted = contradictedRate(aCounts) >= contradictedRate(bCounts) ? a : b;
-  const mostUnverified = unverifiedRate(aCounts) >= unverifiedRate(bCounts) ? a : b;
+  const mostSupported = candidates.reduce((best, candidate) =>
+    supportedRate(countsByCandidate.get(candidate.id)) >= supportedRate(countsByCandidate.get(best.id)) ? candidate : best
+  );
+  const mostContradicted = candidates.reduce((best, candidate) =>
+    contradictedRate(countsByCandidate.get(candidate.id)) >= contradictedRate(countsByCandidate.get(best.id)) ? candidate : best
+  );
+  const mostUnverified = candidates.reduce((best, candidate) =>
+    unverifiedRate(countsByCandidate.get(candidate.id)) >= unverifiedRate(countsByCandidate.get(best.id)) ? candidate : best
+  );
 
   const ms = $("contrast-most-supported");
   if (ms) ms.textContent = mostSupported.name;
@@ -130,9 +172,8 @@ function renderContrastBand(compare) {
 
   let splitTag = "";
   for (const issue of compare.issues || []) {
-    const aItem = issue.items?.find((it) => it.candidate_id === a.id);
-    const bItem = issue.items?.find((it) => it.candidate_id === b.id);
-    if (aItem && bItem && aItem.verdict !== bItem.verdict) {
+    const verdicts = new Set(issue.items.map((it) => it.verdict));
+    if (verdicts.size > 1) {
       splitTag = issue.issue_tag;
       break;
     }
@@ -143,33 +184,30 @@ function renderContrastBand(compare) {
   const tsNote = $("contrast-tightest-split-note");
   if (tsNote) {
     tsNote.textContent = splitTag
-      ? `First visible split: ${a.name} vs ${b.name} differ on this issue in the current window.`
+      ? "At least two candidates diverge on this issue in the current window."
       : "Pick an issue below to see the direct, side-by-side record.";
   }
 }
 
 function renderIssueList(compare, selectedIndex) {
   const container = $("issue-list");
-  const candidates = compare.candidates.slice(0, 2);
-  const [a, b] = candidates;
+  const candidates = compare.candidates;
 
   const rows = compare.issues
     .map((issue, idx) => {
       const isSelected = idx === selectedIndex;
-      const aItem = issue.items.find((it) => it.candidate_id === a.id);
-      const bItem = issue.items.find((it) => it.candidate_id === b.id);
-
-      const aTag = aItem
-        ? `<span class="mini-tag ${verdictClass(aItem.verdict)}">${escapeHtml(shortName(a.name))}: ${escapeHtml(aItem.verdict)}</span>`
-        : "";
-      const bTag = bItem
-        ? `<span class="mini-tag ${verdictClass(bItem.verdict)}">${escapeHtml(shortName(b.name))}: ${escapeHtml(bItem.verdict)}</span>`
-        : "";
+      const tags = candidates
+        .map((candidate) => {
+          const item = issue.items.find((it) => it.candidate_id === candidate.id);
+          if (!item) return "";
+          return `<span class="mini-tag ${verdictClass(item.verdict)}">${escapeHtml(shortName(candidate.name))}: ${escapeHtml(item.verdict)}</span>`;
+        })
+        .join("");
 
       return `
         <button class="issue-row ${isSelected ? "is-selected" : ""}" type="button" data-issue="${idx}">
           <span class="issue-name">${escapeHtml(issue.issue_tag)}</span>
-          <span class="issue-tags">${aTag}${bTag}</span>
+          <span class="issue-tags">${tags}</span>
         </button>
       `;
     })
@@ -209,12 +247,13 @@ function renderSources(sources) {
 
 function renderPanel(compare, issueIndex) {
   const issue = compare.issues[issueIndex];
-  const candidates = compare.candidates.slice(0, 2);
-  if (!issue || candidates.length < 2) return;
+  const candidates = compare.candidates;
+  if (!issue || candidates.length === 0) return;
 
   $("panel-title").textContent = issue.issue_tag;
   $("panel-summary").textContent = compare.race.disclaimer;
   $("panel-stamp").textContent = `As of ${formatAsOf(compare.race.as_of)}`;
+  $("panel-side-by-side").style.setProperty("--panel-cols", String(Math.min(candidates.length, 3)));
 
   const html = candidates
     .map((c, idx) => {
@@ -222,8 +261,9 @@ function renderPanel(compare, issueIndex) {
       if (!item) {
         return `
           <article class="stance">
-            <span class="stance-label">${escapeHtml(idx === 0 ? "Candidate A" : "Candidate B")}</span>
+            <span class="stance-label">${escapeHtml(c.party || `Candidate ${String.fromCharCode(65 + idx)}`)}</span>
             <p><strong>${escapeHtml(c.name)}</strong></p>
+            <small>${escapeHtml(formatCandidateContext(c, compare.race))}</small>
             <p>No evaluated claim available for this issue in the selected window.</p>
           </article>
         `;
@@ -239,8 +279,9 @@ function renderPanel(compare, issueIndex) {
 
       return `
         <article class="stance ${stanceClass(item.verdict)}">
-          <span class="stance-label">${escapeHtml(idx === 0 ? "Candidate A" : "Candidate B")}</span>
+          <span class="stance-label">${escapeHtml(c.party || `Candidate ${String.fromCharCode(65 + idx)}`)}</span>
           <p><strong>${escapeHtml(c.name)}</strong></p>
+          <small>${escapeHtml(formatCandidateContext(c, compare.race))}</small>
           <div class="issue-tags">${verdictPill}</div>
           <p>${escapeHtml(item.claim_text)}</p>
           <small>${escapeHtml(item.rationale)}</small>
@@ -276,7 +317,7 @@ async function init() {
   } catch (err) {
     $("panel-title").textContent = "API not reachable";
     $("panel-summary").textContent =
-      "Start the stack with `docker compose up -d --build` and seed data with `docker compose run --rm api python -m app.scripts.seed_tx_us_senate_example`.";
+      "Start the stack with `docker compose up -d --build` and load the Texas 2026 scripts before opening the compare page.";
     $("panel-stamp").textContent = "No API response";
   }
 }

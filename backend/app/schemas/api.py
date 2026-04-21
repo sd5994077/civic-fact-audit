@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, HttpUrl
 
-from app.models.enums import ClaimStatus, SourceClass, StatementSourceType, Verdict
+from app.models.enums import ClaimStatus, RaceStage, SourceClass, StatementSourceType, Verdict
 
 
 class ErrorPayload(BaseModel):
@@ -22,6 +22,8 @@ class CandidateCreate(BaseModel):
     party: str | None = Field(default=None, max_length=128)
     office: str | None = Field(default=None, max_length=255)
     state: str | None = Field(default=None, max_length=32)
+    election_cycle: int | None = Field(default=None, ge=1900, le=2100)
+    race_stage: RaceStage | None = None
 
 
 class CandidateRead(BaseModel):
@@ -30,6 +32,8 @@ class CandidateRead(BaseModel):
     party: str | None
     office: str | None
     state: str | None
+    election_cycle: int | None
+    race_stage: RaceStage | None
     created_at: datetime
 
 
@@ -133,9 +137,53 @@ class SourceListResponse(BaseModel):
     sources: list[SourceRead]
 
 
+class BulkSourceAttachItem(BaseModel):
+    claim_id: uuid.UUID
+    url: HttpUrl
+    source_class: SourceClass
+    publisher: str | None = Field(default=None, max_length=255)
+    quality_score: float = Field(ge=0, le=1)
+
+
+class BulkSourceAttachResultItem(BaseModel):
+    claim_id: uuid.UUID
+    url: str
+    source_class: SourceClass
+    status: str
+    error: ErrorPayload | None = None
+
+
+class BulkSourceAttachResponse(BaseModel):
+    total: int
+    attached: int
+    failed: int
+    results: list[BulkSourceAttachResultItem]
+
+
+class EvidenceQueueItem(BaseModel):
+    claim_id: uuid.UUID
+    claim_text: str
+    issue_tag: str | None
+    status: ClaimStatus
+    statement_source_url: str
+    statement_published_at: datetime
+    candidate_id: uuid.UUID
+    candidate_name: str
+    candidate_party: str | None
+    candidate_office: str | None
+    candidate_state: str | None
+    election_cycle: int | None
+    race_stage: RaceStage | None
+    primary_source_count: int
+    secondary_source_count: int
+    missing_source_classes: list[SourceClass]
+
+
 class CompareRaceMeta(BaseModel):
     state: str
     office: str
+    election_cycle: int | None = None
+    race_stage: RaceStage | None = None
     as_of: datetime
     disclaimer: str
 

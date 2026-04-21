@@ -25,3 +25,10 @@ class Verdict(StrEnum):
     mixed = 'mixed'
     unsupported = 'unsupported'
     insufficient = 'insufficient'
+
+
+class RaceStage(StrEnum):
+    primary = 'primary'
+    primary_runoff = 'primary_runoff'
+    general = 'general'
+    special = 'special'

@@ -8,6 +8,8 @@ All tables include `created_at` and `updated_at` audit timestamps.
 - `party`
 - `office`
 - `state`
+- `election_cycle` (e.g. `2026`)
+- `race_stage` (`primary`/`primary_runoff`/`general`/`special`)
 - `created_at`
 - `updated_at`
 

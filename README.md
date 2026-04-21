@@ -57,7 +57,31 @@ A standalone project to track political candidate claims, verify them against cr
    ```bash
    docker compose run --rm api python -m app.scripts.seed_tx_us_senate_example
    ```
-4. Open:
+4. Ingest Texas 2026 roster snapshot:
+   ```bash
+   docker compose run --rm api python -m app.scripts.ingest_tx_2026_senate_roster
+   ```
+5. Ingest first Texas 2026 statement batch:
+   ```bash
+   docker compose run --rm api python -m app.scripts.ingest_tx_2026_statement_batch
+   ```
+6. Ingest second Texas 2026 statement batch (social/interview/debate):
+   ```bash
+   docker compose run --rm api python -m app.scripts.ingest_tx_2026_statement_batch_round2
+   ```
+7. Run Texas 2026 claim extraction batch:
+   ```bash
+   docker compose run --rm api python -m app.scripts.extract_tx_2026_claims_batch
+   ```
+8. Generate Texas 2026 evidence queue report:
+   ```bash
+   docker compose run --rm api python -m app.scripts.generate_tx_2026_evidence_queue_report
+   ```
+9. Attach first-pass Texas 2026 evidence sources for missing claims:
+   ```bash
+   docker compose run --rm api python -m app.scripts.attach_tx_2026_evidence_batch
+   ```
+10. Open:
    - API: `http://localhost:8000/health`
    - Web UI: `http://localhost:3001`
 
@@ -98,6 +122,13 @@ civic-fact-audit/
 - FastAPI MVP with versioned `v1` routes for candidates, statements, claims, evidence, evaluations, and scores.
 - Postgres schema + Alembic migration for the MVP entities.
 - Structured error responses across endpoints.
+- Candidate race context (`election_cycle`, `race_stage`) and race-aware candidate listing endpoint (`GET /v1/candidates` filters).
+- Texas 2026 U.S. Senate roster ingest script for repeatable race setup.
+- Texas 2026 statement batch ingest script to seed traceable source-backed statement records.
+- Texas 2026 second statement batch and batch claim extraction runner for repeatable intake progression.
+- Evidence queue endpoint (`GET /v1/claims/evidence-queue`) and Texas queue report script for source-attachment triage.
+- Bulk source attach endpoint (`POST /v1/claims/sources/bulk`) for reviewer batch operations.
+- Texas 2026 evidence attachment batch script to reduce missing-source queue items.
 - Scoring service with transparent numerators/denominators and formula versioning.
 - Unit tests for score calculations and denominator policy behavior.
 

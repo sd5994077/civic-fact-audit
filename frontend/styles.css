@@ -12,6 +12,9 @@
   --danger: #ff6f61;
   --neutral: #8ab7ff;
   --shadow: 0 24px 90px rgba(0, 0, 0, 0.35);
+  --label-size: 0.78rem;
+  --label-line: 1.42;
+  --label-track: 0.16em;
 }
 
 * {
@@ -86,9 +89,10 @@ body::before {
 .stance-label {
   display: block;
   margin-bottom: 0.45rem;
-  font-size: 0.72rem;
+  font-size: var(--label-size);
   font-weight: 700;
-  letter-spacing: 0.18em;
+  line-height: var(--label-line);
+  letter-spacing: var(--label-track);
   text-transform: uppercase;
 }
 
@@ -148,10 +152,10 @@ body::before {
 }
 
 .workspace {
-  padding: 2rem;
+  padding: 2.2rem 2.6rem;
   width: 100%;
-  max-width: 1320px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
 }
 
 .hero,
@@ -178,8 +182,8 @@ body::before {
 .hero {
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(260px, 0.85fr);
-  gap: 2rem;
-  padding: 2rem;
+  gap: 2.4rem;
+  padding: 2.2rem;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background:
     linear-gradient(135deg, rgba(255, 93, 45, 0.09), transparent 42%),
@@ -189,7 +193,7 @@ body::before {
 
 .hero-copy h2 {
   max-width: 12ch;
-  font-size: clamp(2.9rem, 5vw, 5rem);
+  font-size: clamp(3.2rem, 5.4vw, 5.5rem);
   line-height: 0.92;
 }
 
@@ -219,21 +223,46 @@ body::before {
 .candidate-stage {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
-  margin-top: 1rem;
-}
-
-.candidate-stage-two {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.4rem;
+  margin-top: 1.2rem;
 }
 
 .candidate-card {
   position: relative;
+  min-width: 0;
+  display: grid;
+  gap: 1.05rem;
+  font-size: 1.05rem;
   overflow: hidden;
-  padding: 1.35rem;
+  padding: 1.55rem;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: var(--panel);
   box-shadow: var(--shadow);
+  min-height: 360px;
+}
+
+.candidate-stage[data-count="1"] {
+  grid-template-columns: 1fr;
+}
+
+.candidate-stage[data-count="2"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.candidate-card h3,
+.issue-name,
+.contrast-band strong,
+.panel-summary {
+  overflow-wrap: anywhere;
+}
+
+.candidate-card h3 {
+  font-size: 1.65rem;
+  line-height: 1.08;
+}
+
+.candidate-role {
+  font-size: 1rem;
 }
 
 .candidate-card::after {
@@ -291,8 +320,12 @@ body::before {
   background: linear-gradient(135deg, #375544, #67a687);
 }
 
+.portrait-d {
+  background: linear-gradient(135deg, #6c4b1f, #d0a45d);
+}
+
 .truth-score {
-  margin-top: 1.2rem;
+  margin-top: 0;
   padding: 1rem 0 1rem;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
@@ -300,9 +333,15 @@ body::before {
 
 .truth-score span {
   display: block;
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
+}
+
+.truth-score strong {
+  font-size: 2.2rem;
+  line-height: 1;
+  margin-top: 0.25rem;
 }
 
 .truth-score-strong strong {
@@ -328,42 +367,54 @@ body::before {
 .score-breakdown > div {
   padding: 0.85rem 0.7rem;
   background: rgba(255, 255, 255, 0.03);
+  min-width: 0;
 }
 
 .breakdown-label {
   display: block;
   margin-bottom: 0.3rem;
-  font-size: 0.7rem;
-  letter-spacing: 0.14em;
+  font-size: var(--label-size);
+  line-height: var(--label-line);
+  letter-spacing: var(--label-track);
   text-transform: uppercase;
   color: var(--muted);
 }
 
 .score-breakdown strong {
-  font-size: 1.35rem;
+  font-size: 1.65rem;
 }
 
 .policy-block ul {
   margin: 0.6rem 0 0;
   padding-left: 1rem;
-  line-height: 1.65;
+  line-height: 1.75;
 }
 
 .policy-block li {
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.3rem;
+}
+
+.policy-block .section-label {
+  font-size: var(--label-size);
+  line-height: var(--label-line);
+  letter-spacing: var(--label-track);
+  margin-bottom: 0.5rem;
 }
 
 .contrast-band {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1px;
-  margin-top: 1rem;
+  margin-top: 1.35rem;
   background: rgba(255, 255, 255, 0.08);
 }
 
 .contrast-band article {
-  padding: 1.2rem 1.1rem;
+  padding: 1.35rem 1.2rem;
+  font-size: 1.05rem;
   background: rgba(14, 20, 31, 0.82);
+  min-width: 0;
+  min-height: 150px;
 }
 
 .contrast-alert {
@@ -374,11 +425,12 @@ body::before {
 
 .contrast-band-four {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: stretch;
 }
 
 .compare-board {
-  margin-top: 1rem;
-  padding: 1.5rem;
+  margin-top: 1.35rem;
+  padding: 1.75rem;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(10, 16, 24, 0.82);
   box-shadow: var(--shadow);
@@ -407,6 +459,8 @@ body::before {
   font-size: 0.76rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .legend-supported,
@@ -439,6 +493,7 @@ body::before {
 
 .issue-row {
   width: 100%;
+  min-width: 0;
   display: grid;
   gap: 0.75rem;
   padding: 1rem 0.6rem;
@@ -476,11 +531,13 @@ body::before {
   display: flex;
   flex-wrap: wrap;
   gap: 0.45rem;
+  align-items: flex-start;
 }
 
 .evidence-panel {
   display: grid;
   gap: 1rem;
+  min-width: 0;
   padding-left: 1.2rem;
   border-left: 1px solid var(--line);
 }
@@ -511,7 +568,7 @@ body::before {
 .evidence-stack,
 .source-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--panel-cols, 2), minmax(0, 1fr));
   gap: 1rem;
 }
 
@@ -555,6 +612,7 @@ body::before {
   display: grid;
   gap: 0.35rem;
   padding: 1rem;
+  min-width: 0;
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.02);
   color: var(--ink);
@@ -608,6 +666,7 @@ body::before {
 .evidence-card {
   display: grid;
   gap: 0.65rem;
+  min-width: 0;
   padding: 1rem;
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.02);
@@ -671,7 +730,7 @@ body::before {
   }
 
   .workspace {
-    padding: 1rem;
+    padding: 1rem 1.1rem;
   }
 
   .candidate-stage,
