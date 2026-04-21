@@ -179,6 +179,30 @@ class EvidenceQueueItem(BaseModel):
     missing_source_classes: list[SourceClass]
 
 
+class ReviewQueueItem(BaseModel):
+    claim_id: uuid.UUID
+    claim_text: str
+    issue_tag: str | None
+    status: ClaimStatus
+    statement_source_url: str
+    statement_published_at: datetime
+    candidate_id: uuid.UUID
+    candidate_name: str
+    candidate_party: str | None
+    candidate_office: str | None
+    candidate_state: str | None
+    election_cycle: int | None
+    race_stage: RaceStage | None
+    primary_source_count: int
+    secondary_source_count: int
+    latest_verdict: Verdict | None
+    latest_confidence: float | None
+    latest_rationale: str | None
+    latest_citation_notes: str | None
+    latest_reviewer_id: str | None
+    latest_evaluated_at: datetime | None
+
+
 class CompareRaceMeta(BaseModel):
     state: str
     office: str

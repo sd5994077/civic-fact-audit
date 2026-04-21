@@ -4,6 +4,7 @@
 - [ ] Confirm legal/ethical policy and moderation boundaries.
 - [x] Stand up FastAPI + Postgres local development.
 - [x] Define canonical data model and migration strategy.
+- [x] Define core verification policy for statement capture vs fact verification (`docs/VERIFICATION_POLICY.md`).
 - [ ] Add ingestion interfaces for speeches, interviews, social posts.
 - [x] Add race roster ingestion script for Texas 2026 U.S. Senate (`backend/app/scripts/ingest_tx_2026_senate_roster.py`).
 - [x] Add initial Texas 2026 statement-source batch ingester (`backend/app/scripts/ingest_tx_2026_statement_batch.py`).
@@ -23,6 +24,7 @@
 - [x] Verification workflow with confidence labels.
 - [x] Reviewer actions: supported, mixed, unsupported, insufficient evidence.
 - [x] Audit logging and change history.
+- [x] Add review-ready queue/reporting for human adjudication (`GET /v1/claims/review-queue` and `backend/app/scripts/generate_tx_2026_review_queue_report.py`).
 
 ## Phase 3 - Scoring + Transparency (Weeks 6-7)
 - [x] Implement score formulas from `docs/SCORING.md`.

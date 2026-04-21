@@ -10,6 +10,12 @@ A standalone project to track political candidate claims, verify them against cr
 - Publish transparent scoring and source citations.
 - Keep AI in a supporting role (extraction/summarization), not final truth authority.
 
+## Verification Model
+- Candidate-controlled channels can be used to capture what was said.
+- Factual verdicts must rely on verification sources, not campaign content alone.
+- Published fact reviews should be human reviewed and citation-backed.
+- See [VERIFICATION_POLICY.md](C:\Users\steph\Documents\civic-fact-audit\docs\VERIFICATION_POLICY.md).
+
 ## Tech Stack (MVP)
 - **Backend:** FastAPI (Python 3.11+)
 - **Database:** PostgreSQL
@@ -81,7 +87,15 @@ A standalone project to track political candidate claims, verify them against cr
    ```bash
    docker compose run --rm api python -m app.scripts.attach_tx_2026_evidence_batch
    ```
-10. Open:
+10. Generate the Texas 2026 human review queue report:
+   ```bash
+   docker compose run --rm api python -m app.scripts.generate_tx_2026_review_queue_report
+   ```
+11. Generate a balanced adjudication packet (1 claim per candidate by default):
+   ```bash
+   docker compose run --rm api python -m app.scripts.generate_tx_2026_adjudication_packet
+   ```
+12. Open:
    - API: `http://localhost:8000/health`
    - Web UI: `http://localhost:3001`
 
@@ -122,6 +136,7 @@ civic-fact-audit/
 - FastAPI MVP with versioned `v1` routes for candidates, statements, claims, evidence, evaluations, and scores.
 - Postgres schema + Alembic migration for the MVP entities.
 - Structured error responses across endpoints.
+- Core verification policy covering statement capture, verification sources, and publication rules (`docs/VERIFICATION_POLICY.md`).
 - Candidate race context (`election_cycle`, `race_stage`) and race-aware candidate listing endpoint (`GET /v1/candidates` filters).
 - Texas 2026 U.S. Senate roster ingest script for repeatable race setup.
 - Texas 2026 statement batch ingest script to seed traceable source-backed statement records.
@@ -129,6 +144,8 @@ civic-fact-audit/
 - Evidence queue endpoint (`GET /v1/claims/evidence-queue`) and Texas queue report script for source-attachment triage.
 - Bulk source attach endpoint (`POST /v1/claims/sources/bulk`) for reviewer batch operations.
 - Texas 2026 evidence attachment batch script to reduce missing-source queue items.
+- Review queue endpoint (`GET /v1/claims/review-queue`) and Texas report script for human adjudication triage.
+- Frontend human-review panel for queue selection and `POST /v1/claims/{id}/evaluate` submission.
 - Scoring service with transparent numerators/denominators and formula versioning.
 - Unit tests for score calculations and denominator policy behavior.
 

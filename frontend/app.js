@@ -1,4 +1,9 @@
 const API_COMPARE_URL = "/api/v1/compare?state=TX&office=US%20Senate&election_cycle=2026&limit_issues=8";
+const API_REVIEW_QUEUE_URL =
+  "/api/v1/claims/review-queue?state=TX&office=US%20Senate&election_cycle=2026&require_minimum_evidence=true&limit=50";
+const API_EVALUATE_BASE_URL = "/api/v1/claims";
+
+let reviewQueueRows = [];
 
 function $(id) {
   return document.getElementById(id);
@@ -56,6 +61,12 @@ function formatAsOf(iso) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleString(undefined, { year: "numeric", month: "short", day: "2-digit" });
+}
+
+function shortId(id) {
+  const text = String(id || "");
+  if (text.length <= 8) return text;
+  return `${text.slice(0, 8)}...`;
 }
 
 function tallyVerdicts(compare) {
@@ -303,7 +314,89 @@ function renderPanel(compare, issueIndex) {
   $("panel-side-by-side").innerHTML = html;
 }
 
-async function init() {
+function renderReviewQueue(rows) {
+  const list = $("review-queue-list");
+  const meta = $("review-queue-meta");
+  if (!list || !meta) return;
+
+  const byCandidate = new Map();
+  for (const row of rows) {
+    const key = row.candidate_name;
+    byCandidate.set(key, (byCandidate.get(key) || 0) + 1);
+  }
+
+  meta.textContent = `Review-ready claims: ${rows.length}`;
+  list.innerHTML =
+    rows
+      .map((row) => {
+        const latest = row.latest_verdict || "none";
+        return `
+          <button class="review-item" type="button" data-claim-id="${escapeHtml(row.claim_id)}">
+            <span class="mini-tag ${verdictClass(latest)}">${escapeHtml(row.candidate_name)} | ${escapeHtml(latest)}</span>
+            <strong>${escapeHtml(row.issue_tag || "Unlabeled issue")}</strong>
+            <p>${escapeHtml(row.claim_text)}</p>
+            <small>Claim ${escapeHtml(shortId(row.claim_id))} | primary ${escapeHtml(String(row.primary_source_count))} | secondary ${escapeHtml(String(row.secondary_source_count))}</small>
+          </button>
+        `;
+      })
+      .join("") || `<p class="note-copy">No review-ready claims found.</p>`;
+
+  list.querySelectorAll(".review-item").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const claimId = btn.dataset.claimId;
+      if (!claimId) return;
+      populateReviewForm(claimId);
+      list.querySelectorAll(".review-item").forEach((item) => item.classList.remove("is-selected"));
+      btn.classList.add("is-selected");
+    });
+  });
+
+  const firstClaimId = rows[0]?.claim_id;
+  if (firstClaimId) {
+    populateReviewForm(firstClaimId);
+    const firstItem = list.querySelector(".review-item");
+    if (firstItem) firstItem.classList.add("is-selected");
+  }
+}
+
+function populateReviewForm(claimId) {
+  const row = reviewQueueRows.find((item) => item.claim_id === claimId);
+  if (!row) return;
+
+  const claimIdInput = $("review-claim-id");
+  const reviewerInput = $("reviewer-id");
+  const rationaleInput = $("review-rationale");
+  const citationNotesInput = $("review-citation-notes");
+  const verdictInput = $("review-verdict");
+  const confidenceInput = $("review-confidence");
+  const preview = $("review-claim-preview");
+
+  if (claimIdInput) claimIdInput.value = row.claim_id;
+  if (verdictInput) verdictInput.value = "supported";
+  if (confidenceInput) confidenceInput.value = "0.70";
+  if (reviewerInput && !reviewerInput.value) reviewerInput.value = "tx_2026_human_reviewer";
+  if (rationaleInput) rationaleInput.value = "";
+  if (citationNotesInput) citationNotesInput.value = "";
+  if (preview) {
+    preview.textContent = `${row.candidate_name} (${row.candidate_party || "Unlisted"}) | ${row.issue_tag || "Unlabeled issue"} | ${row.claim_text}`;
+  }
+}
+
+async function loadReviewQueue() {
+  try {
+    const res = await fetch(API_REVIEW_QUEUE_URL, { headers: { Accept: "application/json" } });
+    if (!res.ok) throw new Error(`review queue failed: ${res.status}`);
+    reviewQueueRows = await res.json();
+    renderReviewQueue(reviewQueueRows);
+  } catch (err) {
+    const meta = $("review-queue-meta");
+    const list = $("review-queue-list");
+    if (meta) meta.textContent = "Review queue not reachable";
+    if (list) list.innerHTML = `<p class="note-copy">Start API and load Texas scripts, then refresh.</p>`;
+  }
+}
+
+async function loadCompare() {
   try {
     const res = await fetch(API_COMPARE_URL, { headers: { Accept: "application/json" } });
     if (!res.ok) throw new Error(`API request failed: ${res.status}`);
@@ -320,6 +413,70 @@ async function init() {
       "Start the stack with `docker compose up -d --build` and load the Texas 2026 scripts before opening the compare page.";
     $("panel-stamp").textContent = "No API response";
   }
+}
+
+async function submitReview(event) {
+  event.preventDefault();
+  const claimId = $("review-claim-id")?.value?.trim();
+  const verdict = $("review-verdict")?.value;
+  const confidenceRaw = $("review-confidence")?.value;
+  const rationale = $("review-rationale")?.value?.trim();
+  const citationNotes = $("review-citation-notes")?.value?.trim();
+  const reviewerId = $("reviewer-id")?.value?.trim();
+  const status = $("review-submit-status");
+
+  if (!claimId || !verdict || !confidenceRaw || !rationale || !reviewerId) {
+    if (status) status.textContent = "Claim, verdict, confidence, rationale, and reviewer ID are required.";
+    return;
+  }
+
+  const confidence = Number(confidenceRaw);
+  if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) {
+    if (status) status.textContent = "Confidence must be between 0 and 1.";
+    return;
+  }
+
+  const payload = {
+    verdict,
+    confidence,
+    rationale,
+    citation_notes: citationNotes || null,
+    reviewer_id: reviewerId,
+  };
+
+  try {
+    if (status) status.textContent = "Submitting review...";
+    const res = await fetch(`${API_EVALUATE_BASE_URL}/${encodeURIComponent(claimId)}/evaluate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      let message = `Review submission failed (${res.status})`;
+      try {
+        const body = await res.json();
+        if (body?.error?.message) message = body.error.message;
+      } catch (_) {
+      }
+      throw new Error(message);
+    }
+
+    if (status) status.textContent = "Review saved. Refreshing compare and queue...";
+    await loadReviewQueue();
+    await loadCompare();
+    if (status) status.textContent = "Review saved successfully.";
+  } catch (err) {
+    if (status) status.textContent = err instanceof Error ? err.message : "Review submission failed.";
+  }
+}
+
+async function init() {
+  const form = $("review-form");
+  if (form) {
+    form.addEventListener("submit", submitReview);
+  }
+  await Promise.all([loadCompare(), loadReviewQueue()]);
 }
 
 init();

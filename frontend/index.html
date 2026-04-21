@@ -118,6 +118,66 @@
           </section>
         </div>
       </section>
+
+      <section class="compare-board" aria-label="Human review adjudication">
+        <div class="board-header">
+          <div>
+            <p class="eyebrow">Human Review</p>
+            <h3>Adjudication queue and reviewer submission</h3>
+          </div>
+        </div>
+
+        <div class="review-layout">
+          <section class="review-queue-panel">
+            <div class="panel-topline">
+              <p class="eyebrow">Review Queue</p>
+              <span class="panel-stamp" id="review-queue-meta">Loading review queue...</span>
+            </div>
+            <div id="review-queue-list"></div>
+          </section>
+
+          <section class="review-form-panel" aria-live="polite">
+            <div class="panel-topline">
+              <p class="eyebrow">Submit Verdict</p>
+              <span class="panel-stamp">Human-reviewed decision</span>
+            </div>
+            <p class="note-copy" id="review-claim-preview">Select a queue item to begin review.</p>
+            <form id="review-form" class="review-form">
+              <label>
+                Claim ID
+                <input id="review-claim-id" type="text" readonly required>
+              </label>
+              <label>
+                Verdict
+                <select id="review-verdict" required>
+                  <option value="supported">supported</option>
+                  <option value="mixed">mixed</option>
+                  <option value="unsupported">unsupported</option>
+                  <option value="insufficient">insufficient</option>
+                </select>
+              </label>
+              <label>
+                Confidence (0-1)
+                <input id="review-confidence" type="number" min="0" max="1" step="0.01" value="0.70" required>
+              </label>
+              <label>
+                Reviewer ID
+                <input id="reviewer-id" type="text" value="tx_2026_human_reviewer" required>
+              </label>
+              <label>
+                Rationale
+                <textarea id="review-rationale" minlength="10" required></textarea>
+              </label>
+              <label>
+                Citation Notes
+                <textarea id="review-citation-notes"></textarea>
+              </label>
+              <button type="submit" class="review-submit">Submit review</button>
+            </form>
+            <p class="note-copy" id="review-submit-status"></p>
+          </section>
+        </div>
+      </section>
     </main>
   </div>
 

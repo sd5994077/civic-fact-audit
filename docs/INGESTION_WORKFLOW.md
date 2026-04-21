@@ -28,8 +28,12 @@ This workflow keeps race setup and statement intake reproducible and auditable.
   - `python -m app.scripts.attach_tx_2026_evidence_batch`
 
 ## 5) Human evaluation
+- Pull ready items from `GET /v1/claims/review-queue` once minimum evidence is attached.
 - Use `POST /v1/claims/{id}/evaluate`.
 - Include rationale and citation notes in every verdict.
+- Example (Texas 2026 U.S. Senate):
+  - `python -m app.scripts.generate_tx_2026_review_queue_report`
+  - `python -m app.scripts.generate_tx_2026_adjudication_packet`
 
 ## 6) Compute scores
 - Use `GET /v1/candidates/{id}/scores` with explicit window bounds.
