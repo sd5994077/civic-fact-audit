@@ -25,6 +25,11 @@ class SourceOrigin(StrEnum):
     verification = 'verification'
 
 
+class EvidenceLinkType(StrEnum):
+    stance = 'stance'
+    verification = 'verification'
+
+
 class Verdict(StrEnum):
     supported = 'supported'
     mixed = 'mixed'

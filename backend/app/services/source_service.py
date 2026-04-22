@@ -9,6 +9,7 @@ from app.models.entities import Candidate, Claim, Source, Statement
 from app.models.enums import RaceStage, SourceClass, SourceOrigin
 from app.models.enums import ClaimStatus as ClaimStatusEnum
 from app.schemas.api import AddSourceRequest, BulkSourceAttachItem
+from app.services.evidence_bundle_service import EvidenceBundleService
 
 
 class SourceService:
@@ -133,6 +134,10 @@ class SourceService:
         )
         db.add(source)
         try:
+            db.flush()
+            # Keep derived evidence bundles current for compare/public reads
+            # inside the same transaction as the source write.
+            EvidenceBundleService.sync_claim_bundle(db, claim.id, commit=False)
             db.commit()
         except IntegrityError as exc:
             db.rollback()
@@ -141,6 +146,9 @@ class SourceService:
                 'This source URL is already attached to the claim.',
                 status_code=409,
             ) from exc
+        except AppError:
+            db.rollback()
+            raise
 
         sources = db.scalars(select(Source).where(Source.claim_id == claim.id).order_by(Source.created_at.asc())).all()
         return list(sources)

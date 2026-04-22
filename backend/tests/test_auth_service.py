@@ -69,7 +69,9 @@ def test_identity_from_bearer_rejects_invalid_signature() -> None:
     token = AuthService.issue_access_token(reviewer_user_id=reviewer_id, role='reviewer')
     db = _FakeDb(_FakeReviewer(id=reviewer_id, email='reviewer@local', role='reviewer', is_active=True))
     try:
-        tampered = token[:-1] + ('a' if token[-1] != 'a' else 'b')
+        payload_b64, sig_b64 = token.split('.', 1)
+        tampered_payload = payload_b64[:-1] + ('a' if payload_b64[-1] != 'a' else 'b')
+        tampered = f'{tampered_payload}.{sig_b64}'
         try:
             AuthService.identity_from_bearer(db, tampered)
             assert False, 'Expected AppError for invalid token signature'

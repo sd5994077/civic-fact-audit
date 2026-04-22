@@ -7,8 +7,18 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
 from app.models.entities import Candidate, Claim, ClaimEvaluation, IssueFrame, Source, Statement
-from app.models.enums import RaceStage, Verdict
-from app.schemas.api import CandidateRead, CompareClaimItem, CompareIssue, CompareRaceMeta, CompareResponse, SourceRead
+from app.models.enums import RaceStage, SourceClass, Verdict
+from app.services.evidence_bundle_service import EvidenceBundleService
+from app.schemas.api import (
+    CandidateRead,
+    ClaimEvidenceBundleRead,
+    CompareClaimItem,
+    CompareIssue,
+    CompareIssueFramePolicy,
+    CompareRaceMeta,
+    CompareResponse,
+    SourceRead,
+)
 
 
 @dataclass(frozen=True)
@@ -17,12 +27,17 @@ class _CompareRow:
     claim_id: uuid.UUID
     claim_text: str
     issue_tag: str | None
+    issue_frame_key: str | None
+    comparison_question: str | None
+    allowed_candidate_source_classes: list[SourceClass] | None
+    allowed_verification_source_classes: list[SourceClass] | None
     statement_source_url: str
     statement_published_at: datetime
     verdict: Verdict
     confidence: float
     rationale: str
     citation_notes: str | None
+    evidence_bundle: ClaimEvidenceBundleRead | None
 
 
 def _resolve_issue_tag(issue_frame_title: str | None, issue_tag: str | None) -> str | None:
@@ -57,6 +72,35 @@ def _pick_representatives(rows: list[_CompareRow]) -> dict[tuple[uuid.UUID, str]
         if key not in reps:
             reps[key] = row
     return reps
+
+
+def _build_issue_frame_policy_by_key(rows: list[_CompareRow]) -> dict[str, CompareIssueFramePolicy]:
+    policies: dict[str, CompareIssueFramePolicy] = {}
+    for row in rows:
+        if not row.issue_frame_key or row.issue_frame_key in policies:
+            continue
+        policies[row.issue_frame_key] = CompareIssueFramePolicy(
+            frame_key=row.issue_frame_key,
+            comparison_question=row.comparison_question,
+            allowed_candidate_source_classes=list(row.allowed_candidate_source_classes or []),
+            allowed_verification_source_classes=list(row.allowed_verification_source_classes or []),
+        )
+    return policies
+
+
+def _resolve_issue_frame_policy(
+    issue_rows: list[_CompareRow],
+    frame_policies_by_key: dict[str, CompareIssueFramePolicy],
+) -> CompareIssueFramePolicy | None:
+    if not issue_rows:
+        return None
+    if any(row.issue_frame_key is None for row in issue_rows):
+        return None
+    frame_keys = {row.issue_frame_key for row in issue_rows if row.issue_frame_key}
+    if len(frame_keys) != 1:
+        return None
+    frame_key = next(iter(frame_keys))
+    return frame_policies_by_key.get(frame_key)
 
 
 class ComparisonService:
@@ -140,7 +184,11 @@ class ComparisonService:
                     Statement.candidate_id,
                     Claim.id,
                     Claim.claim_text,
+                    IssueFrame.frame_key.label('issue_frame_key'),
                     IssueFrame.title.label('issue_frame_title'),
+                    IssueFrame.comparison_question,
+                    IssueFrame.allowed_candidate_source_classes,
+                    IssueFrame.allowed_verification_source_classes,
                     Claim.issue_tag,
                     Statement.source_url,
                     Statement.published_at,
@@ -176,18 +224,24 @@ class ComparisonService:
                 claim_id=row.id,
                 claim_text=row.claim_text,
                 issue_tag=_resolve_issue_tag(row.issue_frame_title, row.issue_tag),
+                issue_frame_key=row.issue_frame_key,
+                comparison_question=row.comparison_question,
+                allowed_candidate_source_classes=row.allowed_candidate_source_classes,
+                allowed_verification_source_classes=row.allowed_verification_source_classes,
                 statement_source_url=row.source_url,
                 statement_published_at=row.published_at,
                 verdict=row.verdict,
                 confidence=row.confidence,
                 rationale=row.rationale,
                 citation_notes=row.citation_notes,
+                evidence_bundle=None,
             )
             for row in rows
         ]
 
         top_issue_tags = _select_top_issue_tags(compare_rows, limit_issues=limit_issues)
         representatives = _pick_representatives(compare_rows)
+        frame_policies_by_key = _build_issue_frame_policy_by_key(compare_rows)
 
         rep_claim_ids: list[uuid.UUID] = []
         for tag in top_issue_tags:
@@ -214,14 +268,17 @@ class ComparisonService:
             )
             for src in src_rows:
                 sources_by_claim.setdefault(src.claim_id, []).append(SourceRead.model_validate(src, from_attributes=True))
+        bundles_by_claim = EvidenceBundleService.get_bundles_for_claim_ids(db, rep_claim_ids)
 
         issues: list[CompareIssue] = []
         for tag in top_issue_tags:
+            issue_rows: list[_CompareRow] = []
             items: list[CompareClaimItem] = []
             for cand in candidates:
                 rep = representatives.get((cand.id, tag))
                 if rep is None:
                     continue
+                issue_rows.append(rep)
                 items.append(
                     CompareClaimItem(
                         candidate_id=rep.candidate_id,
@@ -235,9 +292,16 @@ class ComparisonService:
                         rationale=rep.rationale,
                         citation_notes=rep.citation_notes,
                         sources=sources_by_claim.get(rep.claim_id, []),
+                        evidence_bundle=bundles_by_claim.get(rep.claim_id),
                     )
                 )
-            issues.append(CompareIssue(issue_tag=tag, items=items))
+            issues.append(
+                CompareIssue(
+                    issue_tag=tag,
+                    frame_policy=_resolve_issue_frame_policy(issue_rows, frame_policies_by_key),
+                    items=items,
+                )
+            )
 
         meta = CompareRaceMeta(
             state=state,

@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, HttpUrl
 
-from app.models.enums import ClaimStatus, RaceStage, SourceClass, SourceOrigin, StatementSourceType, Verdict
+from app.models.enums import ClaimStatus, EvidenceLinkType, RaceStage, SourceClass, SourceOrigin, StatementSourceType, Verdict
 
 
 class ErrorPayload(BaseModel):
@@ -236,6 +236,37 @@ class CompareRaceMeta(BaseModel):
     disclaimer: str
 
 
+class CompareIssueFramePolicy(BaseModel):
+    frame_key: str | None = None
+    comparison_question: str | None = None
+    allowed_candidate_source_classes: list[SourceClass] = Field(default_factory=list)
+    allowed_verification_source_classes: list[SourceClass] = Field(default_factory=list)
+
+
+class EvidenceBundleLinkRead(BaseModel):
+    id: uuid.UUID
+    bundle_id: uuid.UUID
+    statement_id: uuid.UUID | None
+    source_id: uuid.UUID | None
+    url: str
+    label: str | None
+    link_type: EvidenceLinkType
+    source_class: SourceClass | None = None
+    source_origin: SourceOrigin | None = None
+    publisher: str | None = None
+    quality_score: float | None = None
+    display_order: int
+    created_at: datetime
+
+
+class ClaimEvidenceBundleRead(BaseModel):
+    id: uuid.UUID
+    claim_id: uuid.UUID
+    is_curated: bool
+    stance_links: list[EvidenceBundleLinkRead] = Field(default_factory=list)
+    verification_links: list[EvidenceBundleLinkRead] = Field(default_factory=list)
+
+
 class CompareClaimItem(BaseModel):
     candidate_id: uuid.UUID
     claim_id: uuid.UUID
@@ -248,10 +279,12 @@ class CompareClaimItem(BaseModel):
     rationale: str
     citation_notes: str | None
     sources: list[SourceRead]
+    evidence_bundle: ClaimEvidenceBundleRead | None = None
 
 
 class CompareIssue(BaseModel):
     issue_tag: str
+    frame_policy: CompareIssueFramePolicy | None = None
     items: list[CompareClaimItem]
 
 

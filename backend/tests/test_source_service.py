@@ -1,4 +1,5 @@
 from app.models.enums import RaceStage, SourceClass, SourceOrigin
+from app.core.errors import AppError
 from app.services.source_service import SourceService
 
 
@@ -19,6 +20,49 @@ class _FakeDb:
 
     def execute(self, *_args, **_kwargs):
         return _FakeExecuteResult(self._rows)
+
+
+class _FakeScalarResult:
+    def __init__(self, values):
+        self._values = values
+
+    def all(self):
+        return self._values
+
+
+class _FakeClaim:
+    def __init__(self, id_):
+        self.id = id_
+
+
+class _FakeDbForAddSource:
+    def __init__(self, claim_id):
+        self._claim_id = claim_id
+        self.added = []
+        self.committed = 0
+        self.rolled_back = 0
+        self.scalar_values = []
+
+    def get(self, _model, id_):
+        if id_ == self._claim_id:
+            return _FakeClaim(self._claim_id)
+        return None
+
+    def add(self, value):
+        self.added.append(value)
+        self.scalar_values.append(value)
+
+    def commit(self):
+        self.committed += 1
+
+    def rollback(self):
+        self.rolled_back += 1
+
+    def flush(self):
+        return None
+
+    def scalars(self, *_args, **_kwargs):
+        return _FakeScalarResult(self.scalar_values)
 
 
 def test_build_evidence_queue_query_has_race_filters_and_missing_having() -> None:
@@ -107,3 +151,65 @@ def test_list_evidence_queue_missing_classes_are_verification_based() -> None:
     )
     rows = SourceService.list_evidence_queue(db, include_only_missing=False)
     assert rows[0]['missing_source_classes'] == [SourceClass.primary, SourceClass.secondary]
+
+
+def test_add_source_syncs_evidence_bundle(monkeypatch) -> None:
+    sync_calls = []
+
+    def _fake_sync(db, claim_id, *, commit):
+        sync_calls.append((db, claim_id, commit))
+
+    monkeypatch.setattr('app.services.source_service.EvidenceBundleService.sync_claim_bundle', _fake_sync)
+
+    claim_id = 'claim-1'
+    db = _FakeDbForAddSource(claim_id=claim_id)
+    payload = type(
+        'Payload',
+        (),
+        {
+            'url': 'https://example.com/source',
+            'source_class': SourceClass.primary,
+            'source_origin': SourceOrigin.verification,
+            'publisher': 'Example',
+            'quality_score': 0.9,
+        },
+    )()
+
+    SourceService.add_source(db, claim_id, payload)
+
+    assert len(sync_calls) == 1
+    assert sync_calls[0][1] == claim_id
+    assert sync_calls[0][2] is False
+    assert db.committed == 1
+    assert db.rolled_back == 0
+
+
+def test_add_source_rolls_back_if_bundle_sync_fails(monkeypatch) -> None:
+    def _fake_sync(_db, _claim_id, *, commit):
+        assert commit is False
+        raise AppError('bundle_sync_failed', 'bundle sync failed', status_code=500)
+
+    monkeypatch.setattr('app.services.source_service.EvidenceBundleService.sync_claim_bundle', _fake_sync)
+
+    claim_id = 'claim-1'
+    db = _FakeDbForAddSource(claim_id=claim_id)
+    payload = type(
+        'Payload',
+        (),
+        {
+            'url': 'https://example.com/source',
+            'source_class': SourceClass.primary,
+            'source_origin': SourceOrigin.verification,
+            'publisher': 'Example',
+            'quality_score': 0.9,
+        },
+    )()
+
+    try:
+        SourceService.add_source(db, claim_id, payload)
+        assert False, 'Expected AppError when bundle sync fails'
+    except AppError as exc:
+        assert exc.code == 'bundle_sync_failed'
+
+    assert db.committed == 0
+    assert db.rolled_back == 1

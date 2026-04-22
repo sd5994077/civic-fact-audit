@@ -60,11 +60,11 @@
 ## Near-Term Delivery Plan
 1. Shared issue frames
 - [x] Define a normalized issue-frame model with a canonical topic and comparison question.
-- [ ] Add allowed evidence class policy fields for frame-level parity enforcement.
-- [ ] Map Texas 2026 Senate claims into shared frames so candidate cards compare like-for-like issue views.
+- [x] Add allowed evidence class policy fields for frame-level parity enforcement.
+- [x] Map Texas 2026 Senate claims into shared frames so candidate cards compare like-for-like issue views.
 
 2. Balanced evidence bundles
-- [ ] Add a bundle model that stores stance links separately from verification links.
+- [x] Add a bundle model that stores stance links separately from verification links.
 - [ ] Limit public issue cards to a curated set of links per side and label each by source origin and class.
 - [ ] Add parity checks that flag when one candidate has materially weaker or different evidence classes than another on the same issue frame.
 

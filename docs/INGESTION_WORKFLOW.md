@@ -30,8 +30,13 @@ This workflow keeps race setup and statement intake reproducible and auditable.
 - Use `POST /v1/claims/sources/bulk` to attach sources across multiple claims in one request.
 - Mark each attached source as `candidate`-originated or `verification`-originated so review and public display can keep statement proof separate from truth proof.
 - Example (Texas 2026 U.S. Senate):
+  - `python -m app.scripts.map_tx_2026_claim_issue_frames`
   - `python -m app.scripts.generate_tx_2026_evidence_queue_report`
   - `python -m app.scripts.attach_tx_2026_evidence_batch`
+  - `python -m app.scripts.backfill_tx_2026_evidence_bundles`
+
+Map claims into shared `IssueFrame` records before evidence parity work so candidate compare cards use the same normalized question when claims are substantively comparable. The current Texas mapper is conservative: it maps fact-checkable claims with known issue tags and leaves slogans or ambiguous statements unmapped.
+Backfill non-curated evidence bundles after source attachment so compare/public views can distinguish stance links from verification links before later admin curation.
 
 ## 5) Human evaluation
 - Pull ready items from `GET /v1/claims/review-queue` once minimum evidence is attached.

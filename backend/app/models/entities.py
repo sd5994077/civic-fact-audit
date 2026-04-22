@@ -1,12 +1,12 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, Float, ForeignKey, Index, String, Text, UniqueConstraint, func, text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import CheckConstraint, DateTime, Enum, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func, text
+from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.database import Base
-from app.models.enums import ClaimStatus, RaceStage, SourceClass, SourceOrigin, StatementSourceType, Verdict
+from app.models.enums import ClaimStatus, EvidenceLinkType, RaceStage, SourceClass, SourceOrigin, StatementSourceType, Verdict
 
 
 class TimestampMixin:
@@ -57,6 +57,7 @@ class Statement(TimestampMixin, Base):
 
     candidate: Mapped['Candidate'] = relationship(back_populates='statements')
     claims: Mapped[list['Claim']] = relationship(back_populates='statement', cascade='all, delete-orphan')
+    evidence_links: Mapped[list['ClaimEvidenceLink']] = relationship(back_populates='statement')
 
     __table_args__ = (Index('ix_statements_candidate_published', 'candidate_id', 'published_at'),)
 
@@ -68,6 +69,18 @@ class IssueFrame(TimestampMixin, Base):
     frame_key: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     comparison_question: Mapped[str] = mapped_column(Text, nullable=False)
+    allowed_candidate_source_classes: Mapped[list[SourceClass]] = mapped_column(
+        ARRAY(Enum(SourceClass, name='source_class', create_type=False)),
+        nullable=False,
+        default=lambda: [SourceClass.primary],
+        server_default='{primary}',
+    )
+    allowed_verification_source_classes: Mapped[list[SourceClass]] = mapped_column(
+        ARRAY(Enum(SourceClass, name='source_class', create_type=False)),
+        nullable=False,
+        default=lambda: [SourceClass.primary, SourceClass.secondary],
+        server_default='{primary,secondary}',
+    )
     state: Mapped[str | None] = mapped_column(String(32), nullable=True)
     office: Mapped[str | None] = mapped_column(String(255), nullable=True)
     election_cycle: Mapped[int | None] = mapped_column(nullable=True)
@@ -79,6 +92,14 @@ class IssueFrame(TimestampMixin, Base):
     __table_args__ = (
         Index('ix_issue_frames_scope', 'state', 'office', 'election_cycle', 'race_stage'),
         Index('ix_issue_frames_active', 'is_active'),
+        CheckConstraint(
+            'cardinality(allowed_candidate_source_classes) >= 1',
+            name='ck_issue_frames_candidate_source_classes_nonempty',
+        ),
+        CheckConstraint(
+            'cardinality(allowed_verification_source_classes) >= 1',
+            name='ck_issue_frames_verification_source_classes_nonempty',
+        ),
     )
 
 
@@ -104,6 +125,11 @@ class Claim(TimestampMixin, Base):
     issue_frame: Mapped['IssueFrame | None'] = relationship(back_populates='claims')
     sources: Mapped[list['Source']] = relationship(back_populates='claim', cascade='all, delete-orphan')
     evaluations: Mapped[list['ClaimEvaluation']] = relationship(back_populates='claim', cascade='all, delete-orphan')
+    evidence_bundle: Mapped['ClaimEvidenceBundle | None'] = relationship(
+        back_populates='claim',
+        cascade='all, delete-orphan',
+        uselist=False,
+    )
 
     __table_args__ = (
         Index('ix_claims_statement_status', 'statement_id', 'status'),
@@ -128,11 +154,70 @@ class Source(TimestampMixin, Base):
     quality_score: Mapped[float] = mapped_column(Float, nullable=False)
 
     claim: Mapped['Claim'] = relationship(back_populates='sources')
+    evidence_links: Mapped[list['ClaimEvidenceLink']] = relationship(back_populates='source')
 
     __table_args__ = (
         UniqueConstraint('claim_id', 'url', name='uq_sources_claim_url'),
         Index('ix_sources_claim_source_class', 'claim_id', 'source_class'),
         Index('ix_sources_claim_source_origin', 'claim_id', 'source_origin'),
+    )
+
+
+class ClaimEvidenceBundle(TimestampMixin, Base):
+    __tablename__ = 'claim_evidence_bundles'
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    claim_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey('claims.id', ondelete='CASCADE'),
+        nullable=False,
+        unique=True,
+    )
+    is_curated: Mapped[bool] = mapped_column(nullable=False, default=False, server_default=text('false'))
+
+    claim: Mapped['Claim'] = relationship(back_populates='evidence_bundle')
+    links: Mapped[list['ClaimEvidenceLink']] = relationship(
+        back_populates='bundle',
+        cascade='all, delete-orphan',
+        order_by='ClaimEvidenceLink.display_order',
+    )
+
+
+class ClaimEvidenceLink(TimestampMixin, Base):
+    __tablename__ = 'claim_evidence_links'
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    bundle_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey('claim_evidence_bundles.id', ondelete='CASCADE'),
+        nullable=False,
+    )
+    statement_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey('statements.id', ondelete='SET NULL'),
+        nullable=True,
+    )
+    source_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey('sources.id', ondelete='SET NULL'),
+        nullable=True,
+    )
+    url: Mapped[str] = mapped_column(String(1024), nullable=False)
+    label: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    link_type: Mapped[EvidenceLinkType] = mapped_column(Enum(EvidenceLinkType, name='evidence_link_type'), nullable=False)
+    display_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default=text('0'))
+
+    bundle: Mapped['ClaimEvidenceBundle'] = relationship(back_populates='links')
+    statement: Mapped['Statement | None'] = relationship(back_populates='evidence_links')
+    source: Mapped['Source | None'] = relationship(back_populates='evidence_links')
+
+    __table_args__ = (
+        UniqueConstraint('bundle_id', 'link_type', 'url', name='uq_claim_evidence_links_bundle_type_url'),
+        CheckConstraint(
+            '(statement_id IS NOT NULL AND source_id IS NULL) OR (statement_id IS NULL AND source_id IS NOT NULL)',
+            name='ck_claim_evidence_links_single_reference',
+        ),
+        Index('ix_claim_evidence_links_bundle_type_order', 'bundle_id', 'link_type', 'display_order'),
     )
 
 
