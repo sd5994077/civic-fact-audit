@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, HttpUrl
 
-from app.models.enums import ClaimStatus, RaceStage, SourceClass, StatementSourceType, Verdict
+from app.models.enums import ClaimStatus, RaceStage, SourceClass, SourceOrigin, StatementSourceType, Verdict
 
 
 class ErrorPayload(BaseModel):
@@ -74,6 +74,7 @@ class ClaimRead(BaseModel):
 class AddSourceRequest(BaseModel):
     url: HttpUrl
     source_class: SourceClass
+    source_origin: SourceOrigin = SourceOrigin.verification
     publisher: str | None = Field(default=None, max_length=255)
     quality_score: float = Field(ge=0, le=1)
 
@@ -83,6 +84,7 @@ class SourceRead(BaseModel):
     claim_id: uuid.UUID
     url: str
     source_class: SourceClass
+    source_origin: SourceOrigin
     publisher: str | None
     quality_score: float
     created_at: datetime
@@ -157,6 +159,7 @@ class BulkSourceAttachItem(BaseModel):
     claim_id: uuid.UUID
     url: HttpUrl
     source_class: SourceClass
+    source_origin: SourceOrigin = SourceOrigin.verification
     publisher: str | None = Field(default=None, max_length=255)
     quality_score: float = Field(ge=0, le=1)
 
@@ -165,6 +168,7 @@ class BulkSourceAttachResultItem(BaseModel):
     claim_id: uuid.UUID
     url: str
     source_class: SourceClass
+    source_origin: SourceOrigin
     status: str
     error: ErrorPayload | None = None
 
@@ -192,6 +196,8 @@ class EvidenceQueueItem(BaseModel):
     race_stage: RaceStage | None
     primary_source_count: int
     secondary_source_count: int
+    candidate_source_count: int
+    verification_source_count: int
     missing_source_classes: list[SourceClass]
 
 
@@ -211,6 +217,8 @@ class ReviewQueueItem(BaseModel):
     race_stage: RaceStage | None
     primary_source_count: int
     secondary_source_count: int
+    candidate_source_count: int
+    verification_source_count: int
     latest_verdict: Verdict | None
     latest_confidence: float | None
     latest_rationale: str | None

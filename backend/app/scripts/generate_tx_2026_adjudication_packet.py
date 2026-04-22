@@ -51,6 +51,7 @@ def _load_sources_by_claim(db, claim_ids: list[Any]) -> dict[Any, list[dict[str,
             {
                 'url': src.url,
                 'source_class': src.source_class.value,
+                'source_origin': src.source_origin.value,
                 'publisher': src.publisher,
                 'quality_score': src.quality_score,
             }

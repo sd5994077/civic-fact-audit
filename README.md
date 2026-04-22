@@ -14,6 +14,7 @@ A standalone project to track political candidate claims, verify them against cr
 - Candidate-controlled channels can be used to capture what was said.
 - Factual verdicts must rely on verification sources, not campaign content alone.
 - Published fact reviews should be human reviewed and citation-backed.
+- Attached sources are labeled as candidate-originated or verification-originated in the API/UI.
 - See [VERIFICATION_POLICY.md](C:\Users\steph\Documents\civic-fact-audit\docs\VERIFICATION_POLICY.md).
 
 ## Tech Stack (MVP)

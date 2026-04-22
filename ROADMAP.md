@@ -28,7 +28,7 @@
 - [x] Audit logging and change history.
 - [x] Add review-ready queue/reporting for human adjudication (`GET /v1/claims/review-queue` and `backend/app/scripts/generate_tx_2026_review_queue_report.py`).
 - [x] Add authenticated reviewer login and role-gated evaluation writes (`POST /v1/auth/login`, bearer auth on `POST /v1/claims/{id}/evaluate`).
-- [ ] Distinguish candidate-originated sources from verification sources in review and public display.
+- [x] Distinguish candidate-originated sources from verification sources in review and public display.
 - [ ] Add evidence parity rules so comparable candidate issue views use balanced source classes where possible.
 
 ## Phase 3 - Scoring + Transparency (Weeks 6-7)
@@ -74,6 +74,6 @@
 - [ ] Add an admin queue for unresolved parity gaps, weak evidence bundles, and draft verdict review.
 
 4. Rating workflow
-- [ ] Keep candidate-originated material as proof of what was said, not proof that it was true.
+- [x] Keep candidate-originated material as proof of what was said, not proof that it was true.
 - [ ] Generate AI draft rationales only after evidence bundles are assembled.
 - [ ] Publish public verdicts only after a verified human approves the rating and citations.

@@ -72,6 +72,11 @@ function formatVerdictLabel(verdict) {
   return "Insufficient evidence";
 }
 
+function formatSourceOriginLabel(origin) {
+  if (origin === "candidate") return "Candidate-originated";
+  return "Verification";
+}
+
 function shortId(id) {
   const text = String(id || "");
   if (text.length <= 8) return text;
@@ -254,9 +259,14 @@ function renderSources(sources) {
     .map((s) => {
       const kind = s.source_class === "primary" ? "Primary" : "Secondary";
       const kindClass = s.source_class === "primary" ? "source-type-primary" : "source-type-secondary";
+      const origin = formatSourceOriginLabel(s.source_origin);
+      const originClass = s.source_origin === "candidate" ? "source-origin-candidate" : "source-origin-verification";
       return `
         <a class="source-link" href="${escapeHtml(s.url)}" target="_blank" rel="noreferrer">
-          <span class="source-type ${kindClass}">${escapeHtml(kind)}</span>
+          <div class="source-badges">
+            <span class="source-type ${kindClass}">${escapeHtml(kind)}</span>
+            <span class="source-origin ${originClass}">${escapeHtml(origin)}</span>
+          </div>
           <strong>${escapeHtml(s.publisher || "Linked source")}</strong>
           <small>Quality score: ${escapeHtml(String(s.quality_score))}</small>
         </a>
@@ -276,6 +286,8 @@ function renderExplanationCards(issue, compare) {
 
       const primaryCount = item.sources.filter((source) => source.source_class === "primary").length;
       const secondaryCount = item.sources.filter((source) => source.source_class !== "primary").length;
+      const candidateCount = item.sources.filter((source) => source.source_origin === "candidate").length;
+      const verificationCount = item.sources.filter((source) => source.source_origin === "verification").length;
       const citationNotes = item.citation_notes?.trim() || "No reviewer citation notes recorded yet.";
 
       return `
@@ -293,7 +305,7 @@ function renderExplanationCards(issue, compare) {
             </div>
             <div class="csr-card">
               <span class="section-label">Evidence summary</span>
-              <p>${escapeHtml(`${primaryCount} primary source(s), ${secondaryCount} secondary source(s), ${Math.round(item.confidence * 100)}% confidence`)}</p>
+              <p>${escapeHtml(`${primaryCount} primary, ${secondaryCount} secondary, ${candidateCount} candidate-originated, ${verificationCount} verification, ${Math.round(item.confidence * 100)}% confidence`)}</p>
             </div>
             <div class="csr-card">
               <span class="section-label">Citation notes</span>
@@ -335,7 +347,7 @@ function renderPanel(compare, issueIndex) {
       }
 
       const stmtMeta = item.statement_source_url
-        ? `<small>Statement source: <a href="${escapeHtml(item.statement_source_url)}" target="_blank" rel="noreferrer">link</a></small>`
+        ? `<small>Statement source: <a href="${escapeHtml(item.statement_source_url)}" target="_blank" rel="noreferrer">candidate statement record</a></small>`
         : "";
 
       const verdictPill = `<span class="mini-tag ${verdictClass(item.verdict)}">${escapeHtml(item.verdict)} | ${Math.round(
@@ -354,7 +366,7 @@ function renderPanel(compare, issueIndex) {
           <div class="source-list-block" style="margin-top:0.9rem">
             <div class="source-list-header">
               <p class="eyebrow">Citations</p>
-              <span class="source-list-note">Primary and secondary sources</span>
+              <span class="source-list-note">Tagged by evidence class and source origin</span>
             </div>
             <div class="source-list">
               ${renderSources(item.sources)}
@@ -390,6 +402,7 @@ function renderReviewQueue(rows) {
             <strong>${escapeHtml(row.issue_tag || "Unlabeled issue")}</strong>
             <p>${escapeHtml(row.claim_text)}</p>
             <small>Claim ${escapeHtml(shortId(row.claim_id))} | primary ${escapeHtml(String(row.primary_source_count))} | secondary ${escapeHtml(String(row.secondary_source_count))}</small>
+            <small>Candidate-originated ${escapeHtml(String(row.candidate_source_count))} | verification ${escapeHtml(String(row.verification_source_count))}</small>
           </button>
         `;
       })

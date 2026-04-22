@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.db.database import SessionLocal, get_engine
 from app.models.entities import Candidate, Claim, ClaimEvaluation, Source, Statement
-from app.models.enums import ClaimStatus, RaceStage, SourceClass, StatementSourceType, Verdict
+from app.models.enums import ClaimStatus, RaceStage, SourceClass, SourceOrigin, StatementSourceType, Verdict
 
 
 @dataclass(frozen=True)
@@ -103,6 +103,7 @@ def _insert_statement_with_claim_and_eval(db: Session, *, candidate: Candidate, 
                 claim_id=claim.id,
                 url=url,
                 source_class=SourceClass.primary,
+                source_origin=SourceOrigin.verification,
                 publisher=None,
                 quality_score=0.9,
             )
@@ -113,6 +114,7 @@ def _insert_statement_with_claim_and_eval(db: Session, *, candidate: Candidate, 
                 claim_id=claim.id,
                 url=url,
                 source_class=SourceClass.secondary,
+                source_origin=SourceOrigin.verification,
                 publisher=None,
                 quality_score=0.8,
             )

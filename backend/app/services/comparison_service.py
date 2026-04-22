@@ -202,7 +202,12 @@ class ComparisonService:
                 db.execute(
                     select(Source)
                     .where(Source.claim_id.in_(rep_claim_ids))
-                    .order_by(Source.claim_id.asc(), Source.source_class.asc(), Source.quality_score.desc())
+                    .order_by(
+                        Source.claim_id.asc(),
+                        Source.source_origin.asc(),
+                        Source.source_class.asc(),
+                        Source.quality_score.desc(),
+                    )
                 )
                 .scalars()
                 .all()

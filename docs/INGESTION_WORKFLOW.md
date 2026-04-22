@@ -28,6 +28,7 @@ This workflow keeps race setup and statement intake reproducible and auditable.
 - Add at least one primary and one independent secondary source for claims that will receive supported/mixed/unsupported verdicts.
 - Pull queue items from `GET /v1/claims/evidence-queue` to triage claims missing minimum evidence.
 - Use `POST /v1/claims/sources/bulk` to attach sources across multiple claims in one request.
+- Mark each attached source as `candidate`-originated or `verification`-originated so review and public display can keep statement proof separate from truth proof.
 - Example (Texas 2026 U.S. Senate):
   - `python -m app.scripts.generate_tx_2026_evidence_queue_report`
   - `python -m app.scripts.attach_tx_2026_evidence_batch`

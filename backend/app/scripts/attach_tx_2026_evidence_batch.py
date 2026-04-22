@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
 from app.db.database import SessionLocal, get_engine
-from app.models.enums import SourceClass
+from app.models.enums import SourceClass, SourceOrigin
 from app.schemas.api import AddSourceRequest
 from app.services.source_service import SourceService
 
@@ -184,6 +184,7 @@ def _attach_seed(db: Session, claim_id: uuid.UUID, source_class: SourceClass, se
             payload=AddSourceRequest(
                 url=seed.url,
                 source_class=source_class,
+                source_origin=SourceOrigin.verification,
                 publisher=seed.publisher,
                 quality_score=seed.quality_score,
             ),

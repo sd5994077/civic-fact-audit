@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
 from app.models.entities import Candidate, Claim, ClaimEvaluation, Source, Statement
-from app.models.enums import ClaimStatus, RaceStage, SourceClass, Verdict
+from app.models.enums import ClaimStatus, RaceStage, SourceClass, SourceOrigin, Verdict
 from app.schemas.api import EvaluateClaimRequest
 from app.services.source_service import SourceService
 
@@ -26,6 +26,26 @@ class EvaluationService:
     ):
         primary_count = func.sum(case((Source.source_class == SourceClass.primary, 1), else_=0))
         secondary_count = func.sum(case((Source.source_class == SourceClass.secondary, 1), else_=0))
+        candidate_count = func.sum(case((Source.source_origin == SourceOrigin.candidate, 1), else_=0))
+        verification_count = func.sum(case((Source.source_origin == SourceOrigin.verification, 1), else_=0))
+        verification_primary_count = func.sum(
+            case(
+                (
+                    (Source.source_origin == SourceOrigin.verification) & (Source.source_class == SourceClass.primary),
+                    1,
+                ),
+                else_=0,
+            )
+        )
+        verification_secondary_count = func.sum(
+            case(
+                (
+                    (Source.source_origin == SourceOrigin.verification) & (Source.source_class == SourceClass.secondary),
+                    1,
+                ),
+                else_=0,
+            )
+        )
 
         latest_eval = (
             select(ClaimEvaluation.claim_id, func.max(ClaimEvaluation.created_at).label('latest_created_at'))
@@ -50,6 +70,8 @@ class EvaluationService:
                 Candidate.race_stage,
                 primary_count.label('primary_count'),
                 secondary_count.label('secondary_count'),
+                candidate_count.label('candidate_count'),
+                verification_count.label('verification_count'),
                 ClaimEvaluation.verdict.label('latest_verdict'),
                 ClaimEvaluation.confidence.label('latest_confidence'),
                 ClaimEvaluation.rationale.label('latest_rationale'),
@@ -106,7 +128,7 @@ class EvaluationService:
             query = query.where(*filters)
 
         if require_minimum_evidence:
-            query = query.having(primary_count > 0, secondary_count > 0)
+            query = query.having(verification_primary_count > 0, verification_secondary_count > 0)
 
         return query
 
@@ -152,6 +174,8 @@ class EvaluationService:
                 'race_stage': row['race_stage'],
                 'primary_source_count': int(row['primary_count']),
                 'secondary_source_count': int(row['secondary_count']),
+                'candidate_source_count': int(row['candidate_count']),
+                'verification_source_count': int(row['verification_count']),
                 'latest_verdict': row['latest_verdict'],
                 'latest_confidence': row['latest_confidence'],
                 'latest_rationale': row['latest_rationale'],

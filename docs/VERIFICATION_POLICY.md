@@ -28,6 +28,7 @@ Examples:
 Rules:
 - These sources can establish the wording, timing, and context of a candidate claim.
 - These sources do not, by themselves, establish whether the claim is true.
+- In product output, these should be labeled as candidate-originated material rather than verification evidence.
 
 ### 2) Verification Sources
 
@@ -46,6 +47,7 @@ Rules:
 - Published factual verdicts should rely on at least one primary record and one independent corroborating source when possible.
 - If the underlying record is available, prefer it over commentary about the record.
 - If a source is interpretive, summarize it as interpretation rather than treating it as raw fact.
+- In product output, these should be labeled separately from candidate-originated sources.
 
 ### 3) Disallowed Verification Sources
 

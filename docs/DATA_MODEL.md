@@ -55,11 +55,14 @@ All tables include `created_at` and `updated_at` audit timestamps.
 - `claim_id` (FK)
 - `url`
 - `source_class` (primary/secondary)
+- `source_origin` (candidate/verification)
 - `publisher`
 - `quality_score` (0-1)
 - `created_at`
 - `updated_at`
 - unique: `(claim_id, url)`
+
+`source_class` describes evidence depth. `source_origin` describes who controls the source. Candidate-originated material may document what was said, but it is not sufficient verification on its own.
 
 ## ClaimEvaluation
 - `id` (UUID)

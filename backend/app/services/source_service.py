@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
 from app.models.entities import Candidate, Claim, Source, Statement
-from app.models.enums import RaceStage, SourceClass
+from app.models.enums import RaceStage, SourceClass, SourceOrigin
 from app.models.enums import ClaimStatus as ClaimStatusEnum
 from app.schemas.api import AddSourceRequest, BulkSourceAttachItem
 
@@ -35,6 +35,26 @@ class SourceService:
     ):
         primary_count = func.sum(case((Source.source_class == SourceClass.primary, 1), else_=0))
         secondary_count = func.sum(case((Source.source_class == SourceClass.secondary, 1), else_=0))
+        candidate_count = func.sum(case((Source.source_origin == SourceOrigin.candidate, 1), else_=0))
+        verification_count = func.sum(case((Source.source_origin == SourceOrigin.verification, 1), else_=0))
+        verification_primary_count = func.sum(
+            case(
+                (
+                    (Source.source_origin == SourceOrigin.verification) & (Source.source_class == SourceClass.primary),
+                    1,
+                ),
+                else_=0,
+            )
+        )
+        verification_secondary_count = func.sum(
+            case(
+                (
+                    (Source.source_origin == SourceOrigin.verification) & (Source.source_class == SourceClass.secondary),
+                    1,
+                ),
+                else_=0,
+            )
+        )
 
         query = (
             select(
@@ -53,6 +73,10 @@ class SourceService:
                 Candidate.race_stage,
                 primary_count.label('primary_count'),
                 secondary_count.label('secondary_count'),
+                candidate_count.label('candidate_count'),
+                verification_count.label('verification_count'),
+                verification_primary_count.label('verification_primary_count'),
+                verification_secondary_count.label('verification_secondary_count'),
             )
             .join(Statement, Statement.id == Claim.statement_id)
             .join(Candidate, Candidate.id == Statement.candidate_id)
@@ -89,7 +113,7 @@ class SourceService:
             query = query.where(*filters)
 
         if include_only_missing:
-            query = query.having(or_(primary_count == 0, secondary_count == 0))
+            query = query.having(or_(verification_primary_count == 0, verification_secondary_count == 0))
 
         return query
 
@@ -103,6 +127,7 @@ class SourceService:
             claim_id=claim.id,
             url=str(payload.url),
             source_class=payload.source_class,
+            source_origin=payload.source_origin,
             publisher=payload.publisher,
             quality_score=payload.quality_score,
         )
@@ -122,9 +147,14 @@ class SourceService:
 
     @staticmethod
     def has_minimum_evidence(db: Session, claim_id: uuid.UUID) -> bool:
-        sources = db.scalars(select(Source.source_class).where(Source.claim_id == claim_id)).all()
+        sources = db.execute(
+            select(Source.source_class, Source.source_origin).where(Source.claim_id == claim_id)
+        ).all()
         source_set = set(sources)
-        return SourceClass.primary in source_set and SourceClass.secondary in source_set
+        return (
+            (SourceClass.primary, SourceOrigin.verification) in source_set
+            and (SourceClass.secondary, SourceOrigin.verification) in source_set
+        )
 
     @staticmethod
     def list_evidence_queue(
@@ -154,9 +184,9 @@ class SourceService:
         items: list[dict[str, object]] = []
         for row in rows:
             missing: list[SourceClass] = []
-            if int(row['primary_count']) == 0:
+            if int(row['verification_primary_count']) == 0:
                 missing.append(SourceClass.primary)
-            if int(row['secondary_count']) == 0:
+            if int(row['verification_secondary_count']) == 0:
                 missing.append(SourceClass.secondary)
             items.append(
                 {
@@ -175,6 +205,8 @@ class SourceService:
                     'race_stage': row['race_stage'],
                     'primary_source_count': int(row['primary_count']),
                     'secondary_source_count': int(row['secondary_count']),
+                    'candidate_source_count': int(row['candidate_count']),
+                    'verification_source_count': int(row['verification_count']),
                     'missing_source_classes': missing,
                 }
             )
@@ -190,6 +222,7 @@ class SourceService:
             payload = AddSourceRequest(
                 url=item.url,
                 source_class=item.source_class,
+                source_origin=item.source_origin,
                 publisher=item.publisher,
                 quality_score=item.quality_score,
             )
@@ -201,6 +234,7 @@ class SourceService:
                         'claim_id': item.claim_id,
                         'url': str(item.url),
                         'source_class': item.source_class,
+                        'source_origin': item.source_origin,
                         'status': 'attached',
                         'error': None,
                     }
@@ -212,6 +246,7 @@ class SourceService:
                         'claim_id': item.claim_id,
                         'url': str(item.url),
                         'source_class': item.source_class,
+                        'source_origin': item.source_origin,
                         'status': SourceService._bulk_status_from_error_code(exc.code),
                         'error': {'code': exc.code, 'message': exc.message, 'details': exc.details},
                     }

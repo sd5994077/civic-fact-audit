@@ -20,6 +20,11 @@ class SourceClass(StrEnum):
     secondary = 'secondary'
 
 
+class SourceOrigin(StrEnum):
+    candidate = 'candidate'
+    verification = 'verification'
+
+
 class Verdict(StrEnum):
     supported = 'supported'
     mixed = 'mixed'

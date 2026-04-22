@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.database import Base
-from app.models.enums import ClaimStatus, RaceStage, SourceClass, StatementSourceType, Verdict
+from app.models.enums import ClaimStatus, RaceStage, SourceClass, SourceOrigin, StatementSourceType, Verdict
 
 
 class TimestampMixin:
@@ -118,6 +118,12 @@ class Source(TimestampMixin, Base):
     claim_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('claims.id', ondelete='CASCADE'))
     url: Mapped[str] = mapped_column(String(1024), nullable=False)
     source_class: Mapped[SourceClass] = mapped_column(Enum(SourceClass, name='source_class'))
+    source_origin: Mapped[SourceOrigin] = mapped_column(
+        Enum(SourceOrigin, name='source_origin'),
+        nullable=False,
+        default=SourceOrigin.verification,
+        server_default=SourceOrigin.verification.value,
+    )
     publisher: Mapped[str | None] = mapped_column(String(255), nullable=True)
     quality_score: Mapped[float] = mapped_column(Float, nullable=False)
 
@@ -126,6 +132,7 @@ class Source(TimestampMixin, Base):
     __table_args__ = (
         UniqueConstraint('claim_id', 'url', name='uq_sources_claim_url'),
         Index('ix_sources_claim_source_class', 'claim_id', 'source_class'),
+        Index('ix_sources_claim_source_origin', 'claim_id', 'source_origin'),
     )
 
 
