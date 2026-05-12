@@ -34,3 +34,10 @@ Build a transparent, nonpartisan candidate-claim auditing platform where every s
 - Never delete large sections without explanation
 - Run tests/lint after code changes when possible
 - Show a concise summary of what changed
+
+## Source Admission Check (Required Before Adding Sources)
+- Verification evidence must prioritize neutral, record-based sources first (government records, court filings, legislative records, certified datasets, official reports with methodology).
+- Independent reporting can be used as secondary corroboration, not as the only basis when a primary record exists.
+- Partisan or advocacy sources are disallowed as verification evidence.
+- Exception: a partisan source is allowed only to capture a direct candidate quote from the candidate's own official social media page/account, and must be marked as candidate-originated material (not verification-originated truth evidence).
+- When adding any source, record `source_origin`, `source_class`, `publisher`, and a brief rationale in review notes/proposal notes when applicable.
