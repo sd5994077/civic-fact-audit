@@ -1,3 +1,13 @@
-from app.models.entities import Candidate, Claim, ClaimEvaluation, ScoreSnapshot, Source, Statement
+from app.models.entities import AdminAuditEvent, AdminJobRun, Candidate, Claim, ClaimEvaluation, ClaimProposal, ScoreSnapshot, Source, Statement
 
-__all__ = ['Candidate', 'Statement', 'Claim', 'Source', 'ClaimEvaluation', 'ScoreSnapshot']
+__all__ = [
+    'Candidate',
+    'Statement',
+    'Claim',
+    'Source',
+    'ClaimEvaluation',
+    'ClaimProposal',
+    'ScoreSnapshot',
+    'AdminJobRun',
+    'AdminAuditEvent',
+]

@@ -17,6 +17,7 @@
 - Every claim scored as `supported`, `mixed`, or `unsupported` must have at least:
   - 1 primary source
   - 1 independent secondary source
+- Verification sources flagged by source-admission cleanup (`sources.policy_flagged=true`) are excluded from evidence sufficiency checks and publish-gate verification counts.
 - Formula must be versioned and stored with every snapshot (`formula_version`).
 
 ## Transparency Requirements
@@ -24,3 +25,4 @@
 - Show links for all evidence used in each verdict.
 - Maintain revision history for verdict changes.
 - Expose denominator policy (`include_insufficient_in_denominator`) with each score response.
+- Treat public verdict display as a separate approval step: only admin-published claims are eligible for public compare views.

@@ -4,7 +4,18 @@ from typing import Any
 
 from pydantic import BaseModel, Field, HttpUrl
 
-from app.models.enums import ClaimStatus, EvidenceLinkType, RaceStage, SourceClass, SourceOrigin, StatementSourceType, Verdict
+from app.models.enums import (
+    AdminJobStatus,
+    ClaimStatus,
+    EvidenceLinkType,
+    ProposalStatus,
+    ProposalType,
+    RaceStage,
+    SourceClass,
+    SourceOrigin,
+    StatementSourceType,
+    Verdict,
+)
 
 
 class ErrorPayload(BaseModel):
@@ -24,9 +35,28 @@ class CandidateCreate(BaseModel):
     state: str | None = Field(default=None, max_length=32)
     election_cycle: int | None = Field(default=None, ge=1900, le=2100)
     race_stage: RaceStage | None = None
+    is_active: bool = True
+    roster_status: str | None = Field(default=None, max_length=64)
+    roster_source_url: HttpUrl | None = None
+    roster_checked_at: datetime | None = None
+    roster_notes: str | None = None
 
 
-class CandidateRead(BaseModel):
+class CandidateUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    party: str | None = Field(default=None, max_length=128)
+    office: str | None = Field(default=None, max_length=255)
+    state: str | None = Field(default=None, max_length=32)
+    election_cycle: int | None = Field(default=None, ge=1900, le=2100)
+    race_stage: RaceStage | None = None
+    is_active: bool | None = None
+    roster_status: str | None = Field(default=None, max_length=64)
+    roster_source_url: HttpUrl | None = None
+    roster_checked_at: datetime | None = None
+    roster_notes: str | None = None
+
+
+class CandidatePublicRead(BaseModel):
     id: uuid.UUID
     name: str
     party: str | None
@@ -35,6 +65,14 @@ class CandidateRead(BaseModel):
     election_cycle: int | None
     race_stage: RaceStage | None
     created_at: datetime
+
+
+class CandidateRead(CandidatePublicRead):
+    is_active: bool = True
+    roster_status: str | None = None
+    roster_source_url: str | None = None
+    roster_checked_at: datetime | None = None
+    roster_notes: str | None = None
 
 
 class StatementCreate(BaseModel):
@@ -68,6 +106,9 @@ class ClaimRead(BaseModel):
     extraction_confidence: float
     extraction_method: str
     status: ClaimStatus
+    is_published: bool = False
+    published_at: datetime | None = None
+    published_by_reviewer_id: str | None = None
     created_at: datetime
 
 
@@ -77,6 +118,7 @@ class AddSourceRequest(BaseModel):
     source_origin: SourceOrigin = SourceOrigin.verification
     publisher: str | None = Field(default=None, max_length=255)
     quality_score: float = Field(ge=0, le=1)
+    is_direct_candidate_quote: bool = False
 
 
 class SourceRead(BaseModel):
@@ -125,6 +167,38 @@ class ClaimEvaluationRead(BaseModel):
     created_at: datetime
 
 
+class PublishClaimResponse(BaseModel):
+    claim_id: uuid.UUID
+    is_published: bool
+    published_at: datetime | None
+    published_by_reviewer_id: str | None
+    publish_note: str | None = None
+
+
+class PublishQueueItem(BaseModel):
+    claim_id: uuid.UUID
+    claim_text: str
+    issue_tag: str | None
+    candidate_name: str
+    candidate_party: str | None
+    statement_source_url: str
+    statement_published_at: datetime
+    latest_verdict: Verdict | None
+    latest_confidence: float | None
+    latest_rationale: str | None
+    latest_citation_notes: str | None
+    latest_reviewer_id: str | None
+    primary_source_count: int
+    secondary_source_count: int
+    verification_primary_count: int
+    verification_secondary_count: int
+    publish_gate_passed: bool
+    publish_gate_failures: list[str] = Field(default_factory=list)
+    is_published: bool = False
+    published_at: datetime | None = None
+    published_by_reviewer_id: str | None = None
+
+
 class ScoreBreakdown(BaseModel):
     formula_version: str
     include_insufficient_in_denominator: bool
@@ -162,6 +236,7 @@ class BulkSourceAttachItem(BaseModel):
     source_origin: SourceOrigin = SourceOrigin.verification
     publisher: str | None = Field(default=None, max_length=255)
     quality_score: float = Field(ge=0, le=1)
+    is_direct_candidate_quote: bool = False
 
 
 class BulkSourceAttachResultItem(BaseModel):
@@ -225,6 +300,7 @@ class ReviewQueueItem(BaseModel):
     latest_citation_notes: str | None
     latest_reviewer_id: str | None
     latest_evaluated_at: datetime | None
+    warnings: list['ParityWarningRead'] = Field(default_factory=list)
 
 
 class CompareRaceMeta(BaseModel):
@@ -241,6 +317,13 @@ class CompareIssueFramePolicy(BaseModel):
     comparison_question: str | None = None
     allowed_candidate_source_classes: list[SourceClass] = Field(default_factory=list)
     allowed_verification_source_classes: list[SourceClass] = Field(default_factory=list)
+
+
+class ParityWarningRead(BaseModel):
+    code: str
+    severity: str
+    is_confidence_blocking: bool
+    message: str
 
 
 class EvidenceBundleLinkRead(BaseModel):
@@ -280,15 +363,111 @@ class CompareClaimItem(BaseModel):
     citation_notes: str | None
     sources: list[SourceRead]
     evidence_bundle: ClaimEvidenceBundleRead | None = None
+    warnings: list[ParityWarningRead] = Field(default_factory=list)
 
 
 class CompareIssue(BaseModel):
     issue_tag: str
     frame_policy: CompareIssueFramePolicy | None = None
+    warnings: list[ParityWarningRead] = Field(default_factory=list)
     items: list[CompareClaimItem]
 
 
 class CompareResponse(BaseModel):
     race: CompareRaceMeta
-    candidates: list[CandidateRead]
+    candidates: list[CandidatePublicRead]
     issues: list[CompareIssue]
+
+
+class ClaimProposalCreateRequest(BaseModel):
+    proposal_type: ProposalType
+    proposed_by: str = Field(min_length=1, max_length=255)
+    proposal_payload: dict[str, Any]
+
+
+class ClaimProposalRead(BaseModel):
+    id: uuid.UUID
+    claim_id: uuid.UUID
+    proposal_type: ProposalType
+    status: ProposalStatus
+    proposed_by: str
+    reviewed_by: str | None
+    reviewed_at: datetime | None
+    proposal_payload: dict[str, Any]
+    review_notes: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ClaimProposalDecisionRequest(BaseModel):
+    review_notes: str | None = None
+
+
+class ClaimProposalApplyResponse(BaseModel):
+    proposal_id: uuid.UUID
+    status: ProposalStatus
+    applied_effect: str
+
+
+class AdminJobRunCreateRequest(BaseModel):
+    job_type: str = Field(min_length=1, max_length=128)
+    input_payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class AdminJobRunRead(BaseModel):
+    id: uuid.UUID
+    job_type: str
+    status: AdminJobStatus
+    requested_by_reviewer_id: str
+    input_payload: dict[str, Any]
+    started_at: datetime | None
+    finished_at: datetime | None
+    result_summary: dict[str, Any] | None
+    error_details: dict[str, Any] | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class AdminJobInputSchemaRead(BaseModel):
+    required_fields: list[str] = Field(default_factory=list)
+    allowed_fields: list[str] = Field(default_factory=list)
+    field_types: dict[str, str] = Field(default_factory=dict)
+    allowed_values: dict[str, list[str]] = Field(default_factory=dict)
+    supports_dry_run: bool = False
+
+
+class AdminJobTypeMetadataRead(BaseModel):
+    job_type: str
+    description: str | None = None
+    input_schema: AdminJobInputSchemaRead
+
+
+class AdminIntakeProfileRead(BaseModel):
+    profile_id: str
+    label: str
+    state: str
+    office: str
+    election_cycle: int
+    race_stage: str
+    statement_batches: list[str] = Field(default_factory=list)
+
+
+class AdminJobMetadataResponse(BaseModel):
+    allowlist_version: str
+    intake_profile_version: str
+    synchronous_execution: bool = True
+    jobs: list[AdminJobTypeMetadataRead] = Field(default_factory=list)
+    intake_profiles: list[AdminIntakeProfileRead] = Field(default_factory=list)
+
+
+class AdminAuditEventRead(BaseModel):
+    id: uuid.UUID
+    actor_reviewer_id: str
+    action: str
+    entity_type: str
+    entity_id: str
+    before_payload: dict[str, Any] | None
+    after_payload: dict[str, Any] | None
+    metadata: dict[str, Any] | None
+    created_at: datetime
+    updated_at: datetime

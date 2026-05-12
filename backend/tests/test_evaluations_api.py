@@ -1,0 +1,82 @@
+import uuid
+
+from fastapi.testclient import TestClient
+
+from app.core.errors import AppError
+from app.db.database import get_db
+from app.main import app
+from app.services.auth_dependency_service import require_admin, require_reviewer_or_admin
+from app.services.auth_service import AuthIdentity
+
+
+def _override_reviewer() -> AuthIdentity:
+    return AuthIdentity(reviewer_user_id=uuid.uuid4(), reviewer_id='reviewer@local', role='reviewer')
+
+
+def _override_admin() -> AuthIdentity:
+    return AuthIdentity(reviewer_user_id=uuid.uuid4(), reviewer_id='admin@local', role='admin')
+
+
+def _override_db():  # type: ignore[no-untyped-def]
+    yield object()
+
+
+def test_evaluate_claim_returns_422_for_moderation_violation(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[require_reviewer_or_admin] = _override_reviewer
+
+    def _fake_evaluate(_db, _claim_id, _payload, *, reviewer_id):  # type: ignore[no-untyped-def]
+        assert reviewer_id == 'reviewer@local'
+        raise AppError(
+            'moderation_policy_violation',
+            'Rationale violates moderation policy boundaries.',
+            status_code=422,
+            details={
+                'rejection_field': 'rationale',
+                'matched_rule': 'endorsement_vote_for:vote for',
+                'policy_version': 'moderation_policy_v1_2026_05_11',
+                'violation_type': 'endorsement_or_recommendation',
+            },
+        )
+
+    monkeypatch.setattr('app.api.v1.evaluations.EvaluationService.evaluate_claim', _fake_evaluate)
+
+    client = TestClient(app)
+    response = client.post(
+        f'/v1/claims/{uuid.uuid4()}/evaluate',
+        json={
+            'verdict': 'supported',
+            'confidence': 0.8,
+            'rationale': 'You should vote for this candidate.',
+            'citation_notes': 'Source packet A',
+        },
+    )
+    body = response.json()
+    assert response.status_code == 422
+    assert body['error']['code'] == 'moderation_policy_violation'
+    assert body['error']['details']['rejection_field'] == 'rationale'
+    app.dependency_overrides.clear()
+
+
+def test_publish_claim_returns_422_for_moderation_gate_failure(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[require_admin] = _override_admin
+
+    def _fake_publish(_db, _claim_id, *, approver_id):  # type: ignore[no-untyped-def]
+        assert approver_id == 'admin@local'
+        raise AppError(
+            'publish_gate_moderation_failure',
+            'Claim publish blocked by moderation policy boundaries.',
+            status_code=422,
+            details={'failed_checks': ['latest_evaluation_moderation_policy_violation']},
+        )
+
+    monkeypatch.setattr('app.api.v1.evaluations.EvaluationService.publish_claim', _fake_publish)
+
+    client = TestClient(app)
+    response = client.post(f'/v1/claims/{uuid.uuid4()}/publish')
+    body = response.json()
+    assert response.status_code == 422
+    assert body['error']['code'] == 'publish_gate_moderation_failure'
+    assert 'latest_evaluation_moderation_policy_violation' in body['error']['details']['failed_checks']
+    app.dependency_overrides.clear()

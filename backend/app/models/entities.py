@@ -6,7 +6,17 @@ from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.database import Base
-from app.models.enums import ClaimStatus, EvidenceLinkType, RaceStage, SourceClass, SourceOrigin, StatementSourceType, Verdict
+from app.models.enums import (
+    ClaimStatus,
+    EvidenceLinkType,
+    ProposalStatus,
+    ProposalType,
+    RaceStage,
+    SourceClass,
+    SourceOrigin,
+    StatementSourceType,
+    Verdict,
+)
 
 
 class TimestampMixin:
@@ -29,6 +39,11 @@ class Candidate(TimestampMixin, Base):
     state: Mapped[str | None] = mapped_column(String(32), nullable=True)
     election_cycle: Mapped[int | None] = mapped_column(nullable=True)
     race_stage: Mapped[RaceStage | None] = mapped_column(Enum(RaceStage, name='race_stage'), nullable=True)
+    is_active: Mapped[bool] = mapped_column(nullable=False, default=True, server_default=text('true'), index=True)
+    roster_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    roster_source_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    roster_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    roster_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     statements: Mapped[list['Statement']] = relationship(back_populates='candidate', cascade='all, delete-orphan')
     score_snapshots: Mapped[list['ScoreSnapshot']] = relationship(back_populates='candidate', cascade='all, delete-orphan')
@@ -120,6 +135,9 @@ class Claim(TimestampMixin, Base):
     extraction_metadata: Mapped[str | None] = mapped_column(Text, nullable=True)
     fact_checkable: Mapped[bool] = mapped_column(nullable=False, default=True, server_default=text('true'))
     status: Mapped[ClaimStatus] = mapped_column(Enum(ClaimStatus, name='claim_status'), default=ClaimStatus.draft)
+    is_published: Mapped[bool] = mapped_column(nullable=False, default=False, server_default=text('false'))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    published_by_reviewer_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     statement: Mapped['Statement'] = relationship(back_populates='claims')
     issue_frame: Mapped['IssueFrame | None'] = relationship(back_populates='claims')
@@ -130,6 +148,7 @@ class Claim(TimestampMixin, Base):
         cascade='all, delete-orphan',
         uselist=False,
     )
+    proposals: Mapped[list['ClaimProposal']] = relationship(back_populates='claim', cascade='all, delete-orphan')
 
     __table_args__ = (
         Index('ix_claims_statement_status', 'statement_id', 'status'),
@@ -150,6 +169,9 @@ class Source(TimestampMixin, Base):
         default=SourceOrigin.verification,
         server_default=SourceOrigin.verification.value,
     )
+    policy_flagged: Mapped[bool] = mapped_column(nullable=False, default=False, server_default=text('false'))
+    policy_flag_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    policy_flagged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     publisher: Mapped[str | None] = mapped_column(String(255), nullable=True)
     quality_score: Mapped[float] = mapped_column(Float, nullable=False)
 
@@ -160,6 +182,7 @@ class Source(TimestampMixin, Base):
         UniqueConstraint('claim_id', 'url', name='uq_sources_claim_url'),
         Index('ix_sources_claim_source_class', 'claim_id', 'source_class'),
         Index('ix_sources_claim_source_origin', 'claim_id', 'source_origin'),
+        Index('ix_sources_claim_origin_policy_flagged', 'claim_id', 'source_origin', 'policy_flagged'),
     )
 
 
@@ -255,3 +278,68 @@ class ScoreSnapshot(TimestampMixin, Base):
     candidate: Mapped['Candidate'] = relationship(back_populates='score_snapshots')
 
     __table_args__ = (Index('ix_score_snapshots_candidate_window', 'candidate_id', 'window_start', 'window_end'),)
+
+
+class AdminJobRun(TimestampMixin, Base):
+    __tablename__ = 'admin_job_runs'
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    job_type: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default='queued', server_default='queued')
+    requested_by_reviewer_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    input_payload: Mapped[str] = mapped_column(Text, nullable=False, default='{}', server_default='{}')
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    result_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_details: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    __table_args__ = (
+        Index('ix_admin_job_runs_status_created', 'status', 'created_at'),
+        Index('ix_admin_job_runs_job_type_created', 'job_type', 'created_at'),
+    )
+
+
+class AdminAuditEvent(TimestampMixin, Base):
+    __tablename__ = 'admin_audit_events'
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    actor_reviewer_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    action: Mapped[str] = mapped_column(String(128), nullable=False)
+    entity_type: Mapped[str] = mapped_column(String(128), nullable=False)
+    entity_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    before_payload: Mapped[str | None] = mapped_column(Text, nullable=True)
+    after_payload: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_payload: Mapped[str | None] = mapped_column('metadata', Text, nullable=True)
+
+    __table_args__ = (
+        Index('ix_admin_audit_events_created', 'created_at'),
+        Index('ix_admin_audit_events_action_created', 'action', 'created_at'),
+        Index('ix_admin_audit_events_entity_created', 'entity_type', 'entity_id', 'created_at'),
+        Index('ix_admin_audit_events_actor_created', 'actor_reviewer_id', 'created_at'),
+    )
+
+
+class ClaimProposal(TimestampMixin, Base):
+    __tablename__ = 'claim_proposals'
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    claim_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('claims.id', ondelete='CASCADE'), nullable=False)
+    proposal_type: Mapped[ProposalType] = mapped_column(Enum(ProposalType, name='proposal_type'), nullable=False)
+    status: Mapped[ProposalStatus] = mapped_column(
+        Enum(ProposalStatus, name='proposal_status'),
+        nullable=False,
+        default=ProposalStatus.proposed,
+        server_default=ProposalStatus.proposed.value,
+    )
+    proposed_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    reviewed_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    proposal_payload: Mapped[str] = mapped_column(Text, nullable=False)
+    review_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    claim: Mapped['Claim'] = relationship(back_populates='proposals')
+
+    __table_args__ = (
+        Index('ix_claim_proposals_status_type_created', 'status', 'proposal_type', 'created_at'),
+        Index('ix_claim_proposals_claim_id', 'claim_id'),
+    )

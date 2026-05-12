@@ -1,8 +1,9 @@
 import uuid
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 from app.models.enums import EvidenceLinkType, SourceClass, SourceOrigin
-from app.services.evidence_bundle_service import _build_desired_bundle_links
+from app.services.evidence_bundle_service import _build_bundle_link_read, _build_desired_bundle_links
 
 
 def test_build_desired_bundle_links_separates_stance_from_verification() -> None:
@@ -74,3 +75,23 @@ def test_build_desired_bundle_links_orders_candidate_and_verification_sources_de
         'https://example.com/b',
     ]
     assert [link.display_order for link in links] == [0, 0, 1]
+
+
+def test_build_bundle_link_read_marks_statement_link_as_candidate_primary() -> None:
+    link = SimpleNamespace(
+        id=uuid.uuid4(),
+        bundle_id=uuid.uuid4(),
+        statement_id=uuid.uuid4(),
+        source_id=None,
+        url='https://candidate.example.com/statement',
+        label='Candidate statement',
+        link_type=EvidenceLinkType.stance,
+        source=None,
+        display_order=0,
+        created_at=datetime(2026, 4, 21, tzinfo=timezone.utc),
+    )
+
+    read_link = _build_bundle_link_read(link)
+
+    assert read_link.source_origin == SourceOrigin.candidate
+    assert read_link.source_class == SourceClass.primary

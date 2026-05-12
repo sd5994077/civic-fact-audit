@@ -1,14 +1,21 @@
 import uuid
 from datetime import datetime, timezone
 
-from app.models.enums import RaceStage, SourceClass, Verdict
+from app.models.enums import EvidenceLinkType, RaceStage, SourceClass, SourceOrigin, Verdict
 from app.services.comparison_service import (
+    PUBLIC_EVIDENCE_LINKS_PER_SIDE,
     ComparisonService,
     _CompareRow,
+    _build_issue_warnings,
+    _build_item_warnings,
     _build_issue_frame_policy_by_key,
+    _curate_public_evidence_bundle,
     _resolve_issue_frame_policy,
     _resolve_issue_tag,
+    _sanitize_public_citation_notes,
+    _sanitize_public_rationale,
 )
+from app.schemas.api import ClaimEvidenceBundleRead, CompareClaimItem, EvidenceBundleLinkRead
 
 
 def test_candidate_filters_include_cycle_and_stage_when_provided() -> None:
@@ -217,3 +224,96 @@ def test_resolve_issue_frame_policy_returns_none_for_multiple_frame_keys() -> No
     frame_policies = _build_issue_frame_policy_by_key(issue_rows)
 
     assert _resolve_issue_frame_policy(issue_rows, frame_policies) is None
+
+
+def _bundle_link(order: int, link_type: EvidenceLinkType) -> EvidenceBundleLinkRead:
+    return EvidenceBundleLinkRead(
+        id=uuid.uuid4(),
+        bundle_id=uuid.uuid4(),
+        statement_id=None,
+        source_id=uuid.uuid4(),
+        url=f'https://example.com/{link_type.value}/{order}',
+        label=f'Link {order}',
+        link_type=link_type,
+        source_class=SourceClass.secondary,
+        source_origin=SourceOrigin.verification,
+        publisher='Publisher',
+        quality_score=0.8,
+        display_order=order,
+        created_at=datetime(2026, 4, 20, tzinfo=timezone.utc),
+    )
+
+
+def test_curate_public_evidence_bundle_caps_links_per_side() -> None:
+    bundle = ClaimEvidenceBundleRead(
+        id=uuid.uuid4(),
+        claim_id=uuid.uuid4(),
+        is_curated=False,
+        stance_links=[_bundle_link(i, EvidenceLinkType.stance) for i in range(8)],
+        verification_links=[_bundle_link(i, EvidenceLinkType.verification) for i in range(7)],
+    )
+
+    curated = _curate_public_evidence_bundle(bundle, per_side_limit=PUBLIC_EVIDENCE_LINKS_PER_SIDE)
+
+    assert curated is not None
+    assert len(curated.stance_links) == PUBLIC_EVIDENCE_LINKS_PER_SIDE
+    assert len(curated.verification_links) == PUBLIC_EVIDENCE_LINKS_PER_SIDE
+    assert [link.display_order for link in curated.stance_links] == [0, 1, 2, 3, 4]
+    assert [link.display_order for link in curated.verification_links] == [0, 1, 2, 3, 4]
+
+
+def test_build_item_warnings_flags_missing_verification_classes() -> None:
+    warnings = _build_item_warnings(sources=[], evidence_bundle=None)
+    codes = {warning.code for warning in warnings}
+    assert 'missing_verification_primary' in codes
+    assert 'missing_verification_secondary' in codes
+
+
+def test_build_issue_warnings_flags_imbalance() -> None:
+    item_balanced = CompareClaimItem(
+        candidate_id=uuid.uuid4(),
+        claim_id=uuid.uuid4(),
+        claim_text='Claim A',
+        issue_tag='Economy',
+        statement_source_url='https://example.com/a',
+        statement_published_at=datetime(2026, 4, 21, tzinfo=timezone.utc),
+        verdict=Verdict.supported,
+        confidence=0.9,
+        rationale='Rationale A',
+        citation_notes=None,
+        sources=[],
+        evidence_bundle=None,
+        warnings=[],
+    )
+    item_missing = CompareClaimItem(
+        candidate_id=uuid.uuid4(),
+        claim_id=uuid.uuid4(),
+        claim_text='Claim B',
+        issue_tag='Economy',
+        statement_source_url='https://example.com/b',
+        statement_published_at=datetime(2026, 4, 21, tzinfo=timezone.utc),
+        verdict=Verdict.mixed,
+        confidence=0.6,
+        rationale='Rationale B',
+        citation_notes=None,
+        sources=[],
+        evidence_bundle=None,
+        warnings=_build_item_warnings(sources=[], evidence_bundle=None),
+    )
+    issue_warnings = _build_issue_warnings([item_balanced, item_missing])
+    codes = {warning.code for warning in issue_warnings}
+    assert 'source_class_imbalance_primary' in codes
+    assert 'source_class_imbalance_secondary' in codes
+
+
+def test_sanitize_public_rationale_redacts_moderation_violation() -> None:
+    rationale, warnings = _sanitize_public_rationale('You should vote for this candidate.')
+    assert 'vote for' not in rationale.lower()
+    assert any(w.code == 'moderation_policy_redacted_rationale' for w in warnings)
+
+
+def test_sanitize_public_citation_notes_redacts_moderation_violation() -> None:
+    citation_notes, warnings = _sanitize_public_citation_notes('Voters should choose this person.')
+    assert citation_notes is not None
+    assert 'choose this person' not in citation_notes.lower()
+    assert any(w.code == 'moderation_policy_redacted_citation_notes' for w in warnings)

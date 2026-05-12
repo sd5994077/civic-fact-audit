@@ -1,0 +1,23 @@
+{
+  "version": "moderation_policy_v1_2026_05_11",
+  "matching": {
+    "mode": "contains"
+  },
+  "rules": [
+    {
+      "rule_id": "endorsement_vote_for",
+      "violation_type": "endorsement_or_recommendation",
+      "patterns": ["vote for", "support this candidate", "elect this candidate"]
+    },
+    {
+      "rule_id": "endorsement_vote_against",
+      "violation_type": "endorsement_or_recommendation",
+      "patterns": ["vote against", "do not vote for", "defeat this candidate"]
+    },
+    {
+      "rule_id": "directive_recommendation",
+      "violation_type": "endorsement_or_recommendation",
+      "patterns": ["you should vote", "voters should choose", "the best candidate is"]
+    }
+  ]
+}

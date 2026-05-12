@@ -8,13 +8,11 @@ Update the ROSTER entries as official filing/certification status changes.
 from __future__ import annotations
 
 from dataclasses import dataclass
-
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from datetime import datetime, timezone
 
 from app.db.database import SessionLocal, get_engine
-from app.models.entities import Candidate
 from app.models.enums import RaceStage
+from app.services.candidate_service import CandidateRosterUpsert, CandidateService
 
 
 @dataclass(frozen=True)
@@ -63,56 +61,29 @@ ROSTER: list[RosterEntry] = [
 ]
 
 
-def _get_existing_candidate(db: Session, entry: RosterEntry) -> Candidate | None:
-    return (
-        db.execute(
-            select(Candidate).where(
-                Candidate.name == entry.name,
-                Candidate.office == entry.office,
-                Candidate.state == entry.state,
-                Candidate.election_cycle == entry.election_cycle,
-                Candidate.race_stage == entry.race_stage,
-            )
+def _to_upserts(roster: list[RosterEntry], checked_at: datetime) -> list[CandidateRosterUpsert]:
+    return [
+        CandidateRosterUpsert(
+            name=entry.name,
+            party=entry.party,
+            office=entry.office,
+            state=entry.state,
+            election_cycle=entry.election_cycle,
+            race_stage=entry.race_stage,
+            roster_status=entry.roster_status,
+            roster_source_url=entry.source_url,
+            roster_checked_at=checked_at,
         )
-        .scalars()
-        .first()
-    )
-
-
-def upsert_roster(db: Session, roster: list[RosterEntry]) -> tuple[int, int]:
-    created = 0
-    updated = 0
-    for entry in roster:
-        existing = _get_existing_candidate(db, entry)
-        if existing is None:
-            db.add(
-                Candidate(
-                    name=entry.name,
-                    party=entry.party,
-                    office=entry.office,
-                    state=entry.state,
-                    election_cycle=entry.election_cycle,
-                    race_stage=entry.race_stage,
-                )
-            )
-            created += 1
-            continue
-
-        changed = False
-        if existing.party != entry.party:
-            existing.party = entry.party
-            changed = True
-        if changed:
-            updated += 1
-    db.commit()
-    return created, updated
+        for entry in roster
+    ]
 
 
 def main() -> None:
     get_engine()
     db = SessionLocal()
     try:
-        created, updated = upsert_roster(db, ROSTER)
+        checked_at = datetime.now(timezone.utc)
+        created, updated = CandidateService.upsert_roster_candidates(db, _to_upserts(ROSTER, checked_at))
         print(f'Ingested Texas 2026 US Senate roster entries. created={created} updated={updated} total={len(ROSTER)}')
         print('Verification sources used for this snapshot:')
         for entry in ROSTER:

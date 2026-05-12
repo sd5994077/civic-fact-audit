@@ -10,6 +10,11 @@ All tables include `created_at` and `updated_at` audit timestamps.
 - `state`
 - `election_cycle` (e.g. `2026`)
 - `race_stage` (`primary`/`primary_runoff`/`general`/`special`)
+- `is_active` (bool; admin lifecycle flag for active/inactive candidate records)
+- `roster_status` (nullable string snapshot label such as `runoff_reported`)
+- `roster_source_url` (nullable source URL for the latest roster verification snapshot)
+- `roster_checked_at` (nullable timestamp for when roster status/source were last verified)
+- `roster_notes` (nullable operator notes for roster verification context)
 - `created_at`
 - `updated_at`
 
@@ -34,6 +39,9 @@ All tables include `created_at` and `updated_at` audit timestamps.
 - `extraction_metadata`
 - `fact_checkable` (typed gate for queue/compare inclusion)
 - `status` (draft/reviewed/published)
+- `is_published` (explicit public-display approval flag)
+- `published_at` (nullable timestamp for latest publish action)
+- `published_by_reviewer_id` (nullable reviewer/admin identifier for publish attribution)
 - `created_at`
 - `updated_at`
 
@@ -60,6 +68,9 @@ These policy fields let each shared frame declare what evidence classes are acce
 - `url`
 - `source_class` (primary/secondary)
 - `source_origin` (candidate/verification)
+- `policy_flagged` (bool; true when a legacy verification source violates source-admission policy and is excluded from verification sufficiency gates)
+- `policy_flag_reason` (nullable JSON/text note describing matched rule and policy version)
+- `policy_flagged_at` (nullable timestamp when exclusion flag was set)
 - `publisher`
 - `quality_score` (0-1)
 - `created_at`
@@ -88,6 +99,7 @@ These policy fields let each shared frame declare what evidence classes are acce
 - `updated_at`
 
 Each bundle link points to exactly one backing record: either the captured candidate statement or an attached source. This keeps candidate-position links separate from verification links before later curation into supporting/rebutting public bundles.
+Public compare cards currently render a curated subset capped per side (candidate stance links vs verification links), and each shown link is labeled with source origin and source class.
 
 ## ClaimEvaluation
 - `id` (UUID)
@@ -103,6 +115,25 @@ Each bundle link points to exactly one backing record: either the captured candi
 Multiple evaluations per claim are allowed. The latest evaluation is used for scoring; prior rows remain as revision history.
 Evaluation writes require authenticated bearer token; reviewer identity is resolved server-side from reviewer account records.
 
+## ClaimProposal
+- `id` (UUID)
+- `claim_id` (FK)
+- `proposal_type` (`issue_frame_mapping`/`candidate_source_capture`/`verification_source_suggestion`/`draft_verdict`)
+- `status` (`proposed`/`approved`/`rejected`/`applied`)
+- `proposed_by` (system/actor identifier)
+- `reviewed_by` (nullable reviewer/admin identifier)
+- `reviewed_at` (nullable timestamp)
+- `proposal_payload` (JSON text; schema validated by `proposal_type`)
+- `review_notes` (nullable reviewer notes)
+- `created_at`
+- `updated_at`
+
+Lifecycle:
+- `proposed -> approved/rejected`
+- `approved -> applied`
+
+`approved` and `applied` are intentionally separate to preserve an auditable trail between reviewer signoff and actual data mutation.
+
 ## ReviewerUser
 - `id` (UUID)
 - `email` (unique)
@@ -112,6 +143,35 @@ Evaluation writes require authenticated bearer token; reviewer identity is resol
 - `is_active`
 - `created_at`
 - `updated_at`
+
+## AdminJobRun
+- `id` (UUID)
+- `job_type` (allowlisted operation identifier)
+- `status` (`queued`/`running`/`succeeded`/`failed`/`canceled`)
+- `requested_by_reviewer_id` (admin actor identifier)
+- `input_payload` (JSON text for validated job options)
+- `started_at` (nullable timestamp)
+- `finished_at` (nullable timestamp)
+- `result_summary` (nullable JSON text with execution output metadata)
+- `error_details` (nullable JSON text with structured failure details)
+- `created_at`
+- `updated_at`
+
+Admin jobs are allowlisted and auditable. They are not arbitrary shell execution.
+
+## AdminAuditEvent
+- `id` (UUID)
+- `actor_reviewer_id` (admin/reviewer actor identifier)
+- `action` (mutation event type such as `candidate_updated` or `claim_published`)
+- `entity_type` (audited resource type)
+- `entity_id` (audited resource identifier)
+- `before_payload` (nullable JSON text of the entity state before mutation)
+- `after_payload` (nullable JSON text of the entity state after mutation)
+- `metadata` (nullable JSON text for supplemental audit context)
+- `created_at`
+- `updated_at`
+
+Admin audit events support admin-only visibility into candidate mutations, admin job triggers, proposal application, and claim publish/unpublish actions.
 
 ## ScoreSnapshot
 - `id` (UUID)

@@ -2,10 +2,26 @@
 
 This workflow keeps race setup and statement intake reproducible and auditable.
 
+## Admin job intake profiles (Step 2)
+- Intake jobs in `POST /v1/admin/jobs` are now profile-driven and still execute synchronously in-request (no async worker yet).
+- Supported payload shapes:
+  - `{"job_type":"ingest_candidate_roster","input_payload":{"profile_id":"tx_2026_senate"}}`
+  - `{"job_type":"ingest_statement_batch","input_payload":{"profile_id":"tx_2026_senate","statement_batch":"round3"}}`
+- Current profile ids:
+  - `tx_2026_senate`
+  - `tx_2026_ag_runoff`
+- `statement_batch` values are profile-specific and must match configured batch keys for the selected profile.
+
 ## 1) Create/refresh race roster
 - Run the race roster ingester for the target race.
 - Example (Texas 2026 U.S. Senate):
   - `python -m app.scripts.ingest_tx_2026_senate_roster`
+- Example (Texas 2026 Attorney General runoff starter):
+  - `python -m app.scripts.ingest_tx_2026_attorney_general_runoff_roster`
+- Candidate mutation API guardrails:
+  - `POST /v1/candidates` and `PATCH /v1/candidates/{id}` are admin-only.
+  - `GET /v1/candidates/{id}` is admin-only and can be used to verify candidate metadata after intake updates.
+  - Roster ingestion now persists `roster_status`, `roster_source_url`, and `roster_checked_at` on candidate records for auditable snapshot history.
 
 ## 2) Seed statement-source batch
 - Run the statement batch ingester for the same race context.
@@ -13,6 +29,9 @@ This workflow keeps race setup and statement intake reproducible and auditable.
   - `python -m app.scripts.ingest_tx_2026_statement_batch`
   - `python -m app.scripts.ingest_tx_2026_statement_batch_round2`
   - `python -m app.scripts.ingest_tx_2026_statement_batch_round3`
+- Example (Texas 2026 Attorney General runoff starter):
+  - `python -m app.scripts.ingest_tx_2026_attorney_general_runoff_statement_batch --dry-run`
+  - `python -m app.scripts.ingest_tx_2026_attorney_general_runoff_statement_batch`
 - Use the later batches to introduce narrower, record-checkable claims after initial campaign-context capture.
 
 ## 3) Extract claims

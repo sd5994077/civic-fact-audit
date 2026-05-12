@@ -1,0 +1,31 @@
+{
+  "version": "intake_profiles_v1_2026_05_12",
+  "profiles": [
+    {
+      "profile_id": "tx_2026_senate",
+      "label": "Texas 2026 U.S. Senate",
+      "state": "TX",
+      "office": "US Senate",
+      "election_cycle": 2026,
+      "race_stage": "primary",
+      "roster_seed_module": "app.scripts.ingest_tx_2026_senate_roster",
+      "statement_batch_modules": {
+        "starter": "app.scripts.ingest_tx_2026_statement_batch",
+        "round2": "app.scripts.ingest_tx_2026_statement_batch_round2",
+        "round3": "app.scripts.ingest_tx_2026_statement_batch_round3"
+      }
+    },
+    {
+      "profile_id": "tx_2026_ag_runoff",
+      "label": "Texas 2026 Attorney General Runoff",
+      "state": "TX",
+      "office": "Attorney General",
+      "election_cycle": 2026,
+      "race_stage": "primary_runoff",
+      "roster_seed_module": "app.scripts.ingest_tx_2026_attorney_general_runoff_roster",
+      "statement_batch_modules": {
+        "starter": "app.scripts.ingest_tx_2026_attorney_general_runoff_statement_batch"
+      }
+    }
+  ]
+}

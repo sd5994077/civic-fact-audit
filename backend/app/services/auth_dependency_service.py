@@ -24,3 +24,9 @@ def require_reviewer_or_admin(identity: AuthIdentity = Depends(get_current_ident
     if identity.role not in {'reviewer', 'admin'}:
         raise AppError('forbidden', 'Reviewer role is required for this action.', status_code=403)
     return identity
+
+
+def require_admin(identity: AuthIdentity = Depends(get_current_identity)) -> AuthIdentity:
+    if identity.role != 'admin':
+        raise AppError('forbidden', 'Admin role is required for this action.', status_code=403)
+    return identity

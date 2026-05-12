@@ -1,0 +1,36 @@
+{
+  "version": "source_admission_v1_2026_05_11",
+  "matching": {
+    "publisher": "contains",
+    "domain": "suffix"
+  },
+  "partisan_publishers": [
+    "democratic party",
+    "republican party",
+    "dnc",
+    "rnc",
+    "pac",
+    "super pac",
+    "turning point",
+    "moveon",
+    "heritage foundation",
+    "daily kos",
+    "moms for liberty"
+  ],
+  "partisan_domains": [
+    "actblue.com",
+    "winred.com",
+    "votesaveamerica.com",
+    "momsforliberty.org",
+    "dailykos.com"
+  ],
+  "social_domains": [
+    "x.com",
+    "twitter.com",
+    "facebook.com",
+    "instagram.com",
+    "youtube.com",
+    "tiktok.com",
+    "truthsocial.com"
+  ]
+}
