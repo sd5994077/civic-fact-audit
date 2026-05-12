@@ -9,6 +9,7 @@ Purpose:
 from __future__ import annotations
 
 import json
+import re
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -40,19 +41,50 @@ def _load_target_claims(db: Session) -> list[Claim]:
 
 def _is_specific_policy_commitment(text: str) -> bool:
     normalized = text.lower()
+    normalized_tokens = re.sub(r'[^a-z0-9]+', ' ', normalized).strip()
     quarterly_contract_report = (
-        'quarterly' in normalized
-        and 'outside counsel' in normalized
-        and 'contract amount' in normalized
-        and 'case matter' in normalized
+        'quarterly' in normalized_tokens
+        and 'outside counsel' in normalized_tokens
+        and 'contract amount' in normalized_tokens
+        and 'case matter' in normalized_tokens
     )
     pia_sla_metrics = (
-        'public information act' in normalized
-        and 'five business days' in normalized
-        and 'monthly' in normalized
-        and 'dashboard' in normalized
+        'public information act' in normalized_tokens
+        and 'five business days' in normalized_tokens
+        and 'monthly' in normalized_tokens
+        and 'dashboard' in normalized_tokens
     )
-    return quarterly_contract_report or pia_sla_metrics
+    monthly_opinion_backlog_report = (
+        'monthly' in normalized_tokens
+        and 'backlog report' in normalized_tokens
+        and 'opinion' in normalized_tokens
+        and 'request' in normalized_tokens
+    )
+    quarterly_consumer_protection_totals = (
+        'quarterly' in normalized_tokens
+        and 'consumer protection' in normalized_tokens
+        and 'restitution' in normalized_tokens
+    )
+    quarterly_election_referral_stats = (
+        'quarterly' in normalized_tokens
+        and 'election fraud' in normalized_tokens
+        and 'referral' in normalized_tokens
+        and 'disposition' in normalized_tokens
+    )
+    monthly_agency_pia_metrics = (
+        'monthly' in normalized_tokens
+        and 'public information act' in normalized_tokens
+        and 'response time metrics' in normalized_tokens
+        and 'agency' in normalized_tokens
+    )
+    return (
+        quarterly_contract_report
+        or pia_sla_metrics
+        or monthly_opinion_backlog_report
+        or quarterly_consumer_protection_totals
+        or quarterly_election_referral_stats
+        or monthly_agency_pia_metrics
+    )
 
 
 def run_backfill(db: Session) -> tuple[int, int]:

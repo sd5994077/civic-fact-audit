@@ -16,6 +16,7 @@ class IntakeProfile:
     race_stage: str
     roster_seed_module: str
     statement_batch_modules: dict[str, str]
+    admin_job_modules: dict[str, str]
 
 
 @dataclass(frozen=True)
@@ -49,6 +50,7 @@ def get_intake_profiles_config(path: str | None = None) -> IntakeProfilesConfig:
         roster_seed_module = str(raw_profile.get('roster_seed_module', '')).strip()
         election_cycle_raw = raw_profile.get('election_cycle')
         batch_modules_raw = raw_profile.get('statement_batch_modules', {})
+        admin_job_modules_raw = raw_profile.get('admin_job_modules', {})
 
         if (
             not profile_id
@@ -59,6 +61,7 @@ def get_intake_profiles_config(path: str | None = None) -> IntakeProfilesConfig:
             or not roster_seed_module
             or not isinstance(election_cycle_raw, int)
             or not isinstance(batch_modules_raw, dict)
+            or not isinstance(admin_job_modules_raw, dict)
         ):
             continue
 
@@ -72,6 +75,14 @@ def get_intake_profiles_config(path: str | None = None) -> IntakeProfilesConfig:
         if not statement_batch_modules:
             continue
 
+        admin_job_modules: dict[str, str] = {}
+        for job_type, module in admin_job_modules_raw.items():
+            normalized_job_type = str(job_type).strip()
+            normalized_module = str(module).strip()
+            if not normalized_job_type or not normalized_module:
+                continue
+            admin_job_modules[normalized_job_type] = normalized_module
+
         profiles_by_id[profile_id] = IntakeProfile(
             profile_id=profile_id,
             label=label,
@@ -81,6 +92,7 @@ def get_intake_profiles_config(path: str | None = None) -> IntakeProfilesConfig:
             race_stage=race_stage,
             roster_seed_module=roster_seed_module,
             statement_batch_modules=statement_batch_modules,
+            admin_job_modules=admin_job_modules,
         )
 
     return IntakeProfilesConfig(version=version, profiles_by_id=profiles_by_id)

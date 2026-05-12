@@ -1,5 +1,5 @@
 {
-  "version": "intake_profiles_v1_2026_05_12",
+  "version": "intake_profiles_v3_2026_05_12",
   "profiles": [
     {
       "profile_id": "tx_2026_senate",
@@ -12,7 +12,15 @@
       "statement_batch_modules": {
         "starter": "app.scripts.ingest_tx_2026_statement_batch",
         "round2": "app.scripts.ingest_tx_2026_statement_batch_round2",
-        "round3": "app.scripts.ingest_tx_2026_statement_batch_round3"
+        "round3": "app.scripts.ingest_tx_2026_statement_batch_round3",
+        "round4": "app.scripts.ingest_tx_2026_statement_batch_round4"
+      },
+      "admin_job_modules": {
+        "extract_claims_batch": "app.scripts.extract_tx_2026_claims_batch",
+        "backfill_claim_reviewability": "app.scripts.backfill_tx_2026_claim_reviewability",
+        "generate_publish_queue_report": "app.scripts.generate_tx_2026_publish_queue_report",
+        "generate_publish_progress_report": "app.scripts.generate_tx_2026_publish_progress_report",
+        "generate_profile_claim_coverage_report": "app.scripts.generate_tx_2026_claim_coverage_report"
       }
     },
     {
@@ -24,7 +32,15 @@
       "race_stage": "primary_runoff",
       "roster_seed_module": "app.scripts.ingest_tx_2026_attorney_general_runoff_roster",
       "statement_batch_modules": {
-        "starter": "app.scripts.ingest_tx_2026_attorney_general_runoff_statement_batch"
+        "starter": "app.scripts.ingest_tx_2026_attorney_general_runoff_statement_batch",
+        "round2": "app.scripts.ingest_tx_2026_attorney_general_runoff_statement_batch_round2"
+      },
+      "admin_job_modules": {
+        "extract_claims_batch": "app.scripts.extract_tx_2026_attorney_general_runoff_claims_batch",
+        "backfill_claim_reviewability": "app.scripts.backfill_tx_2026_attorney_general_runoff_claim_reviewability",
+        "generate_publish_queue_report": "app.scripts.generate_tx_2026_attorney_general_runoff_publish_queue_report",
+        "generate_publish_progress_report": "app.scripts.generate_tx_2026_attorney_general_runoff_publish_progress_report",
+        "generate_profile_claim_coverage_report": "app.scripts.generate_tx_2026_attorney_general_runoff_claim_coverage_report"
       }
     }
   ]

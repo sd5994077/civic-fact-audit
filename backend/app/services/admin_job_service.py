@@ -28,6 +28,27 @@ _JOB_EXECUTION_TIMEOUT_SECONDS = 300
 
 class AdminJobService:
     @staticmethod
+    def _get_job_schema_fields(job: AdminJobDefinition) -> tuple[list[str], list[str]]:
+        raw_schema = job.input_schema if isinstance(job.input_schema, dict) else {}
+        required_fields = sorted({str(item).strip() for item in raw_schema.get('required_fields', []) if str(item).strip()})
+        allowed_fields = sorted({str(item).strip() for item in raw_schema.get('allowed_fields', []) if str(item).strip()})
+        return required_fields, allowed_fields
+
+    @staticmethod
+    def _job_uses_profile_id(job: AdminJobDefinition) -> bool:
+        required_fields, allowed_fields = AdminJobService._get_job_schema_fields(job)
+        return 'profile_id' in required_fields or 'profile_id' in allowed_fields
+
+    @staticmethod
+    def _profile_ids_supporting_job(job_type: str, *, intake_config: Any | None = None) -> list[str]:
+        config = intake_config if intake_config is not None else get_intake_profiles_config()
+        return sorted(
+            profile_id
+            for profile_id, profile in config.profiles_by_id.items()
+            if profile.admin_job_modules.get(job_type)
+        )
+
+    @staticmethod
     def _utcnow() -> datetime:
         return datetime.now(timezone.utc)
 
@@ -267,6 +288,11 @@ class AdminJobService:
 
             if job.job_type in {_INTAKE_ROSTER_JOB_TYPE, _INTAKE_STATEMENT_BATCH_JOB_TYPE}:
                 allowed_values['profile_id'] = profile_ids
+            elif AdminJobService._job_uses_profile_id(job):
+                allowed_values['profile_id'] = AdminJobService._profile_ids_supporting_job(
+                    job.job_type,
+                    intake_config=intake_config,
+                )
 
             jobs.append(
                 {
@@ -347,6 +373,22 @@ class AdminJobService:
                 'intake_profile_id': profile.profile_id,
                 'statement_batch': statement_batch,
             }
+
+        if AdminJobService._job_uses_profile_id(job):
+            profile_id = str(normalized_payload.get('profile_id', '')).strip()
+            profile, config_version = AdminJobService._get_intake_profile(profile_id)
+            module = profile.admin_job_modules.get(job.job_type)
+            if module is None:
+                allowed_profile_ids = AdminJobService._profile_ids_supporting_job(job.job_type)
+                AdminJobService._raise_job_input_invalid(
+                    'profile_id is not supported for the selected job type.',
+                    required_fields=['profile_id'],
+                    allowed_fields=['profile_id'],
+                    missing_fields=[],
+                    unsupported_fields=[],
+                    allowed_values={'profile_id': allowed_profile_ids},
+                )
+            return module, {'intake_profile_version': config_version, 'intake_profile_id': profile.profile_id}
 
         return job.module, {}
 

@@ -23,6 +23,7 @@ Moderation/output boundaries are defined in `docs/MODERATION_POLICY.md`.
 ## 2) Inspect publish queue
 - API: `GET /v1/claims/publish-queue`
 - Script: `python -m app.scripts.generate_tx_2026_publish_queue_report`
+- AG runoff script: `python -m app.scripts.generate_tx_2026_attorney_general_runoff_publish_queue_report`
 
 Blocked rows return `publish_gate_failures` codes:
 - `claim_not_fact_checkable`
@@ -51,12 +52,18 @@ Before publish, reviewer/admin should ensure:
 
 ## 5) Track completion progress
 - Script: `python -m app.scripts.generate_tx_2026_publish_progress_report`
+- AG runoff script: `python -m app.scripts.generate_tx_2026_attorney_general_runoff_publish_progress_report`
 
 This prints:
 - total fact-checkable claims
 - published claims and percent
 - ready-but-unpublished claims
 - blocked claims grouped by failure reason
+
+## 6) Enforce coverage gate (current profiles)
+- Script (Senate): `python -m app.scripts.generate_tx_2026_claim_coverage_report`
+- Script (AG runoff): `python -m app.scripts.generate_tx_2026_attorney_general_runoff_claim_coverage_report`
+- Required pass condition for both profiles: each candidate has `published_verified_claims >= 3`.
 
 ## 6) Export public compare rows (CSV/JSON)
 - API: `GET /v1/compare/export`

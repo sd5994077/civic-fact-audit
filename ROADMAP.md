@@ -71,8 +71,10 @@
 - [x] Add dedicated admin frontend workspace (`/admin/`) for candidate management, review queue adjudication, proposal triage, publish controls, job execution/status, and audit visibility.
 - [x] Separate public compare/dashboard browsing from staff-only admin/reviewer workflows in the UI information architecture.
 - [x] Add admin audit visibility for who triggered jobs, changed candidate records, applied proposals, and published/unpublished claims.
-- [ ] Generalize current race-specific CLI workflows into config-first admin flows where practical, preserving reproducibility and source traceability.
+- [x] Generalize current race-specific CLI workflows into config-first admin flows for profile-scoped extraction/reviewability/report jobs, preserving reproducibility and source traceability.
 - [x] Add config-first preset intake profiles for synchronous admin roster/statement ingestion (`profile_id` + `statement_batch` typed payload validation/routing).
+- [x] Prepare current-profile candidate/source draft inventory artifact (review-only, no direct ingestion) for `tx_2026_senate` and `tx_2026_ag_runoff`.
+- [x] Add current-profile coverage-to-3 workflow support (new factual statement batches, profile-scoped progress/coverage reports, and operator runbook) for `tx_2026_senate` and `tx_2026_ag_runoff`.
 - [ ] Build the power-admin workflow for AI-assisted claim grouping, source suggestion, evidence-bundle approval, and final human signoff inside the dedicated admin surface.
 
 ## Near-Term Delivery Plan

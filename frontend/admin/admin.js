@@ -467,6 +467,12 @@ function getIntakeProfile(profileId) {
   return getIntakeProfiles().find((item) => item.profile_id === profileId) || null;
 }
 
+function getAllowedProfileIdsForJob(jobType) {
+  const schema = getJobInputSchema(jobType);
+  const values = schema?.allowed_values?.profile_id;
+  return Array.isArray(values) ? values.map((item) => String(item)) : [];
+}
+
 function getJobInputPayloadText(payload) {
   return JSON.stringify(payload, null, 2);
 }
@@ -484,27 +490,33 @@ function renderJobTypeOptions() {
   select.value = hasPrevious ? previous : jobs[0].job_type;
 }
 
-function populateJobProfileOptions() {
+function populateJobProfileOptions(jobType) {
   const select = $("job-profile-id");
   if (!select) return;
+  const activeJobType = String(jobType || $("job-type")?.value || "").trim();
+  const allowedProfileIds = getAllowedProfileIdsForJob(activeJobType);
   const profiles = getIntakeProfiles();
+  const filteredProfiles =
+    allowedProfileIds.length > 0
+      ? profiles.filter((profile) => allowedProfileIds.includes(profile.profile_id))
+      : profiles;
   if (!profiles.length) {
     select.innerHTML = "";
     return;
   }
   const previous = String(select.value || "");
-  select.innerHTML = profiles
+  select.innerHTML = filteredProfiles
     .map((profile) => `<option value="${escapeHtml(profile.profile_id)}">${escapeHtml(profile.label)} (${escapeHtml(profile.profile_id)})</option>`)
     .join("");
-  const hasPrevious = profiles.some((profile) => profile.profile_id === previous);
-  select.value = hasPrevious ? previous : profiles[0].profile_id;
+  const hasPrevious = filteredProfiles.some((profile) => profile.profile_id === previous);
+  select.value = hasPrevious ? previous : filteredProfiles[0]?.profile_id || "";
 }
 
 async function loadAdminJobMetadata() {
   const metadata = await apiRequest(API_ADMIN_JOB_METADATA_URL);
   adminJobMetadata = metadata;
   renderJobTypeOptions();
-  populateJobProfileOptions();
+  populateJobProfileOptions(String($("job-type")?.value || "").trim());
   refreshJobTypeSpecificControls();
 }
 
@@ -527,11 +539,12 @@ function populateJobStatementBatchOptions(profileId) {
 
 function buildTypedJobPayload(jobType) {
   const schema = getJobInputSchema(jobType);
+  const allowedFields = new Set(Array.isArray(schema.allowed_fields) ? schema.allowed_fields : []);
   const payload = {};
-  if (jobType === "ingest_candidate_roster" || jobType === "ingest_statement_batch") {
+  if (allowedFields.has("profile_id")) {
     payload.profile_id = String($("job-profile-id")?.value || "").trim();
   }
-  if (jobType === "ingest_statement_batch") {
+  if (allowedFields.has("statement_batch")) {
     payload.statement_batch = String($("job-statement-batch")?.value || "").trim();
   }
   if (schema.supports_dry_run) {
@@ -548,20 +561,24 @@ function syncJobPayloadFromTypedControls() {
 function refreshJobTypeSpecificControls() {
   const jobType = String($("job-type")?.value || "").trim();
   const schema = getJobInputSchema(jobType);
-  const isIntakeRoster = jobType === "ingest_candidate_roster";
-  const isIntakeStatement = jobType === "ingest_statement_batch";
-  const showProfile = isIntakeRoster || isIntakeStatement;
+  const allowedFields = new Set(Array.isArray(schema.allowed_fields) ? schema.allowed_fields : []);
+  const showProfile = allowedFields.has("profile_id");
+  const showStatementBatch = allowedFields.has("statement_batch");
+  const allowedProfileIds = getAllowedProfileIdsForJob(jobType);
 
   if ($("job-profile-field")) $("job-profile-field").hidden = !showProfile;
-  if ($("job-statement-batch-field")) $("job-statement-batch-field").hidden = !isIntakeStatement;
+  if ($("job-statement-batch-field")) $("job-statement-batch-field").hidden = !showStatementBatch;
   if ($("job-dry-run-field")) $("job-dry-run-field").hidden = !schema.supports_dry_run;
 
-  const selectedProfileId = String($("job-profile-id")?.value || "");
-  const intakeProfiles = getIntakeProfiles();
-  if (showProfile && !selectedProfileId && intakeProfiles.length) {
-    $("job-profile-id").value = intakeProfiles[0].profile_id;
+  if (showProfile) {
+    populateJobProfileOptions(jobType);
   }
-  if (isIntakeStatement) {
+  const selectedProfileId = String($("job-profile-id")?.value || "");
+  if (showProfile && !selectedProfileId) {
+    const fallbackProfileId = allowedProfileIds[0] || "";
+    $("job-profile-id").value = fallbackProfileId;
+  }
+  if (showStatementBatch) {
     populateJobStatementBatchOptions(String($("job-profile-id")?.value || ""));
   }
   syncJobPayloadFromTypedControls();
@@ -630,9 +647,9 @@ function parseAndValidateJobPayload(jobType) {
     };
   }
 
-  if (jobType === "ingest_candidate_roster" || jobType === "ingest_statement_batch") {
-    const profileIds = getIntakeProfiles().map((item) => item.profile_id);
-    if (!profileIds.includes(normalized.profile_id)) {
+  if ("profile_id" in normalized) {
+    const profileIds = getAllowedProfileIdsForJob(jobType);
+    if (profileIds.length > 0 && !profileIds.includes(normalized.profile_id)) {
       return {
         payload: null,
         error: `profile_id must be one of ${profileIds.join(", ")}.`,

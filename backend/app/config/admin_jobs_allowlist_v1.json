@@ -1,5 +1,5 @@
 {
-  "version": "admin_jobs_allowlist_v2_2026_05_12",
+  "version": "admin_jobs_allowlist_v4_2026_05_12",
   "job_types": [
     {
       "job_type": "ingest_candidate_roster",
@@ -33,14 +33,26 @@
       "module": "app.scripts.extract_tx_2026_claims_batch",
       "supports_dry_run": false,
       "description": "Extract claim candidates from statements.",
-      "input_schema": {}
+      "input_schema": {
+        "required_fields": ["profile_id"],
+        "allowed_fields": ["profile_id"],
+        "field_types": {
+          "profile_id": "string"
+        }
+      }
     },
     {
       "job_type": "backfill_claim_reviewability",
       "module": "app.scripts.backfill_tx_2026_claim_reviewability",
       "supports_dry_run": false,
       "description": "Apply reviewability heuristics to claims.",
-      "input_schema": {}
+      "input_schema": {
+        "required_fields": ["profile_id"],
+        "allowed_fields": ["profile_id"],
+        "field_types": {
+          "profile_id": "string"
+        }
+      }
     },
     {
       "job_type": "map_issue_frames",
@@ -54,14 +66,39 @@
       "module": "app.scripts.generate_tx_2026_publish_queue_report",
       "supports_dry_run": false,
       "description": "Generate publish-queue diagnostics.",
-      "input_schema": {}
+      "input_schema": {
+        "required_fields": ["profile_id"],
+        "allowed_fields": ["profile_id"],
+        "field_types": {
+          "profile_id": "string"
+        }
+      }
     },
     {
       "job_type": "generate_publish_progress_report",
       "module": "app.scripts.generate_tx_2026_publish_progress_report",
       "supports_dry_run": false,
       "description": "Generate publish progress summary.",
-      "input_schema": {}
+      "input_schema": {
+        "required_fields": ["profile_id"],
+        "allowed_fields": ["profile_id"],
+        "field_types": {
+          "profile_id": "string"
+        }
+      }
+    },
+    {
+      "job_type": "generate_profile_claim_coverage_report",
+      "module": "app.scripts.generate_tx_2026_claim_coverage_report",
+      "supports_dry_run": false,
+      "description": "Generate per-candidate published-verified claim coverage and enforce the minimum coverage threshold.",
+      "input_schema": {
+        "required_fields": ["profile_id"],
+        "allowed_fields": ["profile_id"],
+        "field_types": {
+          "profile_id": "string"
+        }
+      }
     }
   ]
 }

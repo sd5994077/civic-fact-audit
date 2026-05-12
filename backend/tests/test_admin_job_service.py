@@ -97,7 +97,7 @@ def test_create_and_run_job_rejects_unsupported_statement_batch_for_profile() ->
         assert False, 'Expected job_input_invalid'
     except AppError as exc:
         assert exc.code == 'job_input_invalid'
-        assert exc.details.get('allowed_values', {}).get('statement_batch') == ['starter']
+        assert exc.details.get('allowed_values', {}).get('statement_batch') == ['round2', 'starter']
 
 
 def test_create_and_run_job_routes_roster_job_to_selected_profile_module(monkeypatch) -> None:
@@ -124,7 +124,7 @@ def test_create_and_run_job_routes_statement_job_to_selected_profile_batch_modul
     db = _FakeDb()
     payload = AdminJobRunCreateRequest(
         job_type='ingest_statement_batch',
-        input_payload={'profile_id': 'tx_2026_senate', 'statement_batch': 'round3'},
+        input_payload={'profile_id': 'tx_2026_senate', 'statement_batch': 'round4'},
     )
     called: dict[str, object] = {}
 
@@ -138,14 +138,14 @@ def test_create_and_run_job_routes_statement_job_to_selected_profile_batch_modul
     row = AdminJobService.create_and_run_job(db, payload, requested_by_reviewer_id='admin@local')  # type: ignore[arg-type]
 
     assert row['status'] == 'succeeded'
-    assert called['module'] == 'app.scripts.ingest_tx_2026_statement_batch_round3'
+    assert called['module'] == 'app.scripts.ingest_tx_2026_statement_batch_round4'
     assert called['dry_run'] is False
-    assert row['input_payload'] == {'profile_id': 'tx_2026_senate', 'statement_batch': 'round3'}
+    assert row['input_payload'] == {'profile_id': 'tx_2026_senate', 'statement_batch': 'round4'}
 
 
 def test_create_and_run_job_marks_succeeded(monkeypatch) -> None:
     db = _FakeDb()
-    payload = AdminJobRunCreateRequest(job_type='generate_publish_queue_report', input_payload={})
+    payload = AdminJobRunCreateRequest(job_type='generate_publish_queue_report', input_payload={'profile_id': 'tx_2026_senate'})
 
     monkeypatch.setattr(
         AdminJobService,
@@ -162,9 +162,47 @@ def test_create_and_run_job_marks_succeeded(monkeypatch) -> None:
     assert row['result_summary']['return_code'] == 0
 
 
+def test_create_and_run_job_routes_profile_scoped_extract_job(monkeypatch) -> None:
+    db = _FakeDb()
+    payload = AdminJobRunCreateRequest(job_type='extract_claims_batch', input_payload={'profile_id': 'tx_2026_ag_runoff'})
+    called: dict[str, object] = {}
+
+    def _fake_run(module: str, *, dry_run: bool) -> dict[str, object]:
+        called['module'] = module
+        called['dry_run'] = dry_run
+        return {'return_code': 0}
+
+    monkeypatch.setattr(AdminJobService, '_run_job_command', staticmethod(_fake_run))
+
+    row = AdminJobService.create_and_run_job(db, payload, requested_by_reviewer_id='admin@local')  # type: ignore[arg-type]
+
+    assert row['status'] == 'succeeded'
+    assert called['module'] == 'app.scripts.extract_tx_2026_attorney_general_runoff_claims_batch'
+    assert called['dry_run'] is False
+    assert row['input_payload'] == {'profile_id': 'tx_2026_ag_runoff'}
+
+
+def test_create_and_run_job_routes_profile_scoped_publish_queue_report_for_ag_runoff(monkeypatch) -> None:
+    db = _FakeDb()
+    payload = AdminJobRunCreateRequest(job_type='generate_publish_queue_report', input_payload={'profile_id': 'tx_2026_ag_runoff'})
+    called: dict[str, object] = {}
+
+    def _fake_run(module: str, *, dry_run: bool) -> dict[str, object]:
+        called['module'] = module
+        called['dry_run'] = dry_run
+        return {'return_code': 0}
+
+    monkeypatch.setattr(AdminJobService, '_run_job_command', staticmethod(_fake_run))
+
+    row = AdminJobService.create_and_run_job(db, payload, requested_by_reviewer_id='admin@local')  # type: ignore[arg-type]
+    assert row['status'] == 'succeeded'
+    assert called['dry_run'] is False
+    assert called['module'] == 'app.scripts.generate_tx_2026_attorney_general_runoff_publish_queue_report'
+
+
 def test_create_and_run_job_records_admin_job_triggered_audit_event(monkeypatch) -> None:
     db = _FakeDb()
-    payload = AdminJobRunCreateRequest(job_type='generate_publish_queue_report', input_payload={})
+    payload = AdminJobRunCreateRequest(job_type='generate_publish_queue_report', input_payload={'profile_id': 'tx_2026_senate'})
 
     monkeypatch.setattr(
         AdminJobService,
@@ -185,7 +223,7 @@ def test_create_and_run_job_records_admin_job_triggered_audit_event(monkeypatch)
 
 def test_create_and_run_job_marks_failed_on_execution_error(monkeypatch) -> None:
     db = _FakeDb()
-    payload = AdminJobRunCreateRequest(job_type='generate_publish_queue_report', input_payload={})
+    payload = AdminJobRunCreateRequest(job_type='generate_publish_queue_report', input_payload={'profile_id': 'tx_2026_senate'})
 
     def _raise_exec_error(_module: str, *, dry_run: bool):  # type: ignore[no-untyped-def]
         raise AppError(
@@ -220,6 +258,21 @@ def test_get_job_metadata_includes_profiles_and_schemas() -> None:
     roster_schema = next((item for item in metadata['jobs'] if item.get('job_type') == 'ingest_candidate_roster'), None)
     assert roster_schema is not None
     assert 'profile_id' in roster_schema['input_schema'].get('allowed_values', {})
+    publish_queue_report_schema = next((item for item in metadata['jobs'] if item.get('job_type') == 'generate_publish_queue_report'), None)
+    assert publish_queue_report_schema is not None
+    assert publish_queue_report_schema['input_schema'].get('allowed_values', {}).get('profile_id') == [
+        'tx_2026_ag_runoff',
+        'tx_2026_senate',
+    ]
+    coverage_report_schema = next(
+        (item for item in metadata['jobs'] if item.get('job_type') == 'generate_profile_claim_coverage_report'),
+        None,
+    )
+    assert coverage_report_schema is not None
+    assert coverage_report_schema['input_schema'].get('allowed_values', {}).get('profile_id') == [
+        'tx_2026_ag_runoff',
+        'tx_2026_senate',
+    ]
 
 
 def test_run_job_command_timeout_raises_job_execution_failed(monkeypatch) -> None:

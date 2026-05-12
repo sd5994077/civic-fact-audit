@@ -186,7 +186,7 @@ def test_get_admin_job_metadata_success(monkeypatch) -> None:
                     'office': 'US Senate',
                     'election_cycle': 2026,
                     'race_stage': 'primary',
-                    'statement_batches': ['starter', 'round2', 'round3'],
+                    'statement_batches': ['starter', 'round2', 'round3', 'round4'],
                 }
             ],
         }
@@ -261,7 +261,7 @@ def test_admin_jobs_metadata_and_execution_routing_sync(monkeypatch) -> None:
     assert intake_profile is not None
     available_batches = intake_profile['statement_batches']
     assert available_batches
-    selected_batch = 'round3' if 'round3' in available_batches else available_batches[0]
+    selected_batch = 'round4' if 'round4' in available_batches else available_batches[0]
 
     assert any(item['job_type'] == 'ingest_statement_batch' for item in metadata['jobs'])
     intake_config = get_intake_profiles_config()
@@ -320,3 +320,33 @@ def test_create_admin_job_rejects_invalid_profile_batch_pairing_with_allowed_val
     assert isinstance(details.get('missing_fields'), list)
     assert isinstance(details.get('unsupported_fields'), list)
     assert details.get('allowed_values', {}).get('statement_batch') == allowed_batches
+
+
+def test_create_admin_job_routes_profile_scoped_report_for_ag_runoff(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_fake_db
+    app.dependency_overrides[require_admin] = _override_admin
+    _FAKE_DB.rows.clear()
+    captured: dict[str, object] = {}
+
+    def _fake_run(module: str, *, dry_run: bool) -> dict[str, object]:
+        captured['module'] = module
+        captured['dry_run'] = dry_run
+        return {'return_code': 0}
+
+    monkeypatch.setattr(AdminJobService, '_run_job_command', staticmethod(_fake_run))
+
+    client = TestClient(app)
+
+    response = client.post(
+        '/v1/admin/jobs',
+        json={
+            'job_type': 'generate_publish_queue_report',
+            'input_payload': {'profile_id': 'tx_2026_ag_runoff'},
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body['status'] == 'succeeded'
+    assert captured['dry_run'] is False
+    assert captured['module'] == 'app.scripts.generate_tx_2026_attorney_general_runoff_publish_queue_report'
