@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -9,7 +11,15 @@ from app.core.config import settings
 from app.core.errors import AppError
 from app.db.database import get_engine
 
-app = FastAPI(title=settings.app_name, version=settings.app_version)
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    with get_engine().connect() as connection:
+        connection.execute(text('SELECT 1'))
+    yield
+
+
+app = FastAPI(title=settings.app_name, version=settings.app_version, lifespan=lifespan)
 app.include_router(v1_router)
 
 
@@ -57,9 +67,3 @@ def health() -> dict[str, str]:
 @app.get('/version')
 def version() -> dict[str, str]:
     return {'version': settings.app_version, 'env': settings.app_env}
-
-
-@app.on_event('startup')
-def startup_check() -> None:
-    with get_engine().connect() as connection:
-        connection.execute(text('SELECT 1'))
