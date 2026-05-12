@@ -69,3 +69,23 @@ def test_get_event_not_found() -> None:
         assert False, 'Expected admin_audit_event_not_found'
     except AppError as exc:
         assert exc.code == 'admin_audit_event_not_found'
+
+
+def test_record_event_metadata_roundtrip_for_proposal_dual_control_fields() -> None:
+    db = _FakeDb()
+    event = AdminAuditService.record_event(
+        db,
+        actor_reviewer_id='applier@local',
+        action='proposal_applied',
+        entity_type='claim_proposal',
+        entity_id='proposal-1',
+        metadata={
+            'proposal_type': 'verification_source_suggestion',
+            'approval_reviewer_id': 'approver@local',
+            'applying_reviewer_id': 'applier@local',
+        },
+    )
+    row = AdminAuditService.get_event(db, event.id)  # type: ignore[arg-type]
+    assert row['metadata']['proposal_type'] == 'verification_source_suggestion'
+    assert row['metadata']['approval_reviewer_id'] == 'approver@local'
+    assert row['metadata']['applying_reviewer_id'] == 'applier@local'

@@ -85,7 +85,7 @@ def publish_queue(
 @router.post(
     '/{claim_id}/publish',
     response_model=PublishClaimResponse,
-    responses={400: {'model': ErrorResponse}, 404: {'model': ErrorResponse}, 422: {'model': ErrorResponse}},
+    responses={400: {'model': ErrorResponse}, 404: {'model': ErrorResponse}, 409: {'model': ErrorResponse}, 422: {'model': ErrorResponse}},
 )
 def publish_claim(
     claim_id: uuid.UUID,
@@ -104,7 +104,7 @@ def publish_claim(
 @router.post(
     '/{claim_id}/unpublish',
     response_model=PublishClaimResponse,
-    responses={400: {'model': ErrorResponse}, 404: {'model': ErrorResponse}},
+    responses={400: {'model': ErrorResponse}, 404: {'model': ErrorResponse}, 409: {'model': ErrorResponse}},
 )
 def unpublish_claim(
     claim_id: uuid.UUID,

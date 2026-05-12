@@ -258,6 +258,34 @@ textarea { min-height: 84px; resize: vertical; }
   word-break: break-word;
 }
 
+.checklist-box {
+  margin: 0.6rem 0;
+  padding: 0.7rem;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.checklist-box h4 {
+  margin: 0 0 0.5rem;
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.checklist {
+  margin: 0;
+  padding-left: 1rem;
+  display: grid;
+  gap: 0.25rem;
+  color: var(--muted);
+}
+
+.checklist .ok {
+  color: var(--ok);
+}
+
+.checklist .bad {
+  color: var(--bad);
+}
+
 @media (max-width: 1000px) {
   .admin-header,
   .grid-two,

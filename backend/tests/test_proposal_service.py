@@ -1,6 +1,8 @@
 import uuid
+import json
 
 from app.core.errors import AppError
+from app.models.entities import AdminAuditEvent
 from app.models.enums import ProposalStatus, ProposalType, SourceClass, SourceOrigin
 from app.services.proposal_service import ProposalService
 
@@ -318,3 +320,335 @@ def test_apply_source_proposal_policy_violation_keeps_status_approved() -> None:
     assert db.proposal.status == ProposalStatus.approved
     assert db.commit_count == 0
     assert db.rollback_count == 0
+
+
+def test_apply_verification_source_proposal_blocks_self_apply_dual_control() -> None:
+    proposal_id = uuid.uuid4()
+    claim_id = uuid.uuid4()
+
+    class _FakeProposal:
+        def __init__(self) -> None:
+            self.id = proposal_id
+            self.claim_id = claim_id
+            self.proposal_type = ProposalType.verification_source_suggestion
+            self.status = ProposalStatus.approved
+            self.proposal_payload = (
+                '{"url":"https://example.com","source_class":"primary","source_origin":"verification","quality_score":0.9}'
+            )
+            self.reviewed_by = 'reviewer@local'
+            self.reviewed_at = None
+            self.review_notes = None
+
+    class _FakeClaim:
+        def __init__(self) -> None:
+            self.id = claim_id
+
+    class _FakeDb:
+        def __init__(self) -> None:
+            self.proposal = _FakeProposal()
+            self.claim = _FakeClaim()
+
+        def get(self, _model, id_):  # type: ignore[no-untyped-def]
+            if id_ == proposal_id:
+                return self.proposal
+            if id_ == claim_id:
+                return self.claim
+            return None
+
+    db = _FakeDb()
+    try:
+        ProposalService.apply_proposal(db, proposal_id, reviewer_id='reviewer@local')  # type: ignore[arg-type]
+        assert False, 'Expected proposal_dual_control_required'
+    except AppError as exc:
+        assert exc.code == 'proposal_dual_control_required'
+        assert exc.details['approval_reviewer_id'] == 'reviewer@local'
+        assert exc.details['applying_reviewer_id'] == 'reviewer@local'
+
+
+def test_apply_verification_source_proposal_blocks_self_apply_case_insensitive() -> None:
+    proposal_id = uuid.uuid4()
+    claim_id = uuid.uuid4()
+
+    class _FakeProposal:
+        def __init__(self) -> None:
+            self.id = proposal_id
+            self.claim_id = claim_id
+            self.proposal_type = ProposalType.verification_source_suggestion
+            self.status = ProposalStatus.approved
+            self.proposal_payload = (
+                '{"url":"https://example.com","source_class":"primary","source_origin":"verification","quality_score":0.9}'
+            )
+            self.reviewed_by = 'Reviewer@Local'
+            self.reviewed_at = None
+            self.review_notes = None
+
+    class _FakeClaim:
+        def __init__(self) -> None:
+            self.id = claim_id
+
+    class _FakeDb:
+        def __init__(self) -> None:
+            self.proposal = _FakeProposal()
+            self.claim = _FakeClaim()
+
+        def get(self, _model, id_):  # type: ignore[no-untyped-def]
+            if id_ == proposal_id:
+                return self.proposal
+            if id_ == claim_id:
+                return self.claim
+            return None
+
+    db = _FakeDb()
+    try:
+        ProposalService.apply_proposal(db, proposal_id, reviewer_id='reviewer@local')  # type: ignore[arg-type]
+        assert False, 'Expected proposal_dual_control_required'
+    except AppError as exc:
+        assert exc.code == 'proposal_dual_control_required'
+        assert exc.details['approval_reviewer_id'] == 'reviewer@local'
+        assert exc.details['applying_reviewer_id'] == 'reviewer@local'
+
+
+def test_apply_issue_frame_proposal_allows_same_reviewer(monkeypatch) -> None:
+    proposal_id = uuid.uuid4()
+    claim_id = uuid.uuid4()
+    frame_id = uuid.uuid4()
+
+    class _FakeProposal:
+        def __init__(self) -> None:
+            self.id = proposal_id
+            self.claim_id = claim_id
+            self.proposal_type = ProposalType.issue_frame_mapping
+            self.status = ProposalStatus.approved
+            self.proposal_payload = f'{{"issue_frame_id":"{frame_id}"}}'
+            self.reviewed_by = 'reviewer@local'
+            self.reviewed_at = None
+            self.review_notes = None
+
+    class _FakeClaim:
+        def __init__(self) -> None:
+            self.id = claim_id
+            self.issue_frame_id = None
+
+    class _FakeFrame:
+        def __init__(self) -> None:
+            self.id = frame_id
+
+    class _FakeDb:
+        def __init__(self) -> None:
+            self.proposal = _FakeProposal()
+            self.claim = _FakeClaim()
+            self.frame = _FakeFrame()
+            self.commit_count = 0
+
+        def get(self, _model, id_):  # type: ignore[no-untyped-def]
+            if id_ == proposal_id:
+                return self.proposal
+            if id_ == claim_id:
+                return self.claim
+            if id_ == frame_id:
+                return self.frame
+            return None
+
+        def add(self, _item):  # type: ignore[no-untyped-def]
+            return None
+
+        def flush(self):  # type: ignore[no-untyped-def]
+            return None
+
+        def commit(self):  # type: ignore[no-untyped-def]
+            self.commit_count += 1
+
+        def refresh(self, _item):  # type: ignore[no-untyped-def]
+            return None
+
+    def _noop_audit(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        return None
+
+    monkeypatch.setattr('app.services.proposal_service.AdminAuditService.record_event', _noop_audit)
+    db = _FakeDb()
+    result = ProposalService.apply_proposal(db, proposal_id, reviewer_id='reviewer@local')  # type: ignore[arg-type]
+    assert result['applied_effect'] == 'issue_frame_mapped'
+    assert db.claim.issue_frame_id == frame_id
+    assert db.commit_count == 1
+
+
+def test_approve_proposal_records_audit_metadata_with_reviewer_linkage(monkeypatch) -> None:
+    proposal_id = uuid.uuid4()
+    claim_id = uuid.uuid4()
+
+    class _FakeProposal:
+        def __init__(self) -> None:
+            self.id = proposal_id
+            self.claim_id = claim_id
+            self.proposal_type = ProposalType.verification_source_suggestion
+            self.status = ProposalStatus.proposed
+            self.proposal_payload = '{}'
+            self.reviewed_by = None
+            self.reviewed_at = None
+            self.review_notes = None
+
+    class _FakeDb:
+        def __init__(self) -> None:
+            self.proposal = _FakeProposal()
+
+        def get(self, _model, id_):  # type: ignore[no-untyped-def]
+            if id_ == proposal_id:
+                return self.proposal
+            return None
+
+        def add(self, _item):  # type: ignore[no-untyped-def]
+            return None
+
+        def commit(self):  # type: ignore[no-untyped-def]
+            return None
+
+        def refresh(self, _item):  # type: ignore[no-untyped-def]
+            return None
+
+    captured = {}
+
+    def _capture_audit(*_args, **kwargs):  # type: ignore[no-untyped-def]
+        captured.update(kwargs.get('metadata', {}))
+        return None
+
+    monkeypatch.setattr('app.services.proposal_service.AdminAuditService.record_event', _capture_audit)
+    db = _FakeDb()
+    ProposalService.approve_proposal(db, proposal_id, reviewer_id='APPROVER@LOCAL')  # type: ignore[arg-type]
+    assert db.proposal.reviewed_by == 'approver@local'
+    assert captured['proposal_type'] == ProposalType.verification_source_suggestion.value
+    assert captured['approval_reviewer_id'] == 'approver@local'
+
+
+def test_apply_proposal_records_audit_metadata_with_reviewer_linkage(monkeypatch) -> None:
+    proposal_id = uuid.uuid4()
+    claim_id = uuid.uuid4()
+    frame_id = uuid.uuid4()
+
+    class _FakeProposal:
+        def __init__(self) -> None:
+            self.id = proposal_id
+            self.claim_id = claim_id
+            self.proposal_type = ProposalType.issue_frame_mapping
+            self.status = ProposalStatus.approved
+            self.proposal_payload = f'{{"issue_frame_id":"{frame_id}"}}'
+            self.reviewed_by = 'approver@local'
+            self.reviewed_at = None
+            self.review_notes = None
+
+    class _FakeClaim:
+        def __init__(self) -> None:
+            self.id = claim_id
+            self.issue_frame_id = None
+
+    class _FakeFrame:
+        def __init__(self) -> None:
+            self.id = frame_id
+
+    class _FakeDb:
+        def __init__(self) -> None:
+            self.proposal = _FakeProposal()
+            self.claim = _FakeClaim()
+            self.frame = _FakeFrame()
+
+        def get(self, _model, id_):  # type: ignore[no-untyped-def]
+            if id_ == proposal_id:
+                return self.proposal
+            if id_ == claim_id:
+                return self.claim
+            if id_ == frame_id:
+                return self.frame
+            return None
+
+        def add(self, _item):  # type: ignore[no-untyped-def]
+            return None
+
+        def flush(self):  # type: ignore[no-untyped-def]
+            return None
+
+        def commit(self):  # type: ignore[no-untyped-def]
+            return None
+
+        def refresh(self, _item):  # type: ignore[no-untyped-def]
+            return None
+
+    captured = {}
+
+    def _capture_audit(*_args, **kwargs):  # type: ignore[no-untyped-def]
+        captured.update(kwargs.get('metadata', {}))
+        return None
+
+    monkeypatch.setattr('app.services.proposal_service.AdminAuditService.record_event', _capture_audit)
+    db = _FakeDb()
+    ProposalService.apply_proposal(db, proposal_id, reviewer_id='applier@local')  # type: ignore[arg-type]
+    assert captured['proposal_type'] == ProposalType.issue_frame_mapping.value
+    assert captured['approval_reviewer_id'] == 'approver@local'
+    assert captured['applying_reviewer_id'] == 'applier@local'
+
+
+def test_proposal_audit_events_persist_metadata_for_approve_and_apply() -> None:
+    proposal_id = uuid.uuid4()
+    claim_id = uuid.uuid4()
+    frame_id = uuid.uuid4()
+
+    class _FakeProposal:
+        def __init__(self) -> None:
+            self.id = proposal_id
+            self.claim_id = claim_id
+            self.proposal_type = ProposalType.issue_frame_mapping
+            self.status = ProposalStatus.proposed
+            self.proposal_payload = f'{{"issue_frame_id":"{frame_id}"}}'
+            self.reviewed_by = None
+            self.reviewed_at = None
+            self.review_notes = None
+
+    class _FakeClaim:
+        def __init__(self) -> None:
+            self.id = claim_id
+            self.issue_frame_id = None
+
+    class _FakeFrame:
+        def __init__(self) -> None:
+            self.id = frame_id
+
+    class _FakeDb:
+        def __init__(self) -> None:
+            self.proposal = _FakeProposal()
+            self.claim = _FakeClaim()
+            self.frame = _FakeFrame()
+            self.added: list[object] = []
+
+        def get(self, _model, id_):  # type: ignore[no-untyped-def]
+            if id_ == proposal_id:
+                return self.proposal
+            if id_ == claim_id:
+                return self.claim
+            if id_ == frame_id:
+                return self.frame
+            return None
+
+        def add(self, item):  # type: ignore[no-untyped-def]
+            self.added.append(item)
+
+        def flush(self):  # type: ignore[no-untyped-def]
+            return None
+
+        def commit(self):  # type: ignore[no-untyped-def]
+            return None
+
+        def refresh(self, _item):  # type: ignore[no-untyped-def]
+            return None
+
+    db = _FakeDb()
+    ProposalService.approve_proposal(db, proposal_id, reviewer_id='approver@local')  # type: ignore[arg-type]
+    ProposalService.apply_proposal(db, proposal_id, reviewer_id='applier@local')  # type: ignore[arg-type]
+    events = [item for item in db.added if isinstance(item, AdminAuditEvent)]
+    assert len(events) == 2
+    approve_event = next(item for item in events if item.action == 'proposal_approved')
+    apply_event = next(item for item in events if item.action == 'proposal_applied')
+    approve_meta = json.loads(approve_event.metadata_payload or '{}')
+    apply_meta = json.loads(apply_event.metadata_payload or '{}')
+    assert approve_meta['proposal_type'] == ProposalType.issue_frame_mapping.value
+    assert approve_meta['approval_reviewer_id'] == 'approver@local'
+    assert apply_meta['proposal_type'] == ProposalType.issue_frame_mapping.value
+    assert apply_meta['approval_reviewer_id'] == 'approver@local'
+    assert apply_meta['applying_reviewer_id'] == 'applier@local'

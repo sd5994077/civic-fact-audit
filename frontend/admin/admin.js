@@ -83,6 +83,7 @@ function normalizeOptionalInt(value) {
 const RACE_STAGE_VALUES = new Set(["primary", "primary_runoff", "general", "special"]);
 const SOURCE_CLASS_VALUES = new Set(["primary", "secondary"]);
 const SOURCE_ORIGIN_VALUES = new Set(["candidate", "verification"]);
+const SOURCE_PROPOSAL_TYPES = new Set(["candidate_source_capture", "verification_source_suggestion"]);
 const BULK_ATTACH_EXAMPLE = [
   {
     claim_id: "00000000-0000-0000-0000-000000000000",
@@ -114,6 +115,18 @@ function parseApiError(err, fallback) {
   const payloadMessage = err?.payload?.error?.message;
   if (payloadMessage) return payloadMessage;
   return err.message || fallback;
+}
+
+function parsePublishDualControlError(err, action) {
+  const code = err?.payload?.error?.code;
+  if (code !== "publish_dual_control_required") return null;
+  const details = err?.payload?.error?.details || {};
+  const approvalReviewerId = details.approval_reviewer_id;
+  const applyingReviewerId = details.applying_reviewer_id;
+  const dualControlAction = details.action || action || "publish";
+  const approvalLabel = approvalReviewerId ? `latest approval reviewer is ${approvalReviewerId}` : "approval reviewer could not be resolved";
+  const applyingLabel = applyingReviewerId ? `current actor is ${applyingReviewerId}` : "current actor is unknown";
+  return `Dual-control blocked for ${dualControlAction}: ${approvalLabel}; ${applyingLabel}. Hand off to a different reviewer/admin and retry.`;
 }
 
 function isUuid(value) {
@@ -1130,14 +1143,107 @@ function renderProposalList(rows) {
   });
 }
 
+function renderPowerAdminProposalReview(row) {
+  const container = $("proposal-power-admin");
+  const status = $("proposal-power-admin-status");
+  const itemsEl = $("proposal-power-admin-items");
+  const guidance = $("proposal-power-admin-guidance");
+  if (!container || !status || !itemsEl || !guidance) return;
+
+  if (!row || !SOURCE_PROPOSAL_TYPES.has(String(row.proposal_type || ""))) {
+    container.hidden = true;
+    return;
+  }
+
+  container.hidden = false;
+  const payload = row.proposal_payload || {};
+  const sourceOrigin = String(payload.source_origin || "").trim() || "missing";
+  const sourceClass = String(payload.source_class || "").trim() || "missing";
+  const proposalType = String(row.proposal_type || "").trim();
+  const expectedOrigin = proposalType === "verification_source_suggestion" ? "verification" : "candidate";
+  const publisher = normalizeOptionalText(payload.publisher);
+  const quality = typeof payload.quality_score === "number" ? payload.quality_score : null;
+  const claimContext = `claim ${shortId(row.claim_id)} | status ${row.status}`;
+
+  const checks = [
+    { ok: sourceOrigin !== "missing", label: `source_origin recorded: ${sourceOrigin}` },
+    { ok: sourceOrigin === expectedOrigin, label: `source_origin matches proposal type (${expectedOrigin})` },
+    { ok: sourceClass !== "missing", label: `source_class recorded: ${sourceClass}` },
+    { ok: !!publisher, label: `publisher recorded${publisher ? `: ${publisher}` : ""}` },
+    { ok: quality != null, label: `quality_score recorded${quality != null ? `: ${quality}` : ""}` },
+  ];
+
+  status.textContent = `Power-admin source/bundle review for ${claimContext}.`;
+  itemsEl.innerHTML = checks
+    .map((item) => `<li class="${item.ok ? "ok" : "bad"}">${item.ok ? "pass" : "needs review"}: ${escapeHtml(item.label)}</li>`)
+    .join("");
+
+  guidance.textContent =
+    "Action guidance: approve after payload review, reject when admission fields are incomplete, apply only after independent approval and policy readiness.";
+}
+
+function renderProposalClaimContext(row) {
+  const container = $("proposal-claim-context");
+  const statusEl = $("proposal-claim-context-status");
+  const evidenceEl = $("proposal-claim-context-evidence");
+  const evaluationEl = $("proposal-claim-context-evaluation");
+  if (!container || !statusEl || !evidenceEl || !evaluationEl) return;
+
+  const context = row?.claim_context;
+  if (!context) {
+    container.hidden = true;
+    return;
+  }
+  container.hidden = false;
+
+  const primary = Number(context.verification_primary_count || 0);
+  const secondary = Number(context.verification_secondary_count || 0);
+  const missing = Array.isArray(context.missing_source_classes) ? context.missing_source_classes : [];
+  const sufficient = !!context.verification_evidence_sufficient;
+  const verdict = context.latest_verdict || "none";
+  const confidence = context.latest_confidence == null ? "n/a" : String(context.latest_confidence);
+  const reviewer = context.latest_reviewer_id || "unassigned";
+  const evaluatedAt = context.latest_evaluated_at ? formatDateTime(context.latest_evaluated_at) : "n/a";
+
+  statusEl.textContent = sufficient
+    ? "Verification evidence snapshot is sufficient for primary and secondary classes."
+    : "Verification evidence snapshot is currently missing required class coverage.";
+  statusEl.classList.remove("status-ok", "status-bad");
+  statusEl.classList.add(sufficient ? "status-ok" : "status-bad");
+
+  evidenceEl.innerHTML = [
+    `verification primary count: ${primary}`,
+    `verification secondary count: ${secondary}`,
+    `missing source classes: ${missing.length ? missing.join(", ") : "none"}`,
+    `evidence sufficiency gate: ${sufficient ? "passed" : "blocked"}`,
+  ]
+    .map((line) => `<li>${escapeHtml(line)}</li>`)
+    .join("");
+
+  evaluationEl.innerHTML = [
+    `latest verdict: ${verdict}`,
+    `latest confidence: ${confidence}`,
+    `latest reviewer: ${reviewer}`,
+    `latest evaluated at: ${evaluatedAt}`,
+    `latest rationale: ${context.latest_rationale || "none"}`,
+    `latest citation notes: ${context.latest_citation_notes || "none"}`,
+  ]
+    .map((line) => `<li>${escapeHtml(line)}</li>`)
+    .join("");
+}
+
 function loadProposalDetail(proposalId) {
   const row = proposalRows.find((item) => String(item.id) === String(proposalId));
   if (!row) {
     renderJsonDetail("proposal-detail-json", "proposal-detail-empty", null);
+    renderPowerAdminProposalReview(null);
+    renderProposalClaimContext(null);
     return;
   }
   $("proposal-id").value = String(row.id);
   renderJsonDetail("proposal-detail-json", "proposal-detail-empty", row);
+  renderPowerAdminProposalReview(row);
+  renderProposalClaimContext(row);
 }
 
 async function loadProposalList() {
@@ -1163,12 +1269,16 @@ async function loadProposalList() {
       selectedProposalId = "";
       $("proposal-id").value = "";
       renderJsonDetail("proposal-detail-json", "proposal-detail-empty", null);
+      renderPowerAdminProposalReview(null);
+      renderProposalClaimContext(null);
     }
     setStatus("proposal-list-status", `Loaded ${proposalRows.length} proposals.`, "ok");
   } catch (err) {
     proposalRows = [];
     renderProposalList([]);
     renderJsonDetail("proposal-detail-json", "proposal-detail-empty", null);
+    renderPowerAdminProposalReview(null);
+    renderProposalClaimContext(null);
     setStatus("proposal-list-status", parseApiError(err, "Failed to load proposals."), "bad");
   }
 }
@@ -1194,6 +1304,49 @@ async function submitProposalAction(event) {
   } catch (err) {
     setStatus("proposal-action-status", parseApiError(err, "Proposal action failed."), "bad");
   }
+}
+
+function buildPublishChecklist(row) {
+  const failures = Array.isArray(row?.publish_gate_failures) ? row.publish_gate_failures : [];
+  const hasFailure = (code) => failures.includes(code);
+  return [
+    { ok: !hasFailure("latest_rationale_required"), label: "Rationale present and review-ready" },
+    { ok: !hasFailure("latest_citation_notes_required"), label: "Citation notes present" },
+    { ok: !hasFailure("verification_primary_source_required"), label: "Verification primary source attached" },
+    { ok: !hasFailure("verification_secondary_source_required"), label: "Verification secondary source attached" },
+    { ok: !hasFailure("latest_evaluation_moderation_policy_violation"), label: "Moderation policy clean" },
+    { ok: !!row?.publish_gate_passed, label: "Publish gate passed" },
+  ];
+}
+
+function renderPublishChecklist(row) {
+  const container = $("publish-checklist");
+  const itemsEl = $("publish-checklist-items");
+  const status = $("publish-checklist-status");
+  const actionSelect = $("publish-action");
+  const actionButton = document.querySelector("#publish-action-form button[type='submit']");
+  if (!container || !itemsEl || !status || !actionSelect || !actionButton) return;
+
+  if (!row) {
+    container.hidden = true;
+    actionButton.disabled = false;
+    return;
+  }
+
+  container.hidden = false;
+  const checklist = buildPublishChecklist(row);
+  itemsEl.innerHTML = checklist
+    .map((item) => `<li class="${item.ok ? "ok" : "bad"}">${item.ok ? "pass" : "blocked"}: ${escapeHtml(item.label)}</li>`)
+    .join("");
+  const allPassed = checklist.every((item) => item.ok);
+  const publishSelected = actionSelect.value === "publish";
+  const publishBlocked = publishSelected && !allPassed;
+  actionButton.disabled = publishBlocked;
+  status.textContent = allPassed
+    ? "Checklist complete. Publish signoff can proceed."
+    : "Checklist incomplete. Finish required review items before publish.";
+  status.classList.remove("status-ok", "status-bad");
+  status.classList.add(allPassed ? "status-ok" : "status-bad");
 }
 
 function renderPublishList(rows) {
@@ -1234,11 +1387,13 @@ function loadPublishDetail(claimId) {
   const row = publishQueueRows.find((item) => String(item.claim_id) === String(claimId));
   if (!row) {
     renderJsonDetail("publish-detail-json", "publish-detail-empty", null);
+    renderPublishChecklist(null);
     return;
   }
   $("publish-claim-id").value = String(row.claim_id);
   $("publish-action").value = row.is_published ? "unpublish" : "publish";
   renderJsonDetail("publish-detail-json", "publish-detail-empty", row);
+  renderPublishChecklist(row);
 }
 
 async function loadPublishQueue() {
@@ -1264,12 +1419,16 @@ async function loadPublishQueue() {
       selectedPublishClaimId = "";
       $("publish-claim-id").value = "";
       renderJsonDetail("publish-detail-json", "publish-detail-empty", null);
+      renderPublishChecklist(null);
     }
     setStatus("publish-list-status", `Loaded ${publishQueueRows.length} publish queue claims.`, "ok");
   } catch (err) {
     publishQueueRows = [];
+    selectedPublishClaimId = "";
+    if ($("publish-claim-id")) $("publish-claim-id").value = "";
     renderPublishList([]);
     renderJsonDetail("publish-detail-json", "publish-detail-empty", null);
+    renderPublishChecklist(null);
     setStatus("publish-list-status", parseApiError(err, "Failed to load publish queue."), "bad");
   }
 }
@@ -1282,6 +1441,20 @@ async function submitPublishAction(event) {
     setStatus("publish-action-status", "Select a claim and action first.", "bad");
     return;
   }
+  const row = publishQueueRows.find((item) => String(item.claim_id) === String(claimId));
+  if (!row) {
+    setStatus("publish-action-status", "Selected claim is not in the current publish queue. Refresh and reselect.", "bad");
+    renderPublishChecklist(null);
+    return;
+  }
+  if (action === "publish" && row) {
+    const allPassed = buildPublishChecklist(row).every((item) => item.ok);
+    if (!allPassed) {
+      setStatus("publish-action-status", "Publish blocked: complete the pre-publish checklist first.", "bad");
+      renderPublishChecklist(row);
+      return;
+    }
+  }
 
   try {
     setStatus("publish-action-status", "Submitting publish action...");
@@ -1291,7 +1464,8 @@ async function submitPublishAction(event) {
     setStatus("publish-action-status", `Claim ${action} action completed.`, "ok");
     await Promise.all([loadPublishQueue(), loadAuditList()]);
   } catch (err) {
-    setStatus("publish-action-status", parseApiError(err, "Publish action failed."), "bad");
+    const dualControlMessage = parsePublishDualControlError(err, action);
+    setStatus("publish-action-status", dualControlMessage || parseApiError(err, "Publish action failed."), "bad");
   }
 }
 
@@ -1386,6 +1560,10 @@ function bindEvents() {
   });
   $("publish-refresh")?.addEventListener("click", async () => loadPublishQueue());
   $("publish-action-form")?.addEventListener("submit", submitPublishAction);
+  $("publish-action")?.addEventListener("change", () => {
+    const row = publishQueueRows.find((item) => String(item.claim_id) === String(selectedPublishClaimId));
+    renderPublishChecklist(row || null);
+  });
 
   $("job-type")?.addEventListener("change", () => refreshJobTypeSpecificControls());
   $("job-profile-id")?.addEventListener("change", () => refreshJobTypeSpecificControls());

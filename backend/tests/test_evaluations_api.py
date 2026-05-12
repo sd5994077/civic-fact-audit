@@ -80,3 +80,73 @@ def test_publish_claim_returns_422_for_moderation_gate_failure(monkeypatch) -> N
     assert body['error']['code'] == 'publish_gate_moderation_failure'
     assert 'latest_evaluation_moderation_policy_violation' in body['error']['details']['failed_checks']
     app.dependency_overrides.clear()
+
+
+def test_publish_claim_returns_409_for_dual_control_block(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[require_admin] = _override_admin
+    claim_id = uuid.uuid4()
+
+    def _fake_publish(_db, _claim_id, *, approver_id):  # type: ignore[no-untyped-def]
+        assert _claim_id == claim_id
+        assert approver_id == 'admin@local'
+        raise AppError(
+            'publish_dual_control_required',
+            'Publish and unpublish actions require different reviewers for approval and final mutation.',
+            status_code=409,
+            details={
+                'claim_id': str(claim_id),
+                'approval_reviewer_id': 'admin@local',
+                'applying_reviewer_id': 'admin@local',
+                'action': 'publish',
+            },
+        )
+
+    monkeypatch.setattr('app.api.v1.evaluations.EvaluationService.publish_claim', _fake_publish)
+
+    client = TestClient(app)
+    response = client.post(f'/v1/claims/{claim_id}/publish')
+    body = response.json()
+
+    assert response.status_code == 409
+    assert body['error']['code'] == 'publish_dual_control_required'
+    assert body['error']['details']['claim_id'] == str(claim_id)
+    assert body['error']['details']['approval_reviewer_id'] == 'admin@local'
+    assert body['error']['details']['applying_reviewer_id'] == 'admin@local'
+    assert body['error']['details']['action'] == 'publish'
+    app.dependency_overrides.clear()
+
+
+def test_unpublish_claim_returns_409_for_dual_control_block(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[require_admin] = _override_admin
+    claim_id = uuid.uuid4()
+
+    def _fake_unpublish(_db, _claim_id, *, approver_id):  # type: ignore[no-untyped-def]
+        assert _claim_id == claim_id
+        assert approver_id == 'admin@local'
+        raise AppError(
+            'publish_dual_control_required',
+            'Publish and unpublish actions require different reviewers for approval and final mutation.',
+            status_code=409,
+            details={
+                'claim_id': str(claim_id),
+                'approval_reviewer_id': 'admin@local',
+                'applying_reviewer_id': 'admin@local',
+                'action': 'unpublish',
+            },
+        )
+
+    monkeypatch.setattr('app.api.v1.evaluations.EvaluationService.unpublish_claim', _fake_unpublish)
+
+    client = TestClient(app)
+    response = client.post(f'/v1/claims/{claim_id}/unpublish')
+    body = response.json()
+
+    assert response.status_code == 409
+    assert body['error']['code'] == 'publish_dual_control_required'
+    assert body['error']['details']['claim_id'] == str(claim_id)
+    assert body['error']['details']['approval_reviewer_id'] == 'admin@local'
+    assert body['error']['details']['applying_reviewer_id'] == 'admin@local'
+    assert body['error']['details']['action'] == 'unpublish'
+    app.dependency_overrides.clear()

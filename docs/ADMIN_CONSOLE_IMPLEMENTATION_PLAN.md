@@ -159,3 +159,20 @@ Design rule:
 - [x] Admin endpoint contract approved/implemented.
 - [x] Frontend section priority approved/implemented.
 - [x] Next step: generalize race-specific CLI workflows into config-first admin flows (typed job inputs and per-job validated payload schemas).
+- [x] Power-admin workflow v1 implemented:
+  - source/bundle-first proposal review cues in Proposals tab,
+  - two-person control for verification-source proposal apply,
+  - publish-tab pre-publish checklist gate as final signoff control,
+  - no new signoff state-machine or endpoint family introduced.
+- [x] Dual-control v2 first slice implemented:
+  - publish/unpublish endpoints enforce two-person control against latest evaluation approver identity,
+  - `claim_published` / `claim_unpublished` audit events persist reviewer-linkage metadata (`approval_reviewer_id`, `applying_reviewer_id`, `dual_control_enforced`),
+  - `/admin` Publish tab surfaces explicit dual-control denial guidance for deterministic `409 publish_dual_control_required`.
+
+## 10) Next Up (Pending)
+
+- [ ] Add proposal-detail claim context enrichment in `/admin` (current evidence sufficiency snapshot + latest evaluation summary beside proposal payload).
+- [ ] Add backend/API tests that assert `proposal_approved` and `proposal_applied` audit metadata includes reviewer-linkage fields (`approval_reviewer_id`, `applying_reviewer_id`, `proposal_type`) in persisted audit reads.
+- [ ] Add frontend regression tests for publish checklist hard-block behavior during publish-queue error/stale-selection conditions.
+- [ ] Add frontend coverage for power-admin source checklist semantics across both source proposal types.
+- [ ] Define and document remaining dual-control v2 expansion scope beyond completed publish/unpublish first slice.

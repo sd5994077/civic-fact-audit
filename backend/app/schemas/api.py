@@ -394,6 +394,7 @@ class ClaimProposalRead(BaseModel):
     reviewed_at: datetime | None
     proposal_payload: dict[str, Any]
     review_notes: str | None
+    claim_context: dict[str, Any] | None = None
     created_at: datetime
     updated_at: datetime
 

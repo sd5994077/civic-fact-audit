@@ -307,6 +307,18 @@
           <article class="panel">
             <div class="panel-head"><h3>Proposal Detail</h3></div>
             <p id="proposal-detail-empty" class="status-text">Select a proposal row to inspect payload and route an action.</p>
+            <div id="proposal-power-admin" class="checklist-box" hidden>
+              <h4>Power Admin Review</h4>
+              <p id="proposal-power-admin-status" class="status-text"></p>
+              <ul id="proposal-power-admin-items" class="checklist"></ul>
+              <p id="proposal-power-admin-guidance" class="status-text"></p>
+            </div>
+            <div id="proposal-claim-context" class="checklist-box" hidden>
+              <h4>Claim Context Snapshot</h4>
+              <p id="proposal-claim-context-status" class="status-text"></p>
+              <ul id="proposal-claim-context-evidence" class="checklist"></ul>
+              <ul id="proposal-claim-context-evaluation" class="checklist"></ul>
+            </div>
             <pre id="proposal-detail-json" class="json" hidden></pre>
             <form id="proposal-action-form" class="stack-form" autocomplete="off">
               <label>Proposal ID<input id="proposal-id" type="text" readonly required></label>
@@ -356,7 +368,13 @@
 
           <article class="panel">
             <div class="panel-head"><h3>Publish Detail + Action</h3></div>
+            <p class="status-text">Final signoff is review completion plus publish gate pass. No separate signoff object is used.</p>
             <p id="publish-detail-empty" class="status-text">Select a claim from the publish queue to inspect gate status and publish state.</p>
+            <div id="publish-checklist" class="checklist-box" hidden>
+              <h4>Pre-Publish Checklist</h4>
+              <ul id="publish-checklist-items" class="checklist"></ul>
+              <p id="publish-checklist-status" class="status-text"></p>
+            </div>
             <pre id="publish-detail-json" class="json" hidden></pre>
             <form id="publish-action-form" class="stack-form" autocomplete="off">
               <label>Claim ID<input id="publish-claim-id" type="text" readonly required></label>

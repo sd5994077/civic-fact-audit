@@ -344,6 +344,58 @@ class EvaluationService:
         }
 
     @staticmethod
+    def _normalize_reviewer_id(reviewer_id: str | None) -> str | None:
+        if reviewer_id is None:
+            return None
+        normalized = reviewer_id.strip().lower()
+        if not normalized:
+            return None
+        return normalized
+
+    @staticmethod
+    def _resolve_publish_approval_reviewer_id(
+        db: Session,
+        claim_id: uuid.UUID,
+        *,
+        latest_eval: ClaimEvaluation | None = None,
+    ) -> str | None:
+        evaluation = latest_eval if latest_eval is not None else EvaluationService._latest_evaluation(db, claim_id)
+        if evaluation is None:
+            return None
+        return EvaluationService._normalize_reviewer_id(getattr(evaluation, 'reviewer_id', None))
+
+    @staticmethod
+    def _enforce_publish_dual_control(
+        db: Session,
+        *,
+        claim_id: uuid.UUID,
+        applying_reviewer_id: str,
+        action: str,
+        latest_eval: ClaimEvaluation | None = None,
+    ) -> tuple[str, str]:
+        normalized_applying_reviewer_id = EvaluationService._normalize_reviewer_id(applying_reviewer_id)
+        approval_reviewer_id = EvaluationService._resolve_publish_approval_reviewer_id(
+            db, claim_id, latest_eval=latest_eval
+        )
+        if (
+            normalized_applying_reviewer_id is None
+            or approval_reviewer_id is None
+            or approval_reviewer_id == normalized_applying_reviewer_id
+        ):
+            raise AppError(
+                'publish_dual_control_required',
+                'Publish and unpublish actions require different reviewers for approval and final mutation.',
+                status_code=409,
+                details={
+                    'claim_id': str(claim_id),
+                    'approval_reviewer_id': approval_reviewer_id,
+                    'applying_reviewer_id': normalized_applying_reviewer_id,
+                    'action': action,
+                },
+            )
+        return approval_reviewer_id, normalized_applying_reviewer_id
+
+    @staticmethod
     def list_publish_queue(
         db: Session,
         *,
@@ -426,20 +478,31 @@ class EvaluationService:
                 status_code=422,
                 details=details,
             )
+        approval_reviewer_id, applying_reviewer_id = EvaluationService._enforce_publish_dual_control(
+            db,
+            claim_id=claim_id,
+            applying_reviewer_id=approver_id,
+            action='publish',
+            latest_eval=latest_eval,
+        )
         before_payload = EvaluationService._claim_publish_state_payload(claim)
         claim.is_published = True
         claim.status = ClaimStatus.published
         claim.published_at = datetime.now(timezone.utc)
-        claim.published_by_reviewer_id = approver_id
+        claim.published_by_reviewer_id = applying_reviewer_id
         AdminAuditService.record_event(
             db,
-            actor_reviewer_id=approver_id,
+            actor_reviewer_id=applying_reviewer_id,
             action='claim_published',
             entity_type='claim',
             entity_id=str(claim.id),
             before_payload=before_payload,
             after_payload=EvaluationService._claim_publish_state_payload(claim),
-            metadata={},
+            metadata={
+                'approval_reviewer_id': approval_reviewer_id,
+                'applying_reviewer_id': applying_reviewer_id,
+                'dual_control_enforced': True,
+            },
             commit=False,
         )
         db.commit()
@@ -451,6 +514,14 @@ class EvaluationService:
         claim = db.get(Claim, claim_id)
         if claim is None:
             raise AppError('claim_not_found', 'Claim does not exist.', status_code=404)
+        latest_eval = EvaluationService._latest_evaluation(db, claim_id)
+        approval_reviewer_id, applying_reviewer_id = EvaluationService._enforce_publish_dual_control(
+            db,
+            claim_id=claim_id,
+            applying_reviewer_id=approver_id,
+            action='unpublish',
+            latest_eval=latest_eval,
+        )
         before_payload = EvaluationService._claim_publish_state_payload(claim)
         claim.is_published = False
         claim.published_at = None
@@ -458,13 +529,17 @@ class EvaluationService:
         claim.status = ClaimStatus.reviewed
         AdminAuditService.record_event(
             db,
-            actor_reviewer_id=approver_id,
+            actor_reviewer_id=applying_reviewer_id,
             action='claim_unpublished',
             entity_type='claim',
             entity_id=str(claim.id),
             before_payload=before_payload,
             after_payload=EvaluationService._claim_publish_state_payload(claim),
-            metadata={},
+            metadata={
+                'approval_reviewer_id': approval_reviewer_id,
+                'applying_reviewer_id': applying_reviewer_id,
+                'dual_control_enforced': True,
+            },
             commit=False,
         )
         db.commit()

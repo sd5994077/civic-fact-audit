@@ -1,4 +1,7 @@
-from app.models.enums import RaceStage
+import json
+
+from app.models.entities import AdminAuditEvent
+from app.models.enums import ClaimStatus, RaceStage
 from app.services.evaluation_service import EvaluationService
 from app.models.enums import Verdict
 from unittest.mock import patch
@@ -14,10 +17,18 @@ class _FakeClaim:
 
 
 class _FakeEval:
-    def __init__(self, *, verdict: Verdict = Verdict.supported, rationale: str = 'rationale', citation_notes: str = 'notes') -> None:
+    def __init__(
+        self,
+        *,
+        verdict: Verdict = Verdict.supported,
+        rationale: str = 'rationale',
+        citation_notes: str = 'notes',
+        reviewer_id: str = 'reviewer@local',
+    ) -> None:
         self.verdict = verdict
         self.rationale = rationale
         self.citation_notes = citation_notes
+        self.reviewer_id = reviewer_id
 
 
 def test_build_review_queue_query_has_race_filters_and_minimum_evidence_having() -> None:
@@ -165,3 +176,181 @@ def test_list_publish_queue_uses_verification_counts_from_review_row(monkeypatch
     assert len(rows) == 1
     assert rows[0]['verification_primary_count'] == 3
     assert rows[0]['verification_secondary_count'] == 2
+
+
+def test_publish_claim_blocks_when_approval_and_apply_reviewer_match(monkeypatch) -> None:
+    claim_id = uuid.uuid4()
+
+    class _PublishableClaim:
+        def __init__(self) -> None:
+            self.id = claim_id
+            self.status = ClaimStatus.reviewed
+            self.fact_checkable = True
+            self.is_published = False
+            self.published_at = None
+            self.published_by_reviewer_id = None
+
+    class _Db:
+        def __init__(self) -> None:
+            self.claim = _PublishableClaim()
+
+        def get(self, _model, id_):  # type: ignore[no-untyped-def]
+            if id_ == claim_id:
+                return self.claim
+            return None
+
+    latest_eval = _FakeEval(reviewer_id='reviewer@local')
+    monkeypatch.setattr('app.services.evaluation_service.EvaluationService._latest_evaluation', lambda *_args, **_kwargs: latest_eval)
+    monkeypatch.setattr(
+        'app.services.evaluation_service.SourceService.has_source_class',
+        lambda _db, _claim_id, _source_class, source_origin=None: True,
+    )
+    try:
+        EvaluationService.publish_claim(_Db(), claim_id, approver_id='reviewer@local')  # type: ignore[arg-type]
+        assert False, 'Expected publish_dual_control_required'
+    except AppError as exc:
+        assert exc.code == 'publish_dual_control_required'
+        assert exc.status_code == 409
+        assert exc.details['claim_id'] == str(claim_id)
+        assert exc.details['approval_reviewer_id'] == 'reviewer@local'
+        assert exc.details['applying_reviewer_id'] == 'reviewer@local'
+        assert exc.details['action'] == 'publish'
+
+
+def test_unpublish_claim_blocks_when_approval_and_apply_reviewer_match(monkeypatch) -> None:
+    claim_id = uuid.uuid4()
+
+    class _PublishedClaim:
+        def __init__(self) -> None:
+            self.id = claim_id
+            self.status = ClaimStatus.published
+            self.fact_checkable = True
+            self.is_published = True
+            self.published_at = None
+            self.published_by_reviewer_id = 'publisher@local'
+
+    class _Db:
+        def __init__(self) -> None:
+            self.claim = _PublishedClaim()
+
+        def get(self, _model, id_):  # type: ignore[no-untyped-def]
+            if id_ == claim_id:
+                return self.claim
+            return None
+
+    latest_eval = _FakeEval(reviewer_id='reviewer@local')
+    monkeypatch.setattr('app.services.evaluation_service.EvaluationService._latest_evaluation', lambda *_args, **_kwargs: latest_eval)
+    try:
+        EvaluationService.unpublish_claim(_Db(), claim_id, approver_id='reviewer@local')  # type: ignore[arg-type]
+        assert False, 'Expected publish_dual_control_required'
+    except AppError as exc:
+        assert exc.code == 'publish_dual_control_required'
+        assert exc.status_code == 409
+        assert exc.details['claim_id'] == str(claim_id)
+        assert exc.details['approval_reviewer_id'] == 'reviewer@local'
+        assert exc.details['applying_reviewer_id'] == 'reviewer@local'
+        assert exc.details['action'] == 'unpublish'
+
+
+def test_publish_claim_allows_different_reviewers_and_records_audit_metadata(monkeypatch) -> None:
+    claim_id = uuid.uuid4()
+
+    class _PublishableClaim:
+        def __init__(self) -> None:
+            self.id = claim_id
+            self.status = ClaimStatus.reviewed
+            self.fact_checkable = True
+            self.is_published = False
+            self.published_at = None
+            self.published_by_reviewer_id = None
+
+    class _Db:
+        def __init__(self) -> None:
+            self.claim = _PublishableClaim()
+            self.added: list[object] = []
+            self.commit_count = 0
+
+        def get(self, _model, id_):  # type: ignore[no-untyped-def]
+            if id_ == claim_id:
+                return self.claim
+            return None
+
+        def add(self, item):  # type: ignore[no-untyped-def]
+            self.added.append(item)
+
+        def commit(self):  # type: ignore[no-untyped-def]
+            self.commit_count += 1
+
+        def refresh(self, _item):  # type: ignore[no-untyped-def]
+            return None
+
+    latest_eval = _FakeEval(reviewer_id='approver@local')
+    monkeypatch.setattr('app.services.evaluation_service.EvaluationService._latest_evaluation', lambda *_args, **_kwargs: latest_eval)
+    monkeypatch.setattr(
+        'app.services.evaluation_service.SourceService.has_source_class',
+        lambda _db, _claim_id, _source_class, source_origin=None: True,
+    )
+
+    db = _Db()
+    claim = EvaluationService.publish_claim(db, claim_id, approver_id='Applier@Local')  # type: ignore[arg-type]
+
+    assert claim.is_published is True
+    assert claim.status == ClaimStatus.published
+    assert claim.published_by_reviewer_id == 'applier@local'
+    assert db.commit_count == 1
+    events = [item for item in db.added if isinstance(item, AdminAuditEvent)]
+    assert len(events) == 1
+    metadata = json.loads(events[0].metadata_payload or '{}')
+    assert metadata['approval_reviewer_id'] == 'approver@local'
+    assert metadata['applying_reviewer_id'] == 'applier@local'
+    assert metadata['dual_control_enforced'] is True
+
+
+def test_unpublish_claim_allows_different_reviewers_and_records_audit_metadata(monkeypatch) -> None:
+    claim_id = uuid.uuid4()
+
+    class _PublishedClaim:
+        def __init__(self) -> None:
+            self.id = claim_id
+            self.status = ClaimStatus.published
+            self.fact_checkable = True
+            self.is_published = True
+            self.published_at = None
+            self.published_by_reviewer_id = 'publisher@local'
+
+    class _Db:
+        def __init__(self) -> None:
+            self.claim = _PublishedClaim()
+            self.added: list[object] = []
+            self.commit_count = 0
+
+        def get(self, _model, id_):  # type: ignore[no-untyped-def]
+            if id_ == claim_id:
+                return self.claim
+            return None
+
+        def add(self, item):  # type: ignore[no-untyped-def]
+            self.added.append(item)
+
+        def commit(self):  # type: ignore[no-untyped-def]
+            self.commit_count += 1
+
+        def refresh(self, _item):  # type: ignore[no-untyped-def]
+            return None
+
+    latest_eval = _FakeEval(reviewer_id='approver@local')
+    monkeypatch.setattr('app.services.evaluation_service.EvaluationService._latest_evaluation', lambda *_args, **_kwargs: latest_eval)
+
+    db = _Db()
+    claim = EvaluationService.unpublish_claim(db, claim_id, approver_id='Applier@Local')  # type: ignore[arg-type]
+
+    assert claim.is_published is False
+    assert claim.status == ClaimStatus.reviewed
+    assert claim.published_by_reviewer_id is None
+    assert db.commit_count == 1
+    events = [item for item in db.added if isinstance(item, AdminAuditEvent)]
+    assert len(events) == 1
+    metadata = json.loads(events[0].metadata_payload or '{}')
+    assert metadata['approval_reviewer_id'] == 'approver@local'
+    assert metadata['applying_reviewer_id'] == 'applier@local'
+    assert metadata['dual_control_enforced'] is True

@@ -289,6 +289,18 @@ test("admin workspace smoke", async ({ page }) => {
             source_origin: "verification",
             quality_score: 0.91,
           },
+          claim_context: {
+            verification_primary_count: 1,
+            verification_secondary_count: 0,
+            missing_source_classes: ["secondary"],
+            verification_evidence_sufficient: false,
+            latest_verdict: "mixed",
+            latest_confidence: 0.62,
+            latest_rationale: "Prior evidence exists",
+            latest_citation_notes: "Source packet A",
+            latest_reviewer_id: "reviewer@local",
+            latest_evaluated_at: "2026-05-12T00:00:00Z",
+          },
           review_notes: null,
           created_at: "2026-05-12T00:00:00Z",
           updated_at: "2026-05-12T00:00:00Z",
@@ -662,6 +674,9 @@ test("admin workspace smoke", async ({ page }) => {
   await expect(page.locator("#tab-proposals")).toBeVisible();
   await expect(page.locator("#proposal-list .row-btn")).toHaveCount(1);
   await page.click("#proposal-list .row-btn");
+  await expect(page.locator("#proposal-claim-context")).toBeVisible();
+  await expect(page.locator("#proposal-claim-context-evidence")).toContainText("missing source classes: secondary");
+  await expect(page.locator("#proposal-claim-context-evaluation")).toContainText("latest verdict: mixed");
   await page.selectOption("#proposal-action", "approve");
   await page.fill("#proposal-review-notes", "Looks valid");
   await page.click("#proposal-action-form button[type=\"submit\"]");

@@ -5,12 +5,12 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, and_, case, func, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
 from app.core.moderation_policy import enforce_boundary_safe_text
-from app.models.entities import Candidate, Claim, ClaimProposal, IssueFrame, Statement
+from app.models.entities import Candidate, Claim, ClaimEvaluation, ClaimProposal, IssueFrame, Source, Statement
 from app.models.enums import ProposalStatus, ProposalType, RaceStage, SourceClass, SourceOrigin, Verdict
 from app.schemas.api import AddSourceRequest, ClaimProposalCreateRequest, EvaluateClaimRequest
 from app.services.admin_audit_service import AdminAuditService
@@ -18,6 +18,144 @@ from app.services.source_service import SourceService
 
 
 class ProposalService:
+    @staticmethod
+    def _build_claim_context_map(
+        db: Session, claim_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, dict[str, Any]]:
+        unique_claim_ids = list(dict.fromkeys(claim_ids))
+        if not unique_claim_ids:
+            return {}
+
+        eligible = SourceService._eligible_for_verification_calculations_predicate()
+        source_count_rows = (
+            db.execute(
+                select(
+                    Source.claim_id.label('claim_id'),
+                    func.sum(
+                        case(
+                            (
+                                and_(
+                                    eligible,
+                                    Source.source_origin == SourceOrigin.verification,
+                                    Source.source_class == SourceClass.primary,
+                                ),
+                                1,
+                            ),
+                            else_=0,
+                        )
+                    ).label('verification_primary_count'),
+                    func.sum(
+                        case(
+                            (
+                                and_(
+                                    eligible,
+                                    Source.source_origin == SourceOrigin.verification,
+                                    Source.source_class == SourceClass.secondary,
+                                ),
+                                1,
+                            ),
+                            else_=0,
+                        )
+                    ).label('verification_secondary_count'),
+                )
+                .where(Source.claim_id.in_(unique_claim_ids))
+                .group_by(Source.claim_id)
+            )
+            .mappings()
+            .all()
+        )
+
+        latest_eval_ranked = (
+            select(
+                ClaimEvaluation.claim_id.label('claim_id'),
+                ClaimEvaluation.verdict.label('latest_verdict'),
+                ClaimEvaluation.confidence.label('latest_confidence'),
+                ClaimEvaluation.rationale.label('latest_rationale'),
+                ClaimEvaluation.citation_notes.label('latest_citation_notes'),
+                ClaimEvaluation.reviewer_id.label('latest_reviewer_id'),
+                ClaimEvaluation.created_at.label('latest_evaluated_at'),
+                func.row_number()
+                .over(
+                    partition_by=ClaimEvaluation.claim_id,
+                    order_by=(ClaimEvaluation.created_at.desc(), ClaimEvaluation.id.desc()),
+                )
+                .label('row_num'),
+            )
+            .where(ClaimEvaluation.claim_id.in_(unique_claim_ids))
+            .subquery()
+        )
+        latest_eval_rows = (
+            db.execute(
+                select(latest_eval_ranked).where(latest_eval_ranked.c.row_num == 1)
+            )
+            .mappings()
+            .all()
+        )
+
+        counts_by_claim_id: dict[uuid.UUID, tuple[int, int]] = {
+            claim_id: (0, 0) for claim_id in unique_claim_ids
+        }
+        for row in source_count_rows:
+            row_claim_id = row['claim_id']
+            counts_by_claim_id[row_claim_id] = (
+                int(row['verification_primary_count'] or 0),
+                int(row['verification_secondary_count'] or 0),
+            )
+
+        latest_eval_by_claim_id: dict[uuid.UUID, dict[str, Any]] = {}
+        for row in latest_eval_rows:
+            latest_eval_by_claim_id[row['claim_id']] = {
+                'latest_verdict': row['latest_verdict'],
+                'latest_confidence': row['latest_confidence'],
+                'latest_rationale': row['latest_rationale'],
+                'latest_citation_notes': row['latest_citation_notes'],
+                'latest_reviewer_id': row['latest_reviewer_id'],
+                'latest_evaluated_at': row['latest_evaluated_at'],
+            }
+
+        context_by_claim_id: dict[uuid.UUID, dict[str, Any]] = {}
+        for claim_id in unique_claim_ids:
+            verification_primary_count, verification_secondary_count = counts_by_claim_id[claim_id]
+            missing_source_classes: list[str] = []
+            if verification_primary_count == 0:
+                missing_source_classes.append(SourceClass.primary.value)
+            if verification_secondary_count == 0:
+                missing_source_classes.append(SourceClass.secondary.value)
+            latest_eval_context = latest_eval_by_claim_id.get(
+                claim_id,
+                {
+                    'latest_verdict': None,
+                    'latest_confidence': None,
+                    'latest_rationale': None,
+                    'latest_citation_notes': None,
+                    'latest_reviewer_id': None,
+                    'latest_evaluated_at': None,
+                },
+            )
+            context_by_claim_id[claim_id] = {
+                'verification_primary_count': verification_primary_count,
+                'verification_secondary_count': verification_secondary_count,
+                'missing_source_classes': missing_source_classes,
+                'verification_evidence_sufficient': verification_primary_count > 0 and verification_secondary_count > 0,
+                **latest_eval_context,
+            }
+        return context_by_claim_id
+
+    @staticmethod
+    def _normalize_reviewer_id(reviewer_id: str) -> str:
+        normalized = reviewer_id.strip().lower()
+        if not normalized:
+            raise AppError('invalid_proposal_payload', 'reviewer_id must not be blank.', status_code=422)
+        return normalized
+
+    @staticmethod
+    def _is_verification_source_apply_target(proposal: ClaimProposal, payload: dict[str, Any]) -> bool:
+        if proposal.proposal_type == ProposalType.verification_source_suggestion:
+            return True
+        if proposal.proposal_type != ProposalType.candidate_source_capture:
+            return False
+        return str(payload.get('source_origin', '')).strip().lower() == SourceOrigin.verification.value
+
     @staticmethod
     def _validate_source_payload(
         proposal_type: ProposalType, payload: dict[str, Any]
@@ -110,7 +248,7 @@ class ProposalService:
         raise AppError('invalid_proposal_type', 'Unsupported proposal type.', status_code=422)
 
     @staticmethod
-    def _to_read_model(proposal: ClaimProposal) -> dict[str, Any]:
+    def _to_read_model(proposal: ClaimProposal, *, claim_context: dict[str, Any] | None = None) -> dict[str, Any]:
         return {
             'id': proposal.id,
             'claim_id': proposal.claim_id,
@@ -121,6 +259,7 @@ class ProposalService:
             'reviewed_at': proposal.reviewed_at,
             'proposal_payload': json.loads(proposal.proposal_payload),
             'review_notes': proposal.review_notes,
+            'claim_context': claim_context,
             'created_at': proposal.created_at,
             'updated_at': proposal.updated_at,
         }
@@ -186,7 +325,16 @@ class ProposalService:
             query = query.where(Candidate.race_stage == race_stage)
 
         proposals = db.execute(query.limit(limit)).scalars().all()
-        return [ProposalService._to_read_model(item) for item in proposals]
+        claim_context_by_claim_id = ProposalService._build_claim_context_map(
+            db, [item.claim_id for item in proposals]
+        )
+        return [
+            ProposalService._to_read_model(
+                item,
+                claim_context=claim_context_by_claim_id.get(item.claim_id),
+            )
+            for item in proposals
+        ]
 
     @staticmethod
     def _get_proposal(db: Session, proposal_id: uuid.UUID) -> ClaimProposal:
@@ -200,10 +348,42 @@ class ProposalService:
         proposal = ProposalService._get_proposal(db, proposal_id)
         if proposal.status != ProposalStatus.proposed:
             raise AppError('invalid_proposal_transition', 'Only proposed proposals can be approved.', status_code=409)
+        normalized_reviewer_id = ProposalService._normalize_reviewer_id(reviewer_id)
+        proposal_before = {
+            'id': str(proposal.id),
+            'claim_id': str(proposal.claim_id),
+            'proposal_type': proposal.proposal_type.value,
+            'status': proposal.status.value,
+            'reviewed_by': proposal.reviewed_by,
+            'reviewed_at': proposal.reviewed_at.isoformat() if proposal.reviewed_at is not None else None,
+            'review_notes': proposal.review_notes,
+        }
         proposal.status = ProposalStatus.approved
-        proposal.reviewed_by = reviewer_id
+        proposal.reviewed_by = normalized_reviewer_id
         proposal.reviewed_at = datetime.now(timezone.utc)
         proposal.review_notes = review_notes
+        AdminAuditService.record_event(
+            db,
+            actor_reviewer_id=normalized_reviewer_id,
+            action='proposal_approved',
+            entity_type='claim_proposal',
+            entity_id=str(proposal.id),
+            before_payload=proposal_before,
+            after_payload={
+                'id': str(proposal.id),
+                'claim_id': str(proposal.claim_id),
+                'proposal_type': proposal.proposal_type.value,
+                'status': proposal.status.value,
+                'reviewed_by': proposal.reviewed_by,
+                'reviewed_at': proposal.reviewed_at.isoformat() if proposal.reviewed_at is not None else None,
+                'review_notes': proposal.review_notes,
+            },
+            metadata={
+                'proposal_type': proposal.proposal_type.value,
+                'approval_reviewer_id': normalized_reviewer_id,
+            },
+            commit=False,
+        )
         db.commit()
         db.refresh(proposal)
         return proposal
@@ -213,10 +393,42 @@ class ProposalService:
         proposal = ProposalService._get_proposal(db, proposal_id)
         if proposal.status != ProposalStatus.proposed:
             raise AppError('invalid_proposal_transition', 'Only proposed proposals can be rejected.', status_code=409)
+        normalized_reviewer_id = ProposalService._normalize_reviewer_id(reviewer_id)
+        proposal_before = {
+            'id': str(proposal.id),
+            'claim_id': str(proposal.claim_id),
+            'proposal_type': proposal.proposal_type.value,
+            'status': proposal.status.value,
+            'reviewed_by': proposal.reviewed_by,
+            'reviewed_at': proposal.reviewed_at.isoformat() if proposal.reviewed_at is not None else None,
+            'review_notes': proposal.review_notes,
+        }
         proposal.status = ProposalStatus.rejected
-        proposal.reviewed_by = reviewer_id
+        proposal.reviewed_by = normalized_reviewer_id
         proposal.reviewed_at = datetime.now(timezone.utc)
         proposal.review_notes = review_notes
+        AdminAuditService.record_event(
+            db,
+            actor_reviewer_id=normalized_reviewer_id,
+            action='proposal_rejected',
+            entity_type='claim_proposal',
+            entity_id=str(proposal.id),
+            before_payload=proposal_before,
+            after_payload={
+                'id': str(proposal.id),
+                'claim_id': str(proposal.claim_id),
+                'proposal_type': proposal.proposal_type.value,
+                'status': proposal.status.value,
+                'reviewed_by': proposal.reviewed_by,
+                'reviewed_at': proposal.reviewed_at.isoformat() if proposal.reviewed_at is not None else None,
+                'review_notes': proposal.review_notes,
+            },
+            metadata={
+                'proposal_type': proposal.proposal_type.value,
+                'rejection_reviewer_id': normalized_reviewer_id,
+            },
+            commit=False,
+        )
         db.commit()
         db.refresh(proposal)
         return proposal
@@ -226,6 +438,7 @@ class ProposalService:
         proposal = ProposalService._get_proposal(db, proposal_id)
         if proposal.status != ProposalStatus.approved:
             raise AppError('invalid_proposal_transition', 'Only approved proposals can be applied.', status_code=409)
+        normalized_reviewer_id = ProposalService._normalize_reviewer_id(reviewer_id)
         proposal_before = {
             'id': str(proposal.id),
             'claim_id': str(proposal.claim_id),
@@ -244,6 +457,24 @@ class ProposalService:
             raise AppError('claim_not_found', 'Claim does not exist.', status_code=404)
 
         ProposalService._validate_payload(proposal.proposal_type, payload)
+        approval_reviewer_id = (proposal.reviewed_by or '').strip().lower()
+        applying_reviewer_id = normalized_reviewer_id
+        if (
+            ProposalService._is_verification_source_apply_target(proposal, payload)
+            and approval_reviewer_id
+            and approval_reviewer_id == applying_reviewer_id
+        ):
+            raise AppError(
+                'proposal_dual_control_required',
+                'Verification-source proposals require different reviewers for approval and apply actions.',
+                status_code=409,
+                details={
+                    'proposal_id': str(proposal.id),
+                    'proposal_type': proposal.proposal_type.value,
+                    'approval_reviewer_id': approval_reviewer_id,
+                    'applying_reviewer_id': applying_reviewer_id,
+                },
+            )
 
         try:
             applied_effect = 'no_change'
@@ -265,13 +496,13 @@ class ProposalService:
                 raise AppError('invalid_proposal_type', 'Unsupported proposal type.', status_code=422)
 
             proposal.status = ProposalStatus.applied
-            proposal.reviewed_by = reviewer_id
+            proposal.reviewed_by = normalized_reviewer_id
             proposal.reviewed_at = datetime.now(timezone.utc)
             if review_notes is not None:
                 proposal.review_notes = review_notes
             AdminAuditService.record_event(
                 db,
-                actor_reviewer_id=reviewer_id,
+                actor_reviewer_id=normalized_reviewer_id,
                 action='proposal_applied',
                 entity_type='claim_proposal',
                 entity_id=str(proposal.id),
@@ -285,7 +516,12 @@ class ProposalService:
                     'reviewed_at': proposal.reviewed_at.isoformat() if proposal.reviewed_at is not None else None,
                     'review_notes': proposal.review_notes,
                 },
-                metadata={'applied_effect': applied_effect},
+                metadata={
+                    'applied_effect': applied_effect,
+                    'proposal_type': proposal.proposal_type.value,
+                    'approval_reviewer_id': approval_reviewer_id or None,
+                    'applying_reviewer_id': applying_reviewer_id or None,
+                },
                 commit=False,
             )
             db.commit()
