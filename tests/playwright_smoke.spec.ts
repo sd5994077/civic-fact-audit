@@ -12,7 +12,8 @@ function contentTypeFor(filePath: string): string {
   return 'application/octet-stream';
 }
 
-async function startFrontendStaticServer(frontendRoot: string): Promise<{ server: http.Server; baseUrl: string }> {
+async function startFrontendStaticServer(frontendRoot: string): Promise<{ server: http.Server; baseUrl: string; close: () => Promise<void> }> {
+  const sockets = new Set<import('net').Socket>();
   const server = http.createServer((req, res) => {
     const urlPath = (req.url || '/').split('?')[0];
     let relativePath = decodeURIComponent(urlPath);
@@ -36,6 +37,10 @@ async function startFrontendStaticServer(frontendRoot: string): Promise<{ server
       res.end(data);
     });
   });
+  server.on('connection', (socket) => {
+    sockets.add(socket);
+    socket.on('close', () => sockets.delete(socket));
+  });
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
@@ -45,6 +50,20 @@ async function startFrontendStaticServer(frontendRoot: string): Promise<{ server
   return {
     server,
     baseUrl: `http://127.0.0.1:${address.port}`,
+    close: async () => {
+      for (const socket of sockets) {
+        socket.destroy();
+      }
+      await new Promise<void>((resolve, reject) => {
+        server.close((err) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          resolve();
+        });
+      });
+    },
   };
 }
 
@@ -101,8 +120,8 @@ test('cfa filters smoke', async ({ page }) => {
       console.log('PRIMARY_RESULT', t.trim(), c, s.trim());
     }
   } finally {
-    if (localServer?.server) {
-      await new Promise<void>((resolve) => localServer.server.close(() => resolve()));
+    if (localServer?.close) {
+      await localServer.close();
     }
   }
 });
