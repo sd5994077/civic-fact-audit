@@ -25,6 +25,22 @@ html {
   scroll-behavior: smooth;
 }
 
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0.8rem;
+  z-index: 1000;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid rgba(255, 93, 45, 0.8);
+  background: #101722;
+  color: #fff;
+  text-decoration: none;
+}
+
+.skip-link:focus {
+  top: 0.8rem;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -671,6 +687,16 @@ body::before {
   gap: 0.5rem;
 }
 
+.evidence-sides {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.evidence-side {
+  display: grid;
+  gap: 0.55rem;
+}
+
 .source-badges {
   display: flex;
   flex-wrap: wrap;
@@ -856,7 +882,12 @@ body::before {
 
 .rail-link:focus-visible,
 .issue-row:focus-visible,
-.source-link:focus-visible {
+.source-link:focus-visible,
+.review-submit:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+.review-item:focus-visible {
   outline: 2px solid rgba(255, 93, 45, 0.7);
   outline-offset: 3px;
 }
@@ -932,5 +963,26 @@ body::before {
   .panel-topline {
     align-items: start;
     flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .hero,
+  .candidate-stage,
+  .contrast-band,
+  .compare-board {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  .rail-link,
+  .issue-row,
+  .source-link {
+    transition: none;
   }
 }

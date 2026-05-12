@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>Civic Fact Audit Admin</title>
+  <link rel="stylesheet" href="./admin.css?v=20260512d">
+</head>
+<body>
+  <main class="admin-shell">
+    <header class="admin-header">
+      <div>
+        <p class="eyebrow">Staff Operations</p>
+        <h1>Civic Fact Audit Admin</h1>
+        <p class="subcopy">Admin-only workspace for candidate lifecycle updates, review operations, proposal triage, publish controls, job runs, and audit trace review.</p>
+      </div>
+      <div class="header-actions">
+        <a class="link-btn" href="/">Public Dashboard</a>
+        <button id="sign-out" class="ghost-btn" type="button">Sign out</button>
+      </div>
+    </header>
+
+    <section id="auth-card" class="panel auth-panel">
+      <h2>Admin Sign In</h2>
+      <form id="auth-form" class="stack-form">
+        <label>Email<input id="auth-email" type="email" value="admin@local" required></label>
+        <label>Password<input id="auth-password" type="password" value="change-me" required></label>
+        <button type="submit" class="primary-btn">Sign in</button>
+      </form>
+      <p id="auth-status" class="status-text"></p>
+    </section>
+
+    <section id="admin-workspace" class="workspace" hidden>
+      <div class="identity-bar">
+        <strong id="identity-label">Signed in</strong>
+        <span id="identity-role" class="pill"></span>
+      </div>
+
+      <nav class="tabs" aria-label="Admin sections">
+        <button type="button" class="tab is-active" data-tab="candidates">Candidates</button>
+        <button type="button" class="tab" data-tab="review">Review Queue</button>
+        <button type="button" class="tab" data-tab="evidence">Evidence Queue</button>
+        <button type="button" class="tab" data-tab="bulk-sources">Bulk Source Attach</button>
+        <button type="button" class="tab" data-tab="proposals">Proposal Triage</button>
+        <button type="button" class="tab" data-tab="publish">Publish Controls</button>
+        <button type="button" class="tab" data-tab="jobs">Jobs</button>
+        <button type="button" class="tab" data-tab="audit">Audit</button>
+      </nav>
+
+      <section class="tab-panel" id="tab-candidates">
+        <div class="grid-two">
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Candidate List</h3>
+              <button id="reload-candidates" class="ghost-btn" type="button">Refresh</button>
+            </div>
+            <form id="candidate-filters" class="stack-form compact">
+              <label>State<input id="candidate-filter-state" type="text" placeholder="TX"></label>
+              <label>Office<input id="candidate-filter-office" type="text" placeholder="US Senate"></label>
+              <label>Cycle<input id="candidate-filter-cycle" type="number" min="1900" max="2100"></label>
+              <label>Stage
+                <select id="candidate-filter-stage">
+                  <option value="">All stages</option>
+                  <option value="primary">primary</option>
+                  <option value="primary_runoff">primary_runoff</option>
+                  <option value="general">general</option>
+                  <option value="special">special</option>
+                </select>
+              </label>
+              <button type="submit" class="primary-btn">Apply</button>
+            </form>
+            <p id="candidate-list-status" class="status-text"></p>
+            <div id="candidate-list" class="list"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head"><h3>Candidate Detail</h3></div>
+            <form id="candidate-edit-form" class="stack-form" autocomplete="off">
+              <label>Candidate ID<input id="candidate-id" type="text" readonly></label>
+              <label>Name<input id="candidate-name" type="text"></label>
+              <label>Party<input id="candidate-party" type="text"></label>
+              <label>Office<input id="candidate-office" type="text"></label>
+              <label>State<input id="candidate-state" type="text"></label>
+              <label>Election Cycle<input id="candidate-cycle" type="number" min="1900" max="2100"></label>
+              <label>Race Stage
+                <select id="candidate-stage">
+                  <option value="">none</option>
+                  <option value="primary">primary</option>
+                  <option value="primary_runoff">primary_runoff</option>
+                  <option value="general">general</option>
+                  <option value="special">special</option>
+                </select>
+              </label>
+              <label class="inline-check"><input id="candidate-active" type="checkbox"> Active</label>
+              <label>Roster Status<input id="candidate-roster-status" type="text"></label>
+              <label>Roster Source URL<input id="candidate-roster-url" type="url"></label>
+              <label>Roster Checked At (UTC)
+                <input id="candidate-roster-checked-at" type="datetime-local">
+              </label>
+              <label>Roster Notes<textarea id="candidate-roster-notes"></textarea></label>
+              <button type="submit" class="primary-btn">Save Candidate</button>
+            </form>
+            <p id="candidate-edit-status" class="status-text"></p>
+          </article>
+        </div>
+
+        <article class="panel" style="margin-top:1rem;">
+          <div class="panel-head"><h3>Create Candidate</h3></div>
+          <form id="candidate-create-form" class="stack-form compact">
+            <label>Name<input id="create-name" type="text" required></label>
+            <label>Party<input id="create-party" type="text"></label>
+            <label>Office<input id="create-office" type="text"></label>
+            <label>State<input id="create-state" type="text"></label>
+            <label>Election Cycle<input id="create-cycle" type="number" min="1900" max="2100"></label>
+            <label>Race Stage
+              <select id="create-stage">
+                <option value="">none</option>
+                <option value="primary">primary</option>
+                <option value="primary_runoff">primary_runoff</option>
+                <option value="general">general</option>
+                <option value="special">special</option>
+              </select>
+            </label>
+            <label class="inline-check"><input id="create-active" type="checkbox" checked> Active</label>
+            <label>Roster Status<input id="create-roster-status" type="text"></label>
+            <label>Roster Source URL<input id="create-roster-url" type="url"></label>
+            <label>Roster Checked At (UTC)
+              <input id="create-roster-checked-at" type="datetime-local">
+            </label>
+            <label>Roster Notes<textarea id="create-roster-notes"></textarea></label>
+            <button type="submit" class="primary-btn">Create Candidate</button>
+          </form>
+          <p id="candidate-create-status" class="status-text"></p>
+        </article>
+      </section>
+
+      <section class="tab-panel" id="tab-review" hidden>
+        <div class="grid-two">
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Review Queue</h3>
+              <button id="review-refresh" class="ghost-btn" type="button">Refresh</button>
+            </div>
+            <form id="review-filter-form" class="stack-form compact">
+              <label>State<input id="review-filter-state" type="text" placeholder="TX"></label>
+              <label>Office<input id="review-filter-office" type="text" placeholder="US Senate"></label>
+              <label>Cycle<input id="review-filter-cycle" type="number" min="1900" max="2100"></label>
+              <label>Stage
+                <select id="review-filter-stage">
+                  <option value="">All stages</option>
+                  <option value="primary">primary</option>
+                  <option value="primary_runoff">primary_runoff</option>
+                  <option value="general">general</option>
+                  <option value="special">special</option>
+                </select>
+              </label>
+              <label class="inline-check"><input id="review-filter-require-min-evidence" type="checkbox" checked> Require minimum evidence</label>
+              <label>Limit<input id="review-filter-limit" type="number" min="1" max="1000" value="200"></label>
+              <button type="submit" class="primary-btn">Apply</button>
+            </form>
+            <p id="review-list-status" class="status-text"></p>
+            <div id="review-list" class="list"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head"><h3>Submit Evaluation</h3></div>
+            <p id="review-preview" class="status-text">Select a claim from the queue to evaluate.</p>
+            <form id="review-form" class="stack-form" autocomplete="off">
+              <label>Claim ID<input id="review-claim-id" type="text" readonly required></label>
+              <label>Verdict
+                <select id="review-verdict" required>
+                  <option value="supported">supported</option>
+                  <option value="mixed">mixed</option>
+                  <option value="unsupported">unsupported</option>
+                  <option value="insufficient">insufficient</option>
+                </select>
+              </label>
+              <label>Confidence (0-1)<input id="review-confidence" type="number" min="0" max="1" step="0.01" value="0.70" required></label>
+              <label>Rationale<textarea id="review-rationale" minlength="10" required></textarea></label>
+              <label>Citation Notes<textarea id="review-citation-notes"></textarea></label>
+              <button type="submit" class="primary-btn">Submit Evaluation</button>
+            </form>
+            <p id="review-submit-status" class="status-text"></p>
+          </article>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-evidence" hidden>
+        <div class="grid-two">
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Evidence Queue</h3>
+              <button id="evidence-refresh" class="ghost-btn" type="button">Refresh</button>
+            </div>
+            <form id="evidence-filter-form" class="stack-form compact">
+              <label>State<input id="evidence-filter-state" type="text" placeholder="TX"></label>
+              <label>Office<input id="evidence-filter-office" type="text" placeholder="US Senate"></label>
+              <label>Cycle<input id="evidence-filter-cycle" type="number" min="1900" max="2100"></label>
+              <label>Stage
+                <select id="evidence-filter-stage">
+                  <option value="">All stages</option>
+                  <option value="primary">primary</option>
+                  <option value="primary_runoff">primary_runoff</option>
+                  <option value="general">general</option>
+                  <option value="special">special</option>
+                </select>
+              </label>
+              <label class="inline-check"><input id="evidence-filter-include-only-missing" type="checkbox" checked> Include only missing-source claims</label>
+              <label>Limit<input id="evidence-filter-limit" type="number" min="1" max="1000" value="200"></label>
+              <button type="submit" class="primary-btn">Apply</button>
+            </form>
+            <p id="evidence-list-status" class="status-text"></p>
+            <div id="evidence-list" class="list"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head"><h3>Evidence Claim Detail</h3></div>
+            <p id="evidence-detail-empty" class="status-text">Select a claim from the evidence queue to inspect details and copy claim ID for bulk attach.</p>
+            <pre id="evidence-detail-json" class="json" hidden></pre>
+            <div class="action-row" style="margin-top:0.7rem;">
+              <label class="grow">Claim ID<input id="evidence-claim-id" type="text" readonly></label>
+              <button id="evidence-copy-claim-id" class="ghost-btn" type="button">Copy Claim ID</button>
+            </div>
+            <p id="evidence-copy-status" class="status-text"></p>
+          </article>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-bulk-sources" hidden>
+        <div class="grid-two">
+          <article class="panel">
+            <div class="panel-head"><h3>Bulk Source Attach</h3></div>
+            <p class="status-text">
+              Payload must be a JSON array. Each item requires: <code>claim_id</code>, <code>url</code>, <code>source_class</code>,
+              <code>source_origin</code>, and <code>quality_score</code>.
+            </p>
+            <div class="action-row" style="margin:0.7rem 0;">
+              <button id="bulk-load-example" class="ghost-btn" type="button">Load Example</button>
+              <button id="bulk-validate-json" class="ghost-btn" type="button">Validate JSON</button>
+              <button id="bulk-clear-json" class="ghost-btn" type="button">Clear</button>
+            </div>
+            <form id="bulk-attach-form" class="stack-form">
+              <label>Attach Payload JSON
+                <textarea id="bulk-attach-json" class="json-input" spellcheck="false"></textarea>
+              </label>
+              <button type="submit" class="primary-btn">Submit Bulk Attach</button>
+            </form>
+            <p id="bulk-attach-status" class="status-text"></p>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head"><h3>Bulk Attach Results</h3></div>
+            <p id="bulk-attach-summary" class="status-text">Run a bulk attach request to view result summary.</p>
+            <div id="bulk-attach-results" class="list"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-proposals" hidden>
+        <div class="grid-two">
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Proposal Queue</h3>
+              <button id="proposal-refresh" class="ghost-btn" type="button">Refresh</button>
+            </div>
+            <form id="proposal-filter-form" class="stack-form compact">
+              <label>Status
+                <select id="proposal-filter-status">
+                  <option value="">All statuses</option>
+                  <option value="proposed">proposed</option>
+                  <option value="approved">approved</option>
+                  <option value="rejected">rejected</option>
+                  <option value="applied">applied</option>
+                </select>
+              </label>
+              <label>Type
+                <select id="proposal-filter-type">
+                  <option value="">All types</option>
+                  <option value="issue_frame_mapping">issue_frame_mapping</option>
+                  <option value="candidate_source_capture">candidate_source_capture</option>
+                  <option value="verification_source_suggestion">verification_source_suggestion</option>
+                  <option value="draft_verdict">draft_verdict</option>
+                </select>
+              </label>
+              <label>State<input id="proposal-filter-state" type="text" placeholder="TX"></label>
+              <label>Office<input id="proposal-filter-office" type="text" placeholder="US Senate"></label>
+              <label>Cycle<input id="proposal-filter-cycle" type="number" min="1900" max="2100"></label>
+              <label>Stage
+                <select id="proposal-filter-stage">
+                  <option value="">All stages</option>
+                  <option value="primary">primary</option>
+                  <option value="primary_runoff">primary_runoff</option>
+                  <option value="general">general</option>
+                  <option value="special">special</option>
+                </select>
+              </label>
+              <label>Limit<input id="proposal-filter-limit" type="number" min="1" max="1000" value="200"></label>
+              <button type="submit" class="primary-btn">Apply</button>
+            </form>
+            <p id="proposal-list-status" class="status-text"></p>
+            <div id="proposal-list" class="list"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head"><h3>Proposal Detail</h3></div>
+            <p id="proposal-detail-empty" class="status-text">Select a proposal row to inspect payload and route an action.</p>
+            <pre id="proposal-detail-json" class="json" hidden></pre>
+            <form id="proposal-action-form" class="stack-form" autocomplete="off">
+              <label>Proposal ID<input id="proposal-id" type="text" readonly required></label>
+              <label>Action
+                <select id="proposal-action" required>
+                  <option value="approve">approve</option>
+                  <option value="reject">reject</option>
+                  <option value="apply">apply</option>
+                </select>
+              </label>
+              <label>Review Notes<textarea id="proposal-review-notes"></textarea></label>
+              <button type="submit" class="primary-btn">Submit Action</button>
+            </form>
+            <p id="proposal-action-status" class="status-text"></p>
+          </article>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-publish" hidden>
+        <div class="grid-two">
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Publish Queue</h3>
+              <button id="publish-refresh" class="ghost-btn" type="button">Refresh</button>
+            </div>
+            <form id="publish-filter-form" class="stack-form compact">
+              <label>State<input id="publish-filter-state" type="text" placeholder="TX"></label>
+              <label>Office<input id="publish-filter-office" type="text" placeholder="US Senate"></label>
+              <label>Cycle<input id="publish-filter-cycle" type="number" min="1900" max="2100"></label>
+              <label>Stage
+                <select id="publish-filter-stage">
+                  <option value="">All stages</option>
+                  <option value="primary">primary</option>
+                  <option value="primary_runoff">primary_runoff</option>
+                  <option value="general">general</option>
+                  <option value="special">special</option>
+                </select>
+              </label>
+              <label class="inline-check"><input id="publish-filter-include-published" type="checkbox"> Include already published</label>
+              <label class="inline-check"><input id="publish-filter-only-gate-passed" type="checkbox"> Only gate-passed claims</label>
+              <label>Limit<input id="publish-filter-limit" type="number" min="1" max="1000" value="200"></label>
+              <button type="submit" class="primary-btn">Apply</button>
+            </form>
+            <p id="publish-list-status" class="status-text"></p>
+            <div id="publish-list" class="list"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head"><h3>Publish Detail + Action</h3></div>
+            <p id="publish-detail-empty" class="status-text">Select a claim from the publish queue to inspect gate status and publish state.</p>
+            <pre id="publish-detail-json" class="json" hidden></pre>
+            <form id="publish-action-form" class="stack-form" autocomplete="off">
+              <label>Claim ID<input id="publish-claim-id" type="text" readonly required></label>
+              <label>Action
+                <select id="publish-action" required>
+                  <option value="publish">publish</option>
+                  <option value="unpublish">unpublish</option>
+                </select>
+              </label>
+              <button type="submit" class="primary-btn">Execute Publish Action</button>
+            </form>
+            <p id="publish-action-status" class="status-text"></p>
+          </article>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-jobs" hidden>
+        <div class="grid-two">
+          <article class="panel">
+            <div class="panel-head"><h3>Run Job</h3></div>
+            <form id="job-create-form" class="stack-form">
+              <label>Job Type
+                <select id="job-type" required>
+                  <option value="" disabled selected>Loading job types...</option>
+                </select>
+              </label>
+              <label id="job-profile-field">Race Profile
+                <select id="job-profile-id"></select>
+              </label>
+              <label id="job-statement-batch-field" hidden>Statement Batch
+                <select id="job-statement-batch"></select>
+              </label>
+              <label id="job-dry-run-field" class="inline-check" hidden>
+                <input id="job-dry-run" type="checkbox"> dry_run
+              </label>
+              <p id="job-input-hint" class="status-text">Payload below auto-syncs from typed controls and remains editable.</p>
+              <label>Input Payload JSON
+                <textarea id="job-input-payload" class="json-input" spellcheck="false"></textarea>
+              </label>
+              <button type="submit" class="primary-btn">Run Job</button>
+            </form>
+            <p id="job-create-status" class="status-text"></p>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Job Detail</h3>
+              <button id="job-detail-refresh" class="ghost-btn" type="button">Reload</button>
+            </div>
+            <p id="job-detail-empty" class="status-text">Select a job row to inspect details.</p>
+            <pre id="job-detail-json" class="json" hidden></pre>
+          </article>
+        </div>
+
+        <article class="panel" style="margin-top:1rem;">
+          <div class="panel-head">
+            <h3>Job History</h3>
+            <button id="jobs-refresh" class="ghost-btn" type="button">Refresh</button>
+          </div>
+          <form id="jobs-filter-form" class="stack-form compact">
+            <label>Status
+              <select id="jobs-filter-status">
+                <option value="">All</option>
+                <option value="queued">queued</option>
+                <option value="running">running</option>
+                <option value="succeeded">succeeded</option>
+                <option value="failed">failed</option>
+                <option value="canceled">canceled</option>
+              </select>
+            </label>
+            <label>Job Type<input id="jobs-filter-type" type="text" placeholder="generate_publish_queue_report"></label>
+            <label>Limit<input id="jobs-filter-limit" type="number" min="1" max="500" value="100"></label>
+            <button type="submit" class="primary-btn">Apply</button>
+          </form>
+          <p id="jobs-list-status" class="status-text"></p>
+          <div id="jobs-list" class="list"></div>
+        </article>
+      </section>
+
+      <section class="tab-panel" id="tab-audit" hidden>
+        <div class="grid-two">
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Audit Events</h3>
+              <button id="audit-refresh" class="ghost-btn" type="button">Refresh</button>
+            </div>
+            <form id="audit-filter-form" class="stack-form compact">
+              <label>Action<input id="audit-filter-action" type="text" placeholder="candidate_updated"></label>
+              <label>Entity Type<input id="audit-filter-entity-type" type="text" placeholder="candidate"></label>
+              <label>Entity ID<input id="audit-filter-entity-id" type="text" placeholder="UUID or claim id"></label>
+              <label>Actor<input id="audit-filter-actor" type="text" placeholder="admin@local"></label>
+              <label>Limit<input id="audit-filter-limit" type="number" min="1" max="500" value="100"></label>
+              <button type="submit" class="primary-btn">Apply</button>
+            </form>
+            <p id="audit-list-status" class="status-text"></p>
+            <div id="audit-list" class="list"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Event Detail</h3>
+              <button id="audit-detail-refresh" class="ghost-btn" type="button">Reload</button>
+            </div>
+            <p id="audit-detail-empty" class="status-text">Select an audit event row to inspect details.</p>
+            <pre id="audit-detail-json" class="json" hidden></pre>
+          </article>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="./admin.js?v=20260512d"></script>
+</body>
+</html>

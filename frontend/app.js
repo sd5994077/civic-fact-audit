@@ -1,11 +1,28 @@
 const API_COMPARE_URL = "/api/v1/compare?state=TX&office=US%20Senate&election_cycle=2026&limit_issues=8";
+const API_CANDIDATES_URL = "/api/v1/candidates";
 const API_REVIEW_QUEUE_URL =
   "/api/v1/claims/review-queue?state=TX&office=US%20Senate&election_cycle=2026&require_minimum_evidence=true&limit=50";
 const API_EVALUATE_BASE_URL = "/api/v1/claims";
 const API_AUTH_LOGIN_URL = "/api/v1/auth/login";
+const API_PROPOSALS_BASE_URL = "/api/v1/claims/proposals";
 
 let reviewQueueRows = [];
+let proposalQueueRows = [];
 let authToken = localStorage.getItem("cfa_auth_token") || "";
+let compareState = null;
+let compareAbortController = null;
+let compareFilters = {
+  raceKey: "TX|US Senate|2026",
+  raceStage: "",
+  startDate: "",
+  endDate: "",
+  issueContains: "",
+  minConfidence: 0,
+  minQuality: 0,
+  limitIssues: 8,
+};
+let raceOptions = [];
+let raceStageOptions = new Map();
 
 function $(id) {
   return document.getElementById(id);
@@ -72,9 +89,30 @@ function formatVerdictLabel(verdict) {
   return "Insufficient evidence";
 }
 
+function stageLabel(value) {
+  if (!value) return "All stages";
+  return value.replaceAll("_", " ");
+}
+
 function formatSourceOriginLabel(origin) {
+  if (!origin) return "Unspecified origin";
   if (origin === "candidate") return "Candidate-originated";
   return "Verification";
+}
+
+function formatSourceClassLabel(sourceClass) {
+  if (!sourceClass) return "Unclassified";
+  return sourceClass === "primary" ? "Primary" : "Secondary";
+}
+
+function formatWarningLabel(code) {
+  if (code === "missing_verification_primary") return "Missing verification primary";
+  if (code === "missing_verification_secondary") return "Missing verification secondary";
+  if (code === "source_class_imbalance_primary") return "Primary-source imbalance";
+  if (code === "source_class_imbalance_secondary") return "Secondary-source imbalance";
+  if (code === "weak_bundle_stance_links") return "Weak stance bundle";
+  if (code === "weak_bundle_verification_links") return "Weak verification bundle";
+  return "Evidence warning";
 }
 
 function shortId(id) {
@@ -108,7 +146,8 @@ function renderTopCards(compare) {
   const cards = $("candidate-cards");
   cards.dataset.count = String(candidates.length);
 
-  $("race-label").textContent = `${compare.race.state} ${compare.race.office} ${compare.race.election_cycle ?? ""}`.trim();
+  const stage = compare.race.race_stage ? ` | ${stageLabel(compare.race.race_stage)}` : "";
+  $("race-label").textContent = `${compare.race.state} ${compare.race.office} ${compare.race.election_cycle ?? ""}${stage}`.trim();
 
   cards.innerHTML = candidates
     .map((candidate, idx) => {
@@ -168,9 +207,214 @@ function renderTopCards(compare) {
     .join("");
 }
 
+function buildCompareUrl() {
+  const selectedRace = raceOptions.find((option) => option.key === compareFilters.raceKey) || raceOptions[0];
+  const params = new URLSearchParams();
+  params.set("state", selectedRace?.state || "TX");
+  params.set("office", selectedRace?.office || "US Senate");
+  if (selectedRace?.electionCycle != null) {
+    params.set("election_cycle", String(selectedRace.electionCycle));
+  }
+  if (compareFilters.raceStage) {
+    params.set("race_stage", compareFilters.raceStage);
+  }
+  if (compareFilters.startDate) {
+    params.set("window_start", `${compareFilters.startDate}T00:00:00Z`);
+  }
+  if (compareFilters.endDate) {
+    params.set("window_end", `${compareFilters.endDate}T23:59:59Z`);
+  }
+  params.set("limit_issues", String(compareFilters.limitIssues));
+  return `/api/v1/compare?${params.toString()}`;
+}
+
+function buildCompareExportUrl(format) {
+  const selectedRace = raceOptions.find((option) => option.key === compareFilters.raceKey) || raceOptions[0];
+  const params = new URLSearchParams();
+  params.set("state", selectedRace?.state || "TX");
+  params.set("office", selectedRace?.office || "US Senate");
+  if (selectedRace?.electionCycle != null) {
+    params.set("election_cycle", String(selectedRace.electionCycle));
+  }
+  if (compareFilters.raceStage) {
+    params.set("race_stage", compareFilters.raceStage);
+  }
+  if (compareFilters.startDate) {
+    params.set("window_start", `${compareFilters.startDate}T00:00:00Z`);
+  }
+  if (compareFilters.endDate) {
+    params.set("window_end", `${compareFilters.endDate}T23:59:59Z`);
+  }
+  if (compareFilters.issueContains) {
+    params.set("issue_contains", compareFilters.issueContains);
+  }
+  params.set("min_confidence", String(compareFilters.minConfidence || 0));
+  params.set("min_source_quality", String(compareFilters.minQuality || 0));
+  params.set("limit_issues", String(compareFilters.limitIssues));
+  params.set("format", format);
+  return `/api/v1/compare/export?${params.toString()}`;
+}
+
+function buildProposalQueueUrl() {
+  const selectedRace = raceOptions.find((option) => option.key === compareFilters.raceKey) || raceOptions[0];
+  const params = new URLSearchParams();
+  params.set("state", selectedRace?.state || "TX");
+  params.set("office", selectedRace?.office || "US Senate");
+  if (selectedRace?.electionCycle != null) {
+    params.set("election_cycle", String(selectedRace.electionCycle));
+  }
+  if (compareFilters.raceStage) {
+    params.set("race_stage", compareFilters.raceStage);
+  }
+  params.set("limit", "100");
+  return `${API_PROPOSALS_BASE_URL}?${params.toString()}`;
+}
+
+function syncCompareFiltersFromForm() {
+  compareFilters.raceKey = $("filter-race")?.value || compareFilters.raceKey;
+  compareFilters.raceStage = $("filter-stage")?.value || "";
+  compareFilters.startDate = $("filter-start")?.value || "";
+  compareFilters.endDate = $("filter-end")?.value || "";
+  compareFilters.issueContains = $("filter-issue")?.value || "";
+  const minConfidence = Number($("filter-min-confidence")?.value || 0);
+  const minQuality = Number($("filter-min-quality")?.value || 0);
+  compareFilters.minConfidence = Number.isFinite(minConfidence) ? Math.max(0, Math.min(1, minConfidence)) : 0;
+  compareFilters.minQuality = Number.isFinite(minQuality) ? Math.max(0, Math.min(1, minQuality)) : 0;
+  compareFilters.limitIssues = Number($("filter-limit-issues")?.value || 8);
+  if (!Number.isFinite(compareFilters.limitIssues) || compareFilters.limitIssues < 1) compareFilters.limitIssues = 8;
+  if (compareFilters.limitIssues > 10) compareFilters.limitIssues = 10;
+
+  const minConfidenceInput = $("filter-min-confidence");
+  const minQualityInput = $("filter-min-quality");
+  if (minConfidenceInput) minConfidenceInput.value = String(compareFilters.minConfidence);
+  if (minQualityInput) minQualityInput.value = String(compareFilters.minQuality);
+}
+
+function renderNoCompareState() {
+  const cards = $("candidate-cards");
+  if (cards) {
+    cards.dataset.count = "0";
+    cards.innerHTML = `<p class="note-copy">No comparison available for this race/stage selection.</p>`;
+  }
+  $("race-label").textContent = "Comparison unavailable";
+  $("contrast-most-supported").textContent = "Not enough candidates";
+  $("contrast-most-contradicted").textContent = "Not enough candidates";
+  $("contrast-most-unverified").textContent = "Not enough candidates";
+  $("contrast-tightest-split").textContent = "Not enough candidates";
+  $("contrast-tightest-split-note").textContent =
+    "Select a race with at least two candidates to compare contrast metrics.";
+}
+
+function applyClientFilters(compare) {
+  const issueNeedle = compareFilters.issueContains.trim().toLowerCase();
+  const minConfidenceRaw = Number(compareFilters.minConfidence);
+  const minQualityRaw = Number(compareFilters.minQuality);
+  const minConfidence = Number.isFinite(minConfidenceRaw) ? Math.max(0, Math.min(1, minConfidenceRaw)) : 0;
+  const minQuality = Number.isFinite(minQualityRaw) ? Math.max(0, Math.min(1, minQualityRaw)) : 0;
+
+  const filteredIssues = (compare.issues || [])
+    .map((issue) => {
+      const tagMatch = !issueNeedle || String(issue.issue_tag || "").toLowerCase().includes(issueNeedle);
+      if (!tagMatch) return null;
+
+      const items = (issue.items || []).filter((item) => {
+        const confidenceOk = Number(item.confidence || 0) >= minConfidence;
+        const sources = item.sources || [];
+        const qualityOk = minQuality <= 0 || sources.some((source) => Number(source.quality_score || 0) >= minQuality);
+        return confidenceOk && qualityOk;
+      });
+      if (items.length === 0) return null;
+      return { ...issue, items };
+    })
+    .filter(Boolean)
+    .slice(0, compareFilters.limitIssues);
+
+  return { ...compare, issues: filteredIssues };
+}
+
+function refreshStageSelectForRace() {
+  const stageSelect = $("filter-stage");
+  if (!stageSelect) return;
+
+  const stagesForRace = Array.from(raceStageOptions.get(compareFilters.raceKey) || []).sort();
+  stageSelect.innerHTML =
+    `<option value="">All stages</option>` +
+    stagesForRace.map((stage) => `<option value="${escapeHtml(stage)}">${escapeHtml(stageLabel(stage))}</option>`).join("");
+
+  if (compareFilters.raceStage && !stagesForRace.includes(compareFilters.raceStage)) {
+    compareFilters.raceStage = "";
+  }
+  stageSelect.value = compareFilters.raceStage || "";
+}
+
+async function loadRaceOptions() {
+  try {
+    const res = await fetch(API_CANDIDATES_URL, { headers: { Accept: "application/json" } });
+    if (!res.ok) throw new Error(`candidate list failed: ${res.status}`);
+    const rows = await res.json();
+    const raceMap = new Map();
+    const stageMap = new Map();
+
+    for (const row of rows) {
+      const state = row.state || "Unknown";
+      const office = row.office || "Unknown Office";
+      const electionCycle = row.election_cycle ?? null;
+      const key = `${state}|${office}|${electionCycle ?? "none"}`;
+      if (!raceMap.has(key)) {
+        raceMap.set(key, { key, state, office, electionCycle });
+      }
+      if (!stageMap.has(key)) stageMap.set(key, new Set());
+      if (row.race_stage) stageMap.get(key).add(row.race_stage);
+    }
+
+    raceOptions = Array.from(raceMap.values());
+    raceStageOptions = stageMap;
+    if (raceOptions.length === 0) {
+      raceOptions = [{ key: "TX|US Senate|2026", state: "TX", office: "US Senate", electionCycle: 2026 }];
+      raceStageOptions = new Map([["TX|US Senate|2026", new Set()]]);
+    }
+
+    const raceSelect = $("filter-race");
+    if (raceSelect) {
+      raceSelect.innerHTML = raceOptions
+        .map((race) => `<option value="${escapeHtml(race.key)}">${escapeHtml(`${race.state} ${race.office} ${race.electionCycle ?? ""}`.trim())}</option>`)
+        .join("");
+      const preferred = raceOptions.find((option) => option.key === compareFilters.raceKey);
+      raceSelect.value = preferred ? preferred.key : raceOptions[0].key;
+      compareFilters.raceKey = raceSelect.value;
+    }
+
+    refreshStageSelectForRace();
+  } catch (err) {
+    raceOptions = [{ key: "TX|US Senate|2026", state: "TX", office: "US Senate", electionCycle: 2026 }];
+    raceStageOptions = new Map([["TX|US Senate|2026", new Set()]]);
+    const raceSelect = $("filter-race");
+    if (raceSelect) {
+      raceSelect.innerHTML = `<option value="TX|US Senate|2026">TX US Senate 2026</option>`;
+      raceSelect.value = "TX|US Senate|2026";
+    }
+    compareFilters.raceKey = "TX|US Senate|2026";
+    compareFilters.raceStage = "";
+    refreshStageSelectForRace();
+  }
+}
+
 function renderContrastBand(compare) {
   const candidates = compare.candidates;
-  if (candidates.length < 2) return;
+  const ms = $("contrast-most-supported");
+  const mc = $("contrast-most-contradicted");
+  const mu = $("contrast-most-unverified");
+  const ts = $("contrast-tightest-split");
+  const tsNote = $("contrast-tightest-split-note");
+
+  if (candidates.length < 2) {
+    if (ms) ms.textContent = "Not enough candidates";
+    if (mc) mc.textContent = "Not enough candidates";
+    if (mu) mu.textContent = "Not enough candidates";
+    if (ts) ts.textContent = "Not enough candidates";
+    if (tsNote) tsNote.textContent = "Select a race with at least two candidates to compare contrast metrics.";
+    return;
+  }
 
   const countsByCandidate = tallyVerdicts(compare);
   const safeRate = (num, den) => (den > 0 ? num / den : NaN);
@@ -188,11 +432,8 @@ function renderContrastBand(compare) {
     unverifiedRate(countsByCandidate.get(candidate.id)) >= unverifiedRate(countsByCandidate.get(best.id)) ? candidate : best
   );
 
-  const ms = $("contrast-most-supported");
   if (ms) ms.textContent = mostSupported.name;
-  const mc = $("contrast-most-contradicted");
   if (mc) mc.textContent = mostContradicted.name;
-  const mu = $("contrast-most-unverified");
   if (mu) mu.textContent = mostUnverified.name;
 
   let splitTag = "";
@@ -204,9 +445,7 @@ function renderContrastBand(compare) {
     }
   }
 
-  const ts = $("contrast-tightest-split");
   if (ts) ts.textContent = splitTag || (compare.issues?.[0]?.issue_tag ?? "No issues");
-  const tsNote = $("contrast-tightest-split-note");
   if (tsNote) {
     tsNote.textContent = splitTag
       ? "At least two candidates diverge on this issue in the current window."
@@ -217,10 +456,13 @@ function renderContrastBand(compare) {
 function renderIssueList(compare, selectedIndex) {
   const container = $("issue-list");
   const candidates = compare.candidates;
+  const safeSelectedIndex = Math.max(0, Math.min(selectedIndex, Math.max(0, compare.issues.length - 1)));
+  container.setAttribute("role", "radiogroup");
+  container.setAttribute("aria-label", "Selectable issues");
 
   const rows = compare.issues
     .map((issue, idx) => {
-      const isSelected = idx === selectedIndex;
+      const isSelected = idx === safeSelectedIndex;
       const tags = candidates
         .map((candidate) => {
           const item = issue.items.find((it) => it.candidate_id === candidate.id);
@@ -228,11 +470,14 @@ function renderIssueList(compare, selectedIndex) {
           return `<span class="mini-tag ${verdictClass(item.verdict)}">${escapeHtml(shortName(candidate.name))}: ${escapeHtml(item.verdict)}</span>`;
         })
         .join("");
+      const issueWarnings = (issue.warnings || [])
+        .map((warning) => `<span class="mini-tag mini-tag-alert">${escapeHtml(formatWarningLabel(warning.code))}</span>`)
+        .join("");
 
       return `
-        <button class="issue-row ${isSelected ? "is-selected" : ""}" type="button" data-issue="${idx}">
+        <button class="issue-row ${isSelected ? "is-selected" : ""}" type="button" data-issue="${idx}" role="radio" aria-checked="${isSelected ? "true" : "false"}" tabindex="${isSelected ? "0" : "-1"}">
           <span class="issue-name">${escapeHtml(issue.issue_tag)}</span>
-          <span class="issue-tags">${tags}</span>
+          <span class="issue-tags">${tags}${issueWarnings}</span>
         </button>
       `;
     })
@@ -247,32 +492,70 @@ function renderIssueList(compare, selectedIndex) {
       renderIssueList(compare, idx);
       renderPanel(compare, idx);
     });
+    btn.addEventListener("keydown", (event) => {
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+        return;
+      }
+      event.preventDefault();
+      const direction = event.key === "ArrowDown" || event.key === "ArrowRight" ? 1 : -1;
+      const nextIndex = (Number(btn.dataset.issue) + direction + compare.issues.length) % compare.issues.length;
+      const nextButton = container.querySelector(`.issue-row[data-issue="${nextIndex}"]`);
+      if (nextButton instanceof HTMLElement) {
+        nextButton.focus();
+        nextButton.click();
+      }
+    });
   });
 }
 
-function renderSources(sources) {
-  if (!sources || sources.length === 0) {
-    return `<div class="source-list-note">No sources attached.</div>`;
+function renderSourceLinks(links) {
+  if (!links || links.length === 0) {
+    return `<div class="source-list-note">No links available.</div>`;
   }
-
-  return sources
-    .map((s) => {
-      const kind = s.source_class === "primary" ? "Primary" : "Secondary";
-      const kindClass = s.source_class === "primary" ? "source-type-primary" : "source-type-secondary";
-      const origin = formatSourceOriginLabel(s.source_origin);
-      const originClass = s.source_origin === "candidate" ? "source-origin-candidate" : "source-origin-verification";
+  return links
+    .map((link) => {
+      const kind = formatSourceClassLabel(link.source_class);
+      const kindClass = link.source_class === "primary" ? "source-type-primary" : "source-type-secondary";
+      const origin = formatSourceOriginLabel(link.source_origin);
+      const originClass = link.source_origin === "candidate" ? "source-origin-candidate" : "source-origin-verification";
+      const quality = link.quality_score == null ? "Not scored" : String(link.quality_score);
       return `
-        <a class="source-link" href="${escapeHtml(s.url)}" target="_blank" rel="noreferrer">
+        <a class="source-link" href="${escapeHtml(link.url)}" target="_blank" rel="noreferrer">
           <div class="source-badges">
             <span class="source-type ${kindClass}">${escapeHtml(kind)}</span>
             <span class="source-origin ${originClass}">${escapeHtml(origin)}</span>
           </div>
-          <strong>${escapeHtml(s.publisher || "Linked source")}</strong>
-          <small>Quality score: ${escapeHtml(String(s.quality_score))}</small>
+          <strong>${escapeHtml(link.publisher || link.label || "Linked source")}</strong>
+          <small>Quality score: ${escapeHtml(quality)}</small>
         </a>
       `;
     })
     .join("");
+}
+
+function renderCuratedEvidence(item) {
+  const bundle = item.evidence_bundle;
+  if (!bundle) {
+    return `<div class="source-list">${renderSourceLinks(item.sources || [])}</div>`;
+  }
+  const stanceCount = (bundle.stance_links || []).length;
+  const verificationCount = (bundle.verification_links || []).length;
+  return `
+    <div class="evidence-sides">
+      <div class="evidence-side">
+        <details>
+          <summary class="eyebrow">Supporting stance links (${escapeHtml(String(stanceCount))})</summary>
+          <div class="source-list">${renderSourceLinks(bundle.stance_links || [])}</div>
+        </details>
+      </div>
+      <div class="evidence-side">
+        <details>
+          <summary class="eyebrow">Rebutting/verification links (${escapeHtml(String(verificationCount))})</summary>
+          <div class="source-list">${renderSourceLinks(bundle.verification_links || [])}</div>
+        </details>
+      </div>
+    </div>
+  `;
 }
 
 function renderExplanationCards(issue, compare) {
@@ -289,6 +572,9 @@ function renderExplanationCards(issue, compare) {
       const candidateCount = item.sources.filter((source) => source.source_origin === "candidate").length;
       const verificationCount = item.sources.filter((source) => source.source_origin === "verification").length;
       const citationNotes = item.citation_notes?.trim() || "No reviewer citation notes recorded yet.";
+      const warningBadges = (item.warnings || [])
+        .map((warning) => `<span class="mini-tag mini-tag-alert">${escapeHtml(formatWarningLabel(warning.code))}</span>`)
+        .join("");
 
       return `
         <article class="explanation-card ${stanceClass(item.verdict)}">
@@ -297,6 +583,7 @@ function renderExplanationCards(issue, compare) {
             <span class="mini-tag ${verdictClass(item.verdict)}">${escapeHtml(formatVerdictLabel(item.verdict))}</span>
           </div>
           <h5>${escapeHtml(candidate.name)}</h5>
+          <div class="issue-tags">${warningBadges}</div>
           <p class="explanation-claim">${escapeHtml(item.claim_text)}</p>
           <div class="explanation-grid">
             <div class="csr-card">
@@ -327,7 +614,13 @@ function renderPanel(compare, issueIndex) {
   if (!issue || candidates.length === 0) return;
 
   $("panel-title").textContent = issue.issue_tag;
-  $("panel-summary").textContent = compare.race.disclaimer;
+  const issueBlockingWarnings = (issue.warnings || []).filter((w) => w.is_confidence_blocking);
+  const itemBlockingWarnings = (issue.items || []).flatMap((item) => (item.warnings || []).filter((w) => w.is_confidence_blocking));
+  const hasBlockingWarnings = issueBlockingWarnings.length > 0 || itemBlockingWarnings.length > 0;
+  $("panel-summary").textContent =
+    hasBlockingWarnings
+      ? `${compare.race.disclaimer} Warning: parity/evidence gaps are present for this issue view.`
+      : compare.race.disclaimer;
   $("panel-stamp").textContent = `As of ${formatAsOf(compare.race.as_of)}`;
   $("panel-side-by-side").style.setProperty("--panel-cols", String(Math.min(candidates.length, 3)));
   renderExplanationCards(issue, compare);
@@ -353,24 +646,25 @@ function renderPanel(compare, issueIndex) {
       const verdictPill = `<span class="mini-tag ${verdictClass(item.verdict)}">${escapeHtml(item.verdict)} | ${Math.round(
         item.confidence * 100
       )}% confidence</span>`;
+      const warningPills = (item.warnings || [])
+        .map((warning) => `<span class="mini-tag mini-tag-alert">${escapeHtml(formatWarningLabel(warning.code))}</span>`)
+        .join("");
 
       return `
         <article class="stance ${stanceClass(item.verdict)}">
           <span class="stance-label">${escapeHtml(c.party || `Candidate ${String.fromCharCode(65 + idx)}`)}</span>
           <p><strong>${escapeHtml(c.name)}</strong></p>
           <small>${escapeHtml(formatCandidateContext(c, compare.race))}</small>
-          <div class="issue-tags">${verdictPill}</div>
+          <div class="issue-tags">${verdictPill}${warningPills}</div>
           <p>${escapeHtml(item.claim_text)}</p>
           <small>${escapeHtml(item.rationale)}</small>
           ${stmtMeta}
           <div class="source-list-block" style="margin-top:0.9rem">
             <div class="source-list-header">
               <p class="eyebrow">Citations</p>
-              <span class="source-list-note">Tagged by evidence class and source origin</span>
+              <span class="source-list-note">Curated links per side, labeled by source origin and class</span>
             </div>
-            <div class="source-list">
-              ${renderSources(item.sources)}
-            </div>
+            ${renderCuratedEvidence(item)}
           </div>
         </article>
       `;
@@ -403,6 +697,7 @@ function renderReviewQueue(rows) {
             <p>${escapeHtml(row.claim_text)}</p>
             <small>Claim ${escapeHtml(shortId(row.claim_id))} | primary ${escapeHtml(String(row.primary_source_count))} | secondary ${escapeHtml(String(row.secondary_source_count))}</small>
             <small>Candidate-originated ${escapeHtml(String(row.candidate_source_count))} | verification ${escapeHtml(String(row.verification_source_count))}</small>
+            <small>${escapeHtml((row.warnings || []).map((w) => formatWarningLabel(w.code)).join(" | "))}</small>
           </button>
         `;
       })
@@ -480,6 +775,7 @@ async function submitLogin(event) {
     authToken = body.access_token;
     localStorage.setItem("cfa_auth_token", authToken);
     if (status) status.textContent = `Signed in as ${body.reviewer_id}.`;
+    await loadProposalQueue();
   } catch (err) {
     if (status) status.textContent = err instanceof Error ? err.message : "Sign-in failed.";
   }
@@ -501,20 +797,134 @@ async function loadReviewQueue() {
 
 async function loadCompare() {
   try {
-    const res = await fetch(API_COMPARE_URL, { headers: { Accept: "application/json" } });
-    if (!res.ok) throw new Error(`API request failed: ${res.status}`);
-    const compare = await res.json();
+    if (compareAbortController) {
+      compareAbortController.abort();
+    }
+    compareAbortController = new AbortController();
+    const res = await fetch(buildCompareUrl(), { headers: { Accept: "application/json" }, signal: compareAbortController.signal });
+    if (!res.ok) {
+      let apiMessage = "";
+      try {
+        const errorBody = await res.json();
+        apiMessage = errorBody?.error?.message || errorBody?.detail || "";
+      } catch (_) {
+      }
+      const err = new Error(apiMessage || `API request failed: ${res.status}`);
+      err.status = res.status;
+      throw err;
+    }
+    const compareRaw = await res.json();
+    const compare = applyClientFilters(compareRaw);
+    compareState = compare;
+
+    if (compare.issues.length === 0) {
+      $("panel-title").textContent = "No issues match current filters";
+      $("panel-summary").textContent = "Try widening date, confidence, issue, or source-quality filters.";
+      $("panel-stamp").textContent = "Filtered result";
+      $("issue-list").innerHTML = `<p class="note-copy">No issues returned for the selected filters.</p>`;
+      $("panel-explanations").innerHTML = "";
+      $("panel-side-by-side").innerHTML = "";
+      renderTopCards(compare);
+      renderContrastBand(compare);
+      return;
+    }
 
     const selected = Number.isFinite(window.__CFA_SELECTED_ISSUE) ? window.__CFA_SELECTED_ISSUE : 0;
+    const bounded = Math.max(0, Math.min(selected, compare.issues.length - 1));
     renderTopCards(compare);
     renderContrastBand(compare);
-    renderIssueList(compare, selected);
-    renderPanel(compare, selected);
+    renderIssueList(compare, bounded);
+    renderPanel(compare, bounded);
   } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") return;
+    if (err && typeof err === "object" && err.status === 404) {
+      renderNoCompareState();
+      $("panel-title").textContent = "Not enough candidates for this stage";
+      $("panel-summary").textContent =
+        "This race/stage selection does not currently have enough candidates to run a side-by-side comparison. Try another stage or clear stage filtering.";
+      $("panel-stamp").textContent = "Comparison unavailable";
+      $("issue-list").innerHTML = `<p class="note-copy">No comparison available for this race/stage selection.</p>`;
+      $("panel-explanations").innerHTML = "";
+      $("panel-side-by-side").innerHTML = "";
+      return;
+    }
     $("panel-title").textContent = "API not reachable";
     $("panel-summary").textContent =
       "Start the stack with `docker compose up -d --build` and load the Texas 2026 scripts before opening the compare page.";
     $("panel-stamp").textContent = "No API response";
+  }
+}
+
+function resetCompareFilters() {
+  compareFilters = {
+    raceKey: raceOptions[0]?.key || "TX|US Senate|2026",
+    raceStage: "",
+    startDate: "",
+    endDate: "",
+    issueContains: "",
+    minConfidence: 0,
+    minQuality: 0,
+    limitIssues: 8,
+  };
+
+  const sync = (id, value) => {
+    const el = $(id);
+    if (!el) return;
+    el.value = String(value);
+  };
+
+  sync("filter-race", compareFilters.raceKey);
+  refreshStageSelectForRace();
+  sync("filter-start", "");
+  sync("filter-end", "");
+  sync("filter-issue", "");
+  sync("filter-min-confidence", "0");
+  sync("filter-min-quality", "0");
+  sync("filter-limit-issues", "8");
+}
+
+function bindCompareControls() {
+  const form = $("compare-controls");
+  if (!form) return;
+
+  const raceSelect = $("filter-race");
+  if (raceSelect) {
+    raceSelect.addEventListener("change", () => {
+      compareFilters.raceKey = raceSelect.value || compareFilters.raceKey;
+      compareFilters.raceStage = "";
+      refreshStageSelectForRace();
+    });
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    syncCompareFiltersFromForm();
+    window.__CFA_SELECTED_ISSUE = 0;
+    await loadCompare();
+  });
+
+  const resetButton = $("filter-reset");
+  if (resetButton) {
+    resetButton.addEventListener("click", async () => {
+      resetCompareFilters();
+      window.__CFA_SELECTED_ISSUE = 0;
+      await loadCompare();
+    });
+  }
+
+  const exportJsonButton = $("filter-export-json");
+  if (exportJsonButton) {
+    exportJsonButton.addEventListener("click", () => {
+      syncCompareFiltersFromForm();
+      window.open(buildCompareExportUrl("json"), "_blank", "noopener,noreferrer");
+    });
+  }
+  const exportCsvButton = $("filter-export-csv");
+  if (exportCsvButton) {
+    exportCsvButton.addEventListener("click", () => {
+      syncCompareFiltersFromForm();
+      window.open(buildCompareExportUrl("csv"), "_blank", "noopener,noreferrer");
+    });
   }
 }
 
@@ -576,20 +986,92 @@ async function submitReview(event) {
   }
 }
 
+function renderProposalQueue(rows) {
+  const list = $("proposal-queue-list");
+  const meta = $("proposal-queue-meta");
+  if (!list || !meta) return;
+  meta.textContent = `Proposals: ${rows.length}`;
+  list.innerHTML =
+    rows
+      .map(
+        (row) => `
+          <button class="review-item" type="button" data-proposal-id="${escapeHtml(row.id)}">
+            <span class="mini-tag">${escapeHtml(row.proposal_type)} | ${escapeHtml(row.status)}</span>
+            <strong>Claim ${escapeHtml(shortId(row.claim_id))}</strong>
+            <p>Proposed by ${escapeHtml(row.proposed_by)}</p>
+          </button>
+        `
+      )
+      .join("") || `<p class="note-copy">No proposals currently.</p>`;
+  list.querySelectorAll(".review-item").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const proposalId = btn.dataset.proposalId;
+      if (!proposalId) return;
+      populateProposalForm(proposalId);
+      list.querySelectorAll(".review-item").forEach((item) => item.classList.remove("is-selected"));
+      btn.classList.add("is-selected");
+    });
+  });
+}
+
+function populateProposalForm(proposalId) {
+  const row = proposalQueueRows.find((item) => item.id === proposalId);
+  if (!row) return;
+  const idInput = $("proposal-id");
+  const preview = $("proposal-detail-preview");
+  if (idInput) idInput.value = row.id;
+  if (preview) preview.textContent = `Claim ${row.claim_id} | ${row.proposal_type} | payload ${JSON.stringify(row.proposal_payload)}`;
+}
+
+async function loadProposalQueue() {
+  try {
+    const headers = { Accept: "application/json" };
+    if (authToken) headers.Authorization = `Bearer ${authToken}`;
+    const res = await fetch(buildProposalQueueUrl(), { headers });
+    if (!res.ok) throw new Error(`proposal queue failed: ${res.status}`);
+    proposalQueueRows = await res.json();
+    renderProposalQueue(proposalQueueRows);
+    if (proposalQueueRows[0]) populateProposalForm(proposalQueueRows[0].id);
+  } catch (_err) {
+    const meta = $("proposal-queue-meta");
+    const list = $("proposal-queue-list");
+    if (meta) meta.textContent = "Proposals unavailable";
+    if (list) list.innerHTML = `<p class="note-copy">Sign in as reviewer/admin to triage proposals.</p>`;
+  }
+}
+
+async function submitProposalAction(event) {
+  event.preventDefault();
+  const proposalId = $("proposal-id")?.value?.trim();
+  const action = $("proposal-action")?.value;
+  const reviewNotes = $("proposal-review-notes")?.value?.trim() || null;
+  const status = $("proposal-submit-status");
+  if (!proposalId || !action) {
+    if (status) status.textContent = "Select a proposal and action.";
+    return;
+  }
+  if (!authToken) {
+    if (status) status.textContent = "Sign in before proposal actions.";
+    return;
+  }
+  try {
+    const res = await fetch(`/api/v1/claims/proposals/${encodeURIComponent(proposalId)}/${action}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify({ review_notes: reviewNotes }),
+    });
+    if (!res.ok) throw new Error(`proposal action failed: ${res.status}`);
+    await loadProposalQueue();
+    if (status) status.textContent = "Proposal action saved.";
+  } catch (err) {
+    if (status) status.textContent = err instanceof Error ? err.message : "Proposal action failed.";
+  }
+}
+
 async function init() {
-  const authForm = $("auth-form");
-  if (authForm) {
-    authForm.addEventListener("submit", submitLogin);
-    if (authToken) {
-      const status = $("auth-status");
-      if (status) status.textContent = "Token loaded. You can submit reviews.";
-    }
-  }
-  const form = $("review-form");
-  if (form) {
-    form.addEventListener("submit", submitReview);
-  }
-  await Promise.all([loadCompare(), loadReviewQueue()]);
+  await loadRaceOptions();
+  bindCompareControls();
+  await loadCompare();
 }
 
 init();

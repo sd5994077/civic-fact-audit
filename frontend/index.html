@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="./styles.css?v=20260421f">
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
   <div class="app-shell">
     <aside class="nav-rail">
       <div class="brand-block">
@@ -25,6 +26,7 @@
         <button class="rail-link" type="button">Claim Matrix</button>
         <button class="rail-link" type="button">Policy Stances</button>
         <button class="rail-link" type="button">Methods</button>
+        <a class="rail-link" href="/admin/">Admin Ops</a>
       </nav>
 
       <div class="rail-note">
@@ -34,7 +36,7 @@
       </div>
     </aside>
 
-    <main class="workspace">
+    <main class="workspace" id="main-content">
       <header class="hero">
         <div class="hero-copy">
           <p class="eyebrow">Texas US Senate Primary 2026 (Example)</p>
@@ -64,11 +66,62 @@
 
       <section class="candidate-stage" id="candidate-cards" aria-label="Candidates side by side"></section>
 
+      <section class="compare-board" aria-label="Comparison controls">
+        <div class="board-header">
+          <div>
+            <p class="eyebrow">Dashboard Controls</p>
+            <h3>Race, stage, and evidence filters</h3>
+          </div>
+        </div>
+        <form id="compare-controls" class="review-form">
+          <label>
+            Race
+            <select id="filter-race"></select>
+          </label>
+          <label>
+            Stage
+            <select id="filter-stage">
+              <option value="">All stages</option>
+            </select>
+          </label>
+          <label>
+            Start date
+            <input id="filter-start" type="date">
+          </label>
+          <label>
+            End date
+            <input id="filter-end" type="date">
+          </label>
+          <label>
+            Issue contains
+            <input id="filter-issue" type="text" placeholder="e.g. border, energy">
+          </label>
+          <label>
+            Minimum confidence
+            <input id="filter-min-confidence" type="number" min="0" max="1" step="0.01" value="0">
+          </label>
+          <label>
+            Minimum source quality
+            <input id="filter-min-quality" type="number" min="0" max="1" step="0.01" value="0">
+          </label>
+          <label>
+            Max issues
+            <input id="filter-limit-issues" type="number" min="1" max="10" step="1" value="8">
+          </label>
+          <div style="display:flex;gap:0.6rem;align-items:end;">
+            <button type="submit" class="review-submit">Apply filters</button>
+            <button id="filter-reset" type="button" class="review-submit">Reset</button>
+            <button id="filter-export-json" type="button" class="review-submit">Export JSON</button>
+            <button id="filter-export-csv" type="button" class="review-submit">Export CSV</button>
+          </div>
+        </form>
+      </section>
+
       <section class="contrast-band contrast-band-four" aria-label="Race contrast">
         <article>
           <span class="contrast-label">Most supported claims</span>
           <strong id="contrast-most-supported">Loading...</strong>
-          <p>Higher share of reviewed claims match the record within this page’s window.</p>
+          <p>Higher share of reviewed claims match the record within this page's window.</p>
         </article>
         <article class="contrast-alert">
           <span class="contrast-label">Most contradicted claims</span>
@@ -120,76 +173,10 @@
         </div>
       </section>
 
-      <section class="compare-board" aria-label="Human review adjudication">
-        <div class="board-header">
-          <div>
-            <p class="eyebrow">Human Review</p>
-            <h3>Adjudication queue and reviewer submission</h3>
-          </div>
-        </div>
-        <form id="auth-form" class="review-form" style="margin-bottom: 1rem;">
-          <label>
-            Reviewer Email
-            <input id="auth-email" type="email" value="reviewer@local" required>
-          </label>
-          <label>
-            Password
-            <input id="auth-password" type="password" value="change-me" required>
-          </label>
-          <button type="submit" class="review-submit">Sign in</button>
-          <p class="note-copy" id="auth-status"></p>
-        </form>
-
-        <div class="review-layout">
-          <section class="review-queue-panel">
-            <div class="panel-topline">
-              <p class="eyebrow">Review Queue</p>
-              <span class="panel-stamp" id="review-queue-meta">Loading review queue...</span>
-            </div>
-            <div id="review-queue-list"></div>
-          </section>
-
-          <section class="review-form-panel" aria-live="polite">
-            <div class="panel-topline">
-              <p class="eyebrow">Submit Verdict</p>
-              <span class="panel-stamp">Human-reviewed decision</span>
-            </div>
-            <p class="note-copy" id="review-claim-preview">Select a queue item to begin review.</p>
-            <form id="review-form" class="review-form">
-              <label>
-                Claim ID
-                <input id="review-claim-id" type="text" readonly required>
-              </label>
-              <label>
-                Verdict
-                <select id="review-verdict" required>
-                  <option value="supported">supported</option>
-                  <option value="mixed">mixed</option>
-                  <option value="unsupported">unsupported</option>
-                  <option value="insufficient">insufficient</option>
-                </select>
-              </label>
-              <label>
-                Confidence (0-1)
-                <input id="review-confidence" type="number" min="0" max="1" step="0.01" value="0.70" required>
-              </label>
-              <label>
-                Rationale
-                <textarea id="review-rationale" minlength="10" required></textarea>
-              </label>
-              <label>
-                Citation Notes
-                <textarea id="review-citation-notes"></textarea>
-              </label>
-              <button type="submit" class="review-submit">Submit review</button>
-            </form>
-            <p class="note-copy" id="review-submit-status"></p>
-          </section>
-        </div>
-      </section>
     </main>
   </div>
 
-  <script src="./app.js?v=20260421e"></script>
+  <script src="./app.js?v=20260512a"></script>
 </body>
 </html>
+
