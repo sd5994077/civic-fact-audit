@@ -14,6 +14,8 @@ Moderation/output boundaries are defined in `docs/MODERATION_POLICY.md`.
   - `issue_frame_mapping`: assigns `claims.issue_frame_id`
   - `candidate_source_capture`/`verification_source_suggestion`: attaches source and syncs evidence bundle
   - `draft_verdict`: remains draft-only guidance; reviewer must still use `POST /v1/claims/{claim_id}/evaluate`
+- Proposal attribution:
+  - `proposed_by` is set server-side from authenticated reviewer/admin identity.
 - Source-admission enforcement:
   - Proposal create/apply can return `422 source_admission_policy_violation`.
   - If blocked, keep proposal for audit trail, update payload to a neutral/record-based verification source, then re-submit/re-approve.

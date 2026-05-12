@@ -213,6 +213,8 @@ class EvaluationService:
                 'secondary_source_count': int(row['secondary_count']),
                 'candidate_source_count': int(row['candidate_count']),
                 'verification_source_count': int(row['verification_count']),
+                'verification_primary_count': int(row['verification_primary_count']),
+                'verification_secondary_count': int(row['verification_secondary_count']),
                 'latest_verdict': row['latest_verdict'],
                 'latest_confidence': row['latest_confidence'],
                 'latest_rationale': row['latest_rationale'],
@@ -390,14 +392,8 @@ class EvaluationService:
                     'latest_reviewer_id': row['latest_reviewer_id'],
                     'primary_source_count': row['primary_source_count'],
                     'secondary_source_count': row['secondary_source_count'],
-                    'verification_primary_count': int(
-                        SourceService.has_source_class(db, claim.id, SourceClass.primary, source_origin=SourceOrigin.verification)
-                    ),
-                    'verification_secondary_count': int(
-                        SourceService.has_source_class(
-                            db, claim.id, SourceClass.secondary, source_origin=SourceOrigin.verification
-                        )
-                    ),
+                    'verification_primary_count': row['verification_primary_count'],
+                    'verification_secondary_count': row['verification_secondary_count'],
                     'publish_gate_passed': gate_passed,
                     'publish_gate_failures': failures,
                     'is_published': claim.is_published,

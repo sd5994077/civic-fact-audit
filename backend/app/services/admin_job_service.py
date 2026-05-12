@@ -23,6 +23,7 @@ from app.services.admin_audit_service import AdminAuditService
 _BACKEND_ROOT = Path(__file__).resolve().parents[2]
 _INTAKE_ROSTER_JOB_TYPE = 'ingest_candidate_roster'
 _INTAKE_STATEMENT_BATCH_JOB_TYPE = 'ingest_statement_batch'
+_JOB_EXECUTION_TIMEOUT_SECONDS = 300
 
 
 class AdminJobService:
@@ -380,13 +381,36 @@ class AdminJobService:
             command.append('--dry-run')
 
         started = time.time()
-        completed = subprocess.run(
-            command,
-            cwd=str(_BACKEND_ROOT),
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        try:
+            completed = subprocess.run(
+                command,
+                cwd=str(_BACKEND_ROOT),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=_JOB_EXECUTION_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired as exc:
+            elapsed_seconds = round(time.time() - started, 3)
+            stdout_tail = ''
+            stderr_tail = ''
+            if exc.stdout:
+                stdout_tail = str(exc.stdout)[-4000:]
+            if exc.stderr:
+                stderr_tail = str(exc.stderr)[-4000:]
+            raise AppError(
+                'job_execution_failed',
+                'Admin job execution timed out.',
+                status_code=500,
+                details={
+                    'command': command,
+                    'elapsed_seconds': elapsed_seconds,
+                    'timeout_seconds': _JOB_EXECUTION_TIMEOUT_SECONDS,
+                    'timed_out': True,
+                    'stdout_tail': stdout_tail,
+                    'stderr_tail': stderr_tail,
+                },
+            ) from exc
         elapsed_seconds = round(time.time() - started, 3)
 
         result = {

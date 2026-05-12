@@ -381,7 +381,6 @@ class CompareResponse(BaseModel):
 
 class ClaimProposalCreateRequest(BaseModel):
     proposal_type: ProposalType
-    proposed_by: str = Field(min_length=1, max_length=255)
     proposal_payload: dict[str, Any]
 
 

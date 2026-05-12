@@ -158,7 +158,6 @@ def test_create_proposal_rejects_partisan_verification_source_payload() -> None:
         (),
         {
             'proposal_type': ProposalType.verification_source_suggestion,
-            'proposed_by': 'system:ai',
             'proposal_payload': {
                 'url': 'https://www.dailykos.com/stories/example',
                 'source_class': SourceClass.secondary.value,
@@ -169,7 +168,7 @@ def test_create_proposal_rejects_partisan_verification_source_payload() -> None:
         },
     )()
     try:
-        ProposalService.create_proposal(_FakeDb(), claim_id, payload)  # type: ignore[arg-type]
+        ProposalService.create_proposal(_FakeDb(), claim_id, payload, proposed_by='reviewer@local')  # type: ignore[arg-type]
         assert False, 'Expected source_admission_policy_violation'
     except AppError as exc:
         assert exc.code == 'source_admission_policy_violation'
@@ -193,12 +192,11 @@ def test_create_proposal_rejects_blank_proposed_by() -> None:
         (),
         {
             'proposal_type': ProposalType.issue_frame_mapping,
-            'proposed_by': '   ',
             'proposal_payload': {'issue_frame_id': str(uuid.uuid4())},
         },
     )()
     try:
-        ProposalService.create_proposal(_FakeDb(), claim_id, payload)  # type: ignore[arg-type]
+        ProposalService.create_proposal(_FakeDb(), claim_id, payload, proposed_by='   ')  # type: ignore[arg-type]
         assert False, 'Expected invalid_proposal_payload'
     except AppError as exc:
         assert exc.code == 'invalid_proposal_payload'

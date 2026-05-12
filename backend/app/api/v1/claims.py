@@ -100,8 +100,7 @@ def create_claim_proposal(
     db: Session = Depends(get_db),
     identity: AuthIdentity = Depends(require_reviewer_or_admin),
 ) -> ClaimProposalRead:
-    _ = identity
-    proposal = ProposalService.create_proposal(db, claim_id, payload)
+    proposal = ProposalService.create_proposal(db, claim_id, payload, proposed_by=identity.reviewer_id)
     return ClaimProposalRead.model_validate(ProposalService._to_read_model(proposal))
 
 

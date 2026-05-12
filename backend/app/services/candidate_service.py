@@ -109,6 +109,8 @@ class CandidateService:
         )
         db.add(candidate)
         if actor_reviewer_id is not None:
+            # Ensure DB defaults (including candidate id) are populated before audit write.
+            db.flush()
             AdminAuditService.record_event(
                 db,
                 actor_reviewer_id=actor_reviewer_id,

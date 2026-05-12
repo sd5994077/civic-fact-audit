@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime, timezone
+import subprocess
 
 from app.core.errors import AppError
 from app.models.entities import AdminAuditEvent, AdminJobRun
@@ -219,3 +220,24 @@ def test_get_job_metadata_includes_profiles_and_schemas() -> None:
     roster_schema = next((item for item in metadata['jobs'] if item.get('job_type') == 'ingest_candidate_roster'), None)
     assert roster_schema is not None
     assert 'profile_id' in roster_schema['input_schema'].get('allowed_values', {})
+
+
+def test_run_job_command_timeout_raises_job_execution_failed(monkeypatch) -> None:
+    def _raise_timeout(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        raise subprocess.TimeoutExpired(
+            cmd=['python', '-m', 'app.scripts.generate_tx_2026_publish_queue_report'],
+            timeout=300,
+            output='stdout before timeout',
+            stderr='stderr before timeout',
+        )
+
+    monkeypatch.setattr('app.services.admin_job_service.subprocess.run', _raise_timeout)
+
+    try:
+        AdminJobService._run_job_command('app.scripts.generate_tx_2026_publish_queue_report', dry_run=False)
+        assert False, 'Expected job_execution_failed timeout'
+    except AppError as exc:
+        assert exc.code == 'job_execution_failed'
+        assert exc.details is not None
+        assert exc.details.get('timed_out') is True
+        assert int(exc.details.get('timeout_seconds', 0)) > 0
