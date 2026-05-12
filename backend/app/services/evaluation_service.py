@@ -1,16 +1,50 @@
 import uuid
+from datetime import datetime, timezone
 
 from sqlalchemy import and_, case, func, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
+from app.core.moderation_policy import find_moderation_violation
 from app.models.entities import Candidate, Claim, ClaimEvaluation, Source, Statement
 from app.models.enums import ClaimStatus, RaceStage, SourceClass, SourceOrigin, Verdict
 from app.schemas.api import EvaluateClaimRequest
+from app.services.admin_audit_service import AdminAuditService
 from app.services.source_service import SourceService
 
 
+def _build_review_row_warnings(*, primary_count: int, secondary_count: int) -> list[dict[str, object]]:
+    warnings: list[dict[str, object]] = []
+    if primary_count == 0:
+        warnings.append(
+            {
+                'code': 'missing_verification_primary',
+                'severity': 'critical',
+                'is_confidence_blocking': True,
+                'message': 'No verification primary source is linked for this claim.',
+            }
+        )
+    if secondary_count == 0:
+        warnings.append(
+            {
+                'code': 'missing_verification_secondary',
+                'severity': 'critical',
+                'is_confidence_blocking': True,
+                'message': 'No verification secondary source is linked for this claim.',
+            }
+        )
+    return warnings
+
+
 class EvaluationService:
+    _PUBLISH_GATE_FACT_CHECKABLE = 'claim_not_fact_checkable'
+    _PUBLISH_GATE_VERDICT = 'latest_verdict_must_be_supported_mixed_or_unsupported'
+    _PUBLISH_GATE_RATIONALE = 'latest_rationale_required'
+    _PUBLISH_GATE_CITATION_NOTES = 'latest_citation_notes_required'
+    _PUBLISH_GATE_VERIFICATION_PRIMARY = 'verification_primary_source_required'
+    _PUBLISH_GATE_VERIFICATION_SECONDARY = 'verification_secondary_source_required'
+    _PUBLISH_GATE_MODERATION_POLICY = 'latest_evaluation_moderation_policy_violation'
+
     @staticmethod
     def _fact_checkable_predicate():
         return Claim.fact_checkable.is_(True)
@@ -24,14 +58,15 @@ class EvaluationService:
         race_stage: RaceStage | None,
         require_minimum_evidence: bool,
     ):
-        primary_count = func.sum(case((Source.source_class == SourceClass.primary, 1), else_=0))
-        secondary_count = func.sum(case((Source.source_class == SourceClass.secondary, 1), else_=0))
-        candidate_count = func.sum(case((Source.source_origin == SourceOrigin.candidate, 1), else_=0))
-        verification_count = func.sum(case((Source.source_origin == SourceOrigin.verification, 1), else_=0))
+        eligible = SourceService._eligible_for_verification_calculations_predicate()
+        primary_count = func.sum(case((and_(eligible, Source.source_class == SourceClass.primary), 1), else_=0))
+        secondary_count = func.sum(case((and_(eligible, Source.source_class == SourceClass.secondary), 1), else_=0))
+        candidate_count = func.sum(case((and_(eligible, Source.source_origin == SourceOrigin.candidate), 1), else_=0))
+        verification_count = func.sum(case((and_(eligible, Source.source_origin == SourceOrigin.verification), 1), else_=0))
         verification_primary_count = func.sum(
             case(
                 (
-                    (Source.source_origin == SourceOrigin.verification) & (Source.source_class == SourceClass.primary),
+                    and_(eligible, Source.source_origin == SourceOrigin.verification, Source.source_class == SourceClass.primary),
                     1,
                 ),
                 else_=0,
@@ -40,7 +75,7 @@ class EvaluationService:
         verification_secondary_count = func.sum(
             case(
                 (
-                    (Source.source_origin == SourceOrigin.verification) & (Source.source_class == SourceClass.secondary),
+                    and_(eligible, Source.source_origin == SourceOrigin.verification, Source.source_class == SourceClass.secondary),
                     1,
                 ),
                 else_=0,
@@ -72,6 +107,8 @@ class EvaluationService:
                 secondary_count.label('secondary_count'),
                 candidate_count.label('candidate_count'),
                 verification_count.label('verification_count'),
+                verification_primary_count.label('verification_primary_count'),
+                verification_secondary_count.label('verification_secondary_count'),
                 ClaimEvaluation.verdict.label('latest_verdict'),
                 ClaimEvaluation.confidence.label('latest_confidence'),
                 ClaimEvaluation.rationale.label('latest_rationale'),
@@ -182,6 +219,10 @@ class EvaluationService:
                 'latest_citation_notes': row['latest_citation_notes'],
                 'latest_reviewer_id': row['latest_reviewer_id'],
                 'latest_evaluated_at': row['latest_evaluated_at'],
+                'warnings': _build_review_row_warnings(
+                    primary_count=int(row['verification_primary_count']),
+                    secondary_count=int(row['verification_secondary_count']),
+                ),
             }
             for row in rows
         ]
@@ -191,6 +232,25 @@ class EvaluationService:
         claim = db.get(Claim, claim_id)
         if claim is None:
             raise AppError('claim_not_found', 'Claim does not exist.', status_code=404)
+        rationale_text = payload.rationale.strip()
+        rationale_violation = find_moderation_violation(rationale_text)
+        if rationale_violation is not None:
+            raise AppError(
+                'moderation_policy_violation',
+                'Rationale violates moderation policy boundaries.',
+                status_code=422,
+                details=rationale_violation.to_details(rejection_field='rationale'),
+            )
+        citation_text = (payload.citation_notes or '').strip()
+        if citation_text:
+            citation_violation = find_moderation_violation(citation_text)
+            if citation_violation is not None:
+                raise AppError(
+                    'moderation_policy_violation',
+                    'Citation notes violate moderation policy boundaries.',
+                    status_code=422,
+                    details=citation_violation.to_details(rejection_field='citation_notes'),
+                )
 
         if payload.verdict in {Verdict.supported, Verdict.mixed, Verdict.unsupported}:
             if not SourceService.has_minimum_evidence(db, claim_id):
@@ -204,7 +264,7 @@ class EvaluationService:
             claim_id=claim.id,
             verdict=payload.verdict,
             confidence=payload.confidence,
-            rationale=payload.rationale.strip(),
+            rationale=rationale_text,
             citation_notes=payload.citation_notes,
             reviewer_id=reviewer_id,
         )
@@ -214,3 +274,203 @@ class EvaluationService:
         db.commit()
         db.refresh(evaluation)
         return evaluation
+
+    @staticmethod
+    def _latest_evaluation(db: Session, claim_id: uuid.UUID) -> ClaimEvaluation | None:
+        return (
+            db.execute(
+                select(ClaimEvaluation)
+                .where(ClaimEvaluation.claim_id == claim_id)
+                .order_by(ClaimEvaluation.created_at.desc())
+                .limit(1)
+            )
+            .scalars()
+            .first()
+        )
+
+    @staticmethod
+    def _publish_gate_failures(db: Session, claim: Claim, latest_eval: ClaimEvaluation | None) -> list[str]:
+        failures: list[str] = []
+        if not claim.fact_checkable:
+            failures.append(EvaluationService._PUBLISH_GATE_FACT_CHECKABLE)
+        if latest_eval is None or latest_eval.verdict not in {Verdict.supported, Verdict.mixed, Verdict.unsupported}:
+            failures.append(EvaluationService._PUBLISH_GATE_VERDICT)
+        if latest_eval is None or not latest_eval.rationale or not latest_eval.rationale.strip():
+            failures.append(EvaluationService._PUBLISH_GATE_RATIONALE)
+        if latest_eval is None or not latest_eval.citation_notes or not latest_eval.citation_notes.strip():
+            failures.append(EvaluationService._PUBLISH_GATE_CITATION_NOTES)
+        moderation_blocked = False
+        if latest_eval is not None and latest_eval.rationale:
+            moderation_blocked = find_moderation_violation(latest_eval.rationale.strip()) is not None
+        if not moderation_blocked and latest_eval is not None and latest_eval.citation_notes:
+            moderation_blocked = find_moderation_violation(latest_eval.citation_notes.strip()) is not None
+        if moderation_blocked:
+            failures.append(EvaluationService._PUBLISH_GATE_MODERATION_POLICY)
+        if not SourceService.has_source_class(db, claim.id, SourceClass.primary, source_origin=SourceOrigin.verification):
+            failures.append(EvaluationService._PUBLISH_GATE_VERIFICATION_PRIMARY)
+        if not SourceService.has_source_class(db, claim.id, SourceClass.secondary, source_origin=SourceOrigin.verification):
+            failures.append(EvaluationService._PUBLISH_GATE_VERIFICATION_SECONDARY)
+        return list(dict.fromkeys(failures))
+
+    @staticmethod
+    def _publish_moderation_violations(latest_eval: ClaimEvaluation | None) -> list[dict[str, str]]:
+        violations: list[dict[str, str]] = []
+        if latest_eval is None:
+            return violations
+        if latest_eval.rationale and latest_eval.rationale.strip():
+            rationale_violation = find_moderation_violation(latest_eval.rationale.strip())
+            if rationale_violation is not None:
+                violations.append(rationale_violation.to_details(rejection_field='rationale'))
+        if latest_eval.citation_notes and latest_eval.citation_notes.strip():
+            citation_violation = find_moderation_violation(latest_eval.citation_notes.strip())
+            if citation_violation is not None:
+                violations.append(citation_violation.to_details(rejection_field='citation_notes'))
+        return violations
+
+    @staticmethod
+    def _claim_publish_state_payload(claim: Claim) -> dict[str, object]:
+        status = getattr(claim, 'status', None)
+        status_value = status.value if hasattr(status, 'value') else (str(status) if status is not None else None)
+        published_at_raw = getattr(claim, 'published_at', None)
+        published_at = published_at_raw.isoformat() if published_at_raw is not None else None
+        return {
+            'id': str(claim.id),
+            'status': status_value,
+            'is_published': bool(getattr(claim, 'is_published', False)),
+            'published_at': published_at,
+            'published_by_reviewer_id': getattr(claim, 'published_by_reviewer_id', None),
+        }
+
+    @staticmethod
+    def list_publish_queue(
+        db: Session,
+        *,
+        state: str | None = None,
+        office: str | None = None,
+        election_cycle: int | None = None,
+        race_stage: RaceStage | None = None,
+        include_already_published: bool = False,
+        only_gate_passed: bool = False,
+        limit: int = 200,
+    ) -> list[dict[str, object]]:
+        rows = EvaluationService.list_review_queue(
+            db,
+            state=state,
+            office=office,
+            election_cycle=election_cycle,
+            race_stage=race_stage,
+            require_minimum_evidence=False,
+            limit=limit,
+        )
+        out: list[dict[str, object]] = []
+        for row in rows:
+            claim = db.get(Claim, row['claim_id'])
+            if claim is None:
+                continue
+            latest_eval = EvaluationService._latest_evaluation(db, claim.id)
+            failures = EvaluationService._publish_gate_failures(db, claim, latest_eval)
+            gate_passed = len(failures) == 0
+            if not include_already_published and claim.is_published:
+                continue
+            if only_gate_passed and not gate_passed:
+                continue
+            out.append(
+                {
+                    'claim_id': claim.id,
+                    'claim_text': row['claim_text'],
+                    'issue_tag': row['issue_tag'],
+                    'candidate_name': row['candidate_name'],
+                    'candidate_party': row['candidate_party'],
+                    'statement_source_url': row['statement_source_url'],
+                    'statement_published_at': row['statement_published_at'],
+                    'latest_verdict': row['latest_verdict'],
+                    'latest_confidence': row['latest_confidence'],
+                    'latest_rationale': row['latest_rationale'],
+                    'latest_citation_notes': row['latest_citation_notes'],
+                    'latest_reviewer_id': row['latest_reviewer_id'],
+                    'primary_source_count': row['primary_source_count'],
+                    'secondary_source_count': row['secondary_source_count'],
+                    'verification_primary_count': int(
+                        SourceService.has_source_class(db, claim.id, SourceClass.primary, source_origin=SourceOrigin.verification)
+                    ),
+                    'verification_secondary_count': int(
+                        SourceService.has_source_class(
+                            db, claim.id, SourceClass.secondary, source_origin=SourceOrigin.verification
+                        )
+                    ),
+                    'publish_gate_passed': gate_passed,
+                    'publish_gate_failures': failures,
+                    'is_published': claim.is_published,
+                    'published_at': claim.published_at,
+                    'published_by_reviewer_id': claim.published_by_reviewer_id,
+                }
+            )
+        return out
+
+    @staticmethod
+    def publish_claim(db: Session, claim_id: uuid.UUID, *, approver_id: str) -> Claim:
+        claim = db.get(Claim, claim_id)
+        if claim is None:
+            raise AppError('claim_not_found', 'Claim does not exist.', status_code=404)
+        latest_eval = EvaluationService._latest_evaluation(db, claim_id)
+        failures = EvaluationService._publish_gate_failures(db, claim, latest_eval)
+        if failures:
+            error_code = 'publish_gate_failed'
+            error_message = 'Claim did not pass publish gate checks.'
+            if EvaluationService._PUBLISH_GATE_MODERATION_POLICY in failures:
+                error_code = 'publish_gate_moderation_failure'
+                error_message = 'Claim publish blocked by moderation policy boundaries.'
+            details: dict[str, object] = {'failed_checks': failures}
+            moderation_violations = EvaluationService._publish_moderation_violations(latest_eval)
+            if moderation_violations:
+                details['moderation_violations'] = moderation_violations
+            raise AppError(
+                error_code,
+                error_message,
+                status_code=422,
+                details=details,
+            )
+        before_payload = EvaluationService._claim_publish_state_payload(claim)
+        claim.is_published = True
+        claim.status = ClaimStatus.published
+        claim.published_at = datetime.now(timezone.utc)
+        claim.published_by_reviewer_id = approver_id
+        AdminAuditService.record_event(
+            db,
+            actor_reviewer_id=approver_id,
+            action='claim_published',
+            entity_type='claim',
+            entity_id=str(claim.id),
+            before_payload=before_payload,
+            after_payload=EvaluationService._claim_publish_state_payload(claim),
+            metadata={},
+            commit=False,
+        )
+        db.commit()
+        db.refresh(claim)
+        return claim
+
+    @staticmethod
+    def unpublish_claim(db: Session, claim_id: uuid.UUID, *, approver_id: str) -> Claim:
+        claim = db.get(Claim, claim_id)
+        if claim is None:
+            raise AppError('claim_not_found', 'Claim does not exist.', status_code=404)
+        before_payload = EvaluationService._claim_publish_state_payload(claim)
+        claim.is_published = False
+        claim.published_at = None
+        claim.published_by_reviewer_id = None
+        claim.status = ClaimStatus.reviewed
+        AdminAuditService.record_event(
+            db,
+            actor_reviewer_id=approver_id,
+            action='claim_unpublished',
+            entity_type='claim',
+            entity_id=str(claim.id),
+            before_payload=before_payload,
+            after_payload=EvaluationService._claim_publish_state_payload(claim),
+            metadata={},
+            commit=False,
+        )
+        db.commit()
+        db.refresh(claim)
+        return claim

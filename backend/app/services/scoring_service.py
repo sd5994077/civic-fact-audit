@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
 from app.models.entities import Candidate, Claim, ClaimEvaluation, ScoreSnapshot, Source, Statement
-from app.models.enums import SourceClass, Verdict
+from app.models.enums import SourceClass, SourceOrigin, Verdict
 
 FORMULA_VERSION = 'scoring_v1_2026_04_20'
 
@@ -109,6 +109,8 @@ class ScoringService:
                 db.execute(
                     select(Source.claim_id, Source.source_class)
                     .where(Source.claim_id.in_(claim_ids))
+                    .where(Source.source_origin == SourceOrigin.verification)
+                    .where(Source.policy_flagged.is_(False))
                 )
                 .all()
             )

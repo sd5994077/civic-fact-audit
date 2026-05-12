@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1 import auth, candidates, claims, compare, evaluations, scores, statements
+from app.api.v1 import admin_audit, admin_jobs, auth, candidates, claims, compare, evaluations, scores, statements
 
 router = APIRouter(prefix='/v1')
 router.include_router(auth.router, tags=['auth'])
@@ -10,3 +10,5 @@ router.include_router(claims.router, tags=['claims'])
 router.include_router(evaluations.router, tags=['evaluations'])
 router.include_router(scores.router, tags=['scores'])
 router.include_router(compare.router, tags=['compare'])
+router.include_router(admin_jobs.router, tags=['admin-jobs'])
+router.include_router(admin_audit.router, tags=['admin-audit'])

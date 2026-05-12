@@ -6,19 +6,24 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
+from app.core.moderation_policy import find_moderation_violation
 from app.models.entities import Candidate, Claim, ClaimEvaluation, IssueFrame, Source, Statement
-from app.models.enums import RaceStage, SourceClass, Verdict
+from app.models.enums import RaceStage, SourceClass, SourceOrigin, Verdict
 from app.services.evidence_bundle_service import EvidenceBundleService
 from app.schemas.api import (
-    CandidateRead,
+    CandidatePublicRead,
     ClaimEvidenceBundleRead,
     CompareClaimItem,
     CompareIssue,
     CompareIssueFramePolicy,
+    ParityWarningRead,
     CompareRaceMeta,
     CompareResponse,
+    EvidenceBundleLinkRead,
     SourceRead,
 )
+
+PUBLIC_EVIDENCE_LINKS_PER_SIDE = 5
 
 
 @dataclass(frozen=True)
@@ -101,6 +106,147 @@ def _resolve_issue_frame_policy(
         return None
     frame_key = next(iter(frame_keys))
     return frame_policies_by_key.get(frame_key)
+
+
+def _curate_bundle_links(links: list[EvidenceBundleLinkRead], per_side_limit: int) -> list[EvidenceBundleLinkRead]:
+    return sorted(links, key=lambda link: (link.display_order, link.created_at))[:per_side_limit]
+
+
+def _curate_public_evidence_bundle(
+    bundle: ClaimEvidenceBundleRead | None, *, per_side_limit: int
+) -> ClaimEvidenceBundleRead | None:
+    if bundle is None:
+        return None
+    return ClaimEvidenceBundleRead(
+        id=bundle.id,
+        claim_id=bundle.claim_id,
+        is_curated=bundle.is_curated,
+        stance_links=_curate_bundle_links(bundle.stance_links, per_side_limit),
+        verification_links=_curate_bundle_links(bundle.verification_links, per_side_limit),
+    )
+
+
+def _has_class(
+    sources: list[SourceRead],
+    *,
+    origin: SourceOrigin,
+    source_class: SourceClass,
+) -> bool:
+    return any(src.source_origin == origin and src.source_class == source_class for src in sources)
+
+
+def _build_item_warnings(
+    *,
+    sources: list[SourceRead],
+    evidence_bundle: ClaimEvidenceBundleRead | None,
+) -> list[ParityWarningRead]:
+    warnings: list[ParityWarningRead] = []
+    if not _has_class(sources, origin=SourceOrigin.verification, source_class=SourceClass.primary):
+        warnings.append(
+            ParityWarningRead(
+                code='missing_verification_primary',
+                severity='critical',
+                is_confidence_blocking=True,
+                message='No verification primary source is linked for this claim.',
+            )
+        )
+    if not _has_class(sources, origin=SourceOrigin.verification, source_class=SourceClass.secondary):
+        warnings.append(
+            ParityWarningRead(
+                code='missing_verification_secondary',
+                severity='critical',
+                is_confidence_blocking=True,
+                message='No verification secondary source is linked for this claim.',
+            )
+        )
+    if evidence_bundle is not None:
+        if len(evidence_bundle.stance_links) == 0:
+            warnings.append(
+                ParityWarningRead(
+                    code='weak_bundle_stance_links',
+                    severity='warning',
+                    is_confidence_blocking=False,
+                    message='Evidence bundle has no candidate stance links.',
+                )
+            )
+        if len(evidence_bundle.verification_links) == 0:
+            warnings.append(
+                ParityWarningRead(
+                    code='weak_bundle_verification_links',
+                    severity='warning',
+                    is_confidence_blocking=False,
+                    message='Evidence bundle has no verification links.',
+                )
+            )
+    return warnings
+
+
+def _build_issue_warnings(issue_items: list[CompareClaimItem]) -> list[ParityWarningRead]:
+    if len(issue_items) < 2:
+        return []
+    missing_primary = {
+        item.candidate_id: any(w.code == 'missing_verification_primary' for w in item.warnings) for item in issue_items
+    }
+    missing_secondary = {
+        item.candidate_id: any(w.code == 'missing_verification_secondary' for w in item.warnings) for item in issue_items
+    }
+    warnings: list[ParityWarningRead] = []
+    if len(set(missing_primary.values())) > 1:
+        warnings.append(
+            ParityWarningRead(
+                code='source_class_imbalance_primary',
+                severity='warning',
+                is_confidence_blocking=False,
+                message='Candidates in this issue view have mismatched verification primary-source coverage.',
+            )
+        )
+    if len(set(missing_secondary.values())) > 1:
+        warnings.append(
+            ParityWarningRead(
+                code='source_class_imbalance_secondary',
+                severity='warning',
+                is_confidence_blocking=False,
+                message='Candidates in this issue view have mismatched verification secondary-source coverage.',
+            )
+        )
+    return warnings
+
+
+def _sanitize_public_rationale(rationale: str) -> tuple[str, list[ParityWarningRead]]:
+    violation = find_moderation_violation(rationale.strip())
+    if violation is None:
+        return rationale, []
+    return (
+        'Public rationale withheld pending moderation correction and reviewer re-evaluation.',
+        [
+            ParityWarningRead(
+                code='moderation_policy_redacted_rationale',
+                severity='warning',
+                is_confidence_blocking=False,
+                message='Rationale text was redacted because it violated moderation policy boundaries.',
+            )
+        ],
+    )
+
+
+def _sanitize_public_citation_notes(citation_notes: str | None) -> tuple[str | None, list[ParityWarningRead]]:
+    trimmed = (citation_notes or '').strip()
+    if not trimmed:
+        return citation_notes, []
+    violation = find_moderation_violation(trimmed)
+    if violation is None:
+        return citation_notes, []
+    return (
+        'Citation notes withheld pending moderation correction.',
+        [
+            ParityWarningRead(
+                code='moderation_policy_redacted_citation_notes',
+                severity='warning',
+                is_confidence_blocking=False,
+                message='Citation notes were redacted because they violated moderation policy boundaries.',
+            )
+        ],
+    )
 
 
 class ComparisonService:
@@ -212,6 +358,7 @@ class ComparisonService:
                     Statement.published_at >= window_start,
                     Statement.published_at <= window_end,
                     ComparisonService._fact_checkable_predicate(),
+                    Claim.is_published.is_(True),
                 )
                 .order_by(Statement.published_at.desc())
             )
@@ -279,6 +426,8 @@ class ComparisonService:
                 if rep is None:
                     continue
                 issue_rows.append(rep)
+                safe_rationale, rationale_warnings = _sanitize_public_rationale(rep.rationale)
+                safe_citation_notes, citation_warnings = _sanitize_public_citation_notes(rep.citation_notes)
                 items.append(
                     CompareClaimItem(
                         candidate_id=rep.candidate_id,
@@ -289,16 +438,26 @@ class ComparisonService:
                         statement_published_at=rep.statement_published_at,
                         verdict=rep.verdict,
                         confidence=rep.confidence,
-                        rationale=rep.rationale,
-                        citation_notes=rep.citation_notes,
+                        rationale=safe_rationale,
+                        citation_notes=safe_citation_notes,
                         sources=sources_by_claim.get(rep.claim_id, []),
-                        evidence_bundle=bundles_by_claim.get(rep.claim_id),
+                        evidence_bundle=_curate_public_evidence_bundle(
+                            bundles_by_claim.get(rep.claim_id),
+                            per_side_limit=PUBLIC_EVIDENCE_LINKS_PER_SIDE,
+                        ),
+                        warnings=rationale_warnings + citation_warnings,
                     )
+                )
+            for item in items:
+                item.warnings = item.warnings + _build_item_warnings(
+                    sources=item.sources,
+                    evidence_bundle=item.evidence_bundle,
                 )
             issues.append(
                 CompareIssue(
                     issue_tag=tag,
                     frame_policy=_resolve_issue_frame_policy(issue_rows, frame_policies_by_key),
+                    warnings=_build_issue_warnings(items),
                     items=items,
                 )
             )
@@ -310,13 +469,13 @@ class ComparisonService:
             race_stage=race_stage,
             as_of=datetime.now(timezone.utc),
             disclaimer=(
-                'This comparison is evidence-traceable, not an endorsement. '
+                'This comparison is evidence-traceable, not an endorsement or voting recommendation. '
                 'Each verdict is only as strong as its linked sources; items labeled insufficient indicate missing evidence.'
             ),
         )
 
         return CompareResponse(
             race=meta,
-            candidates=[CandidateRead.model_validate(c, from_attributes=True) for c in candidates],
+            candidates=[CandidatePublicRead.model_validate(c, from_attributes=True) for c in candidates],
             issues=issues,
         )

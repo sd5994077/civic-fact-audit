@@ -1,6 +1,7 @@
 # Verification Policy
 
 This document defines how Civic Fact Audit captures candidate claims, verifies them, and decides what is eligible for publication.
+For output safety boundaries and moderation gating, see `docs/MODERATION_POLICY.md`.
 
 ## Core Rule
 
@@ -10,6 +11,19 @@ In practice:
 - Candidate websites, official campaign social accounts, debates, interviews, speeches, and press releases can be used to identify a claim.
 - Factual verdicts must be based on reliable verification sources.
 - AI may assist with extraction and preparation, but a verified human reviewer must make the final publishable adjudication.
+
+## Operational Enforcement (API + Workflow)
+
+Source-admission checks are enforced centrally in `SourceService` for:
+- `POST /v1/claims/{claim_id}/sources`
+- `POST /v1/claims/sources/bulk`
+- proposal source payload validation + proposal apply (`verification_source_suggestion` and `candidate_source_capture`)
+
+Policy configuration is versioned in `backend/app/config/source_admission_policy_v1.json` and loaded at runtime. Validation failures return structured `422` errors with:
+- `error.code = source_admission_policy_violation`
+- `error.details.rejection_field` (for example `source_origin`, `is_direct_candidate_quote`, or `url`)
+- `error.details.matched_rule` (matched publisher/domain rule)
+- `error.details.policy_version`
 
 ## Source Categories
 
@@ -29,6 +43,11 @@ Rules:
 - These sources can establish the wording, timing, and context of a candidate claim.
 - These sources do not, by themselves, establish whether the claim is true.
 - In product output, these should be labeled as candidate-originated material rather than verification evidence.
+- Enforcement: if a source is partisan/advocacy, it is only admissible here when it captures a direct quote from the candidate's official social account (must be marked as direct-candidate-quote metadata).
+  - API requirement for this exception:
+    - `source_origin=candidate`
+    - `is_direct_candidate_quote=true`
+    - URL host matches configured social allowlist
 
 ### 2) Verification Sources
 
@@ -48,6 +67,8 @@ Rules:
 - If the underlying record is available, prefer it over commentary about the record.
 - If a source is interpretive, summarize it as interpretation rather than treating it as raw fact.
 - In product output, these should be labeled separately from candidate-originated sources.
+- Enforcement: partisan/advocacy publishers are blocked from verification-origin source attachment.
+  - Applies to direct source attach, bulk attach, and proposal create/apply paths.
 
 ### 3) Disallowed Verification Sources
 
@@ -134,6 +155,7 @@ Human reviewers should:
 - avoid treating institutional commentary as automatic truth
 - record rationale and citation notes clearly
 - leave a claim as `insufficient` when the evidence is not good enough
+- replace blocked partisan verification suggestions with neutral record-based sources before re-applying a proposal
 
 ## Public Trust Language
 

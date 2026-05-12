@@ -42,3 +42,25 @@ class RaceStage(StrEnum):
     primary_runoff = 'primary_runoff'
     general = 'general'
     special = 'special'
+
+
+class ProposalType(StrEnum):
+    issue_frame_mapping = 'issue_frame_mapping'
+    candidate_source_capture = 'candidate_source_capture'
+    verification_source_suggestion = 'verification_source_suggestion'
+    draft_verdict = 'draft_verdict'
+
+
+class ProposalStatus(StrEnum):
+    proposed = 'proposed'
+    approved = 'approved'
+    rejected = 'rejected'
+    applied = 'applied'
+
+
+class AdminJobStatus(StrEnum):
+    queued = 'queued'
+    running = 'running'
+    succeeded = 'succeeded'
+    failed = 'failed'
+    canceled = 'canceled'

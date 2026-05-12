@@ -82,6 +82,7 @@ def test_build_evidence_queue_query_has_race_filters_and_missing_having() -> Non
     assert 'claims.fact_checkable' in compiled
     assert 'sources.source_origin' in compiled
     assert 'sources.source_class' in compiled
+    assert 'sources.policy_flagged' in compiled
     assert 'HAVING' in compiled
 
 
@@ -101,23 +102,36 @@ def test_build_evidence_queue_query_without_missing_filter_has_no_having() -> No
 def test_bulk_status_from_error_code_mappings() -> None:
     assert SourceService._bulk_status_from_error_code('duplicate_source') == 'duplicate'
     assert SourceService._bulk_status_from_error_code('claim_not_found') == 'claim_not_found'
+    assert SourceService._bulk_status_from_error_code('source_admission_policy_violation') == 'policy_violation'
     assert SourceService._bulk_status_from_error_code('something_else') == 'error'
+
+
+def test_get_partisan_match_detects_publisher_rule_from_config() -> None:
+    match = SourceService.get_partisan_match(publisher='Republican Party of Texas', url='https://example.com/news')
+    assert match is not None
+    assert match.field == 'publisher'
+    assert match.pattern == 'republican party'
+
+
+def test_get_partisan_match_detects_domain_rule_from_config() -> None:
+    match = SourceService.get_partisan_match(publisher='Neutral Publisher', url='https://subdomain.dailykos.com/story')
+    assert match is not None
+    assert match.field == 'domain'
+    assert match.pattern == 'dailykos.com'
 
 
 def test_has_minimum_evidence_requires_verification_origin() -> None:
     db = _FakeDb(
         [
-            (SourceClass.primary, SourceOrigin.candidate),
-            (SourceClass.secondary, SourceOrigin.candidate),
-            (SourceClass.primary, SourceOrigin.verification),
+            (SourceClass.primary,),
         ]
     )
     assert SourceService.has_minimum_evidence(db, claim_id='unused') is False
 
     db_ok = _FakeDb(
         [
-            (SourceClass.primary, SourceOrigin.verification),
-            (SourceClass.secondary, SourceOrigin.verification),
+            (SourceClass.primary,),
+            (SourceClass.secondary,),
         ]
     )
     assert SourceService.has_minimum_evidence(db_ok, claim_id='unused') is True
@@ -213,3 +227,103 @@ def test_add_source_rolls_back_if_bundle_sync_fails(monkeypatch) -> None:
 
     assert db.committed == 0
     assert db.rolled_back == 1
+
+
+def test_add_source_blocks_partisan_verification_sources() -> None:
+    claim_id = 'claim-1'
+    db = _FakeDbForAddSource(claim_id=claim_id)
+    payload = type(
+        'Payload',
+        (),
+        {
+            'url': 'https://www.dailykos.com/stories/example',
+            'source_class': SourceClass.secondary,
+            'source_origin': SourceOrigin.verification,
+            'publisher': 'Daily Kos',
+            'quality_score': 0.5,
+            'is_direct_candidate_quote': False,
+        },
+    )()
+
+    try:
+        SourceService.add_source(db, claim_id, payload)
+        assert False, 'Expected source admission policy violation'
+    except AppError as exc:
+        assert exc.code == 'source_admission_policy_violation'
+        assert exc.details['rejection_field'] == 'source_origin'
+        assert exc.details['matched_rule']['field'] in {'publisher', 'domain'}
+
+
+def test_add_source_blocks_partisan_candidate_without_direct_quote_flag() -> None:
+    claim_id = 'claim-1'
+    db = _FakeDbForAddSource(claim_id=claim_id)
+    payload = type(
+        'Payload',
+        (),
+        {
+            'url': 'https://x.com/examplecandidate/status/123',
+            'source_class': SourceClass.primary,
+            'source_origin': SourceOrigin.candidate,
+            'publisher': 'RNC',
+            'quality_score': 0.5,
+            'is_direct_candidate_quote': False,
+        },
+    )()
+
+    try:
+        SourceService.add_source(db, claim_id, payload)
+        assert False, 'Expected source admission policy violation'
+    except AppError as exc:
+        assert exc.code == 'source_admission_policy_violation'
+        assert exc.details['rejection_field'] == 'is_direct_candidate_quote'
+
+
+def test_add_source_blocks_partisan_candidate_direct_quote_on_non_social_url() -> None:
+    claim_id = 'claim-1'
+    db = _FakeDbForAddSource(claim_id=claim_id)
+    payload = type(
+        'Payload',
+        (),
+        {
+            'url': 'https://www.dailykos.com/stories/example',
+            'source_class': SourceClass.primary,
+            'source_origin': SourceOrigin.candidate,
+            'publisher': 'RNC',
+            'quality_score': 0.5,
+            'is_direct_candidate_quote': True,
+        },
+    )()
+
+    try:
+        SourceService.add_source(db, claim_id, payload)
+        assert False, 'Expected source admission policy violation'
+    except AppError as exc:
+        assert exc.code == 'source_admission_policy_violation'
+        assert exc.details['rejection_field'] == 'url'
+
+
+def test_add_source_allows_partisan_candidate_direct_quote_on_social_url(monkeypatch) -> None:
+    sync_calls = []
+
+    def _fake_sync(db, claim_id, *, commit):
+        sync_calls.append((db, claim_id, commit))
+
+    monkeypatch.setattr('app.services.source_service.EvidenceBundleService.sync_claim_bundle', _fake_sync)
+
+    claim_id = 'claim-1'
+    db = _FakeDbForAddSource(claim_id=claim_id)
+    payload = type(
+        'Payload',
+        (),
+        {
+            'url': 'https://x.com/examplecandidate/status/123',
+            'source_class': SourceClass.primary,
+            'source_origin': SourceOrigin.candidate,
+            'publisher': 'RNC',
+            'quality_score': 0.5,
+            'is_direct_candidate_quote': True,
+        },
+    )()
+
+    SourceService.add_source(db, claim_id, payload)
+    assert len(sync_calls) == 1

@@ -1,28 +1,45 @@
+import uuid
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.core.errors import AppError
 from app.db.database import get_db
 from app.models.enums import RaceStage
-from app.schemas.api import CandidateCreate, CandidateRead, ErrorResponse
+from app.schemas.api import CandidateCreate, CandidatePublicRead, CandidateRead, CandidateUpdate, ErrorResponse
+from app.services.auth_dependency_service import require_admin
+from app.services.auth_service import AuthIdentity
 from app.services.candidate_service import CandidateService
 
 router = APIRouter(prefix='/candidates')
 
 
-@router.post('', response_model=CandidateRead, responses={400: {'model': ErrorResponse}, 404: {'model': ErrorResponse}})
-def create_candidate(payload: CandidateCreate, db: Session = Depends(get_db)) -> CandidateRead:
-    candidate = CandidateService.create_candidate(db, payload)
+@router.post(
+    '',
+    response_model=CandidateRead,
+    responses={400: {'model': ErrorResponse}, 401: {'model': ErrorResponse}, 403: {'model': ErrorResponse}, 404: {'model': ErrorResponse}},
+)
+def create_candidate(
+    payload: CandidateCreate,
+    db: Session = Depends(get_db),
+    identity: AuthIdentity = Depends(require_admin),
+) -> CandidateRead:
+    candidate = CandidateService.create_candidate(db, payload, actor_reviewer_id=identity.reviewer_id)
     return CandidateRead.model_validate(candidate, from_attributes=True)
 
 
-@router.get('', response_model=list[CandidateRead], responses={400: {'model': ErrorResponse}, 404: {'model': ErrorResponse}})
+@router.get(
+    '',
+    response_model=list[CandidatePublicRead],
+    responses={400: {'model': ErrorResponse}, 404: {'model': ErrorResponse}},
+)
 def list_candidates(
     state: str | None = Query(default=None, min_length=2, max_length=32),
     office: str | None = Query(default=None, min_length=2, max_length=255),
     election_cycle: int | None = Query(default=None, ge=1900, le=2100),
     race_stage: RaceStage | None = Query(default=None),
     db: Session = Depends(get_db),
-) -> list[CandidateRead]:
+) -> list[CandidatePublicRead]:
     candidates = CandidateService.list_candidates(
         db,
         state=state,
@@ -30,4 +47,41 @@ def list_candidates(
         election_cycle=election_cycle,
         race_stage=race_stage,
     )
-    return [CandidateRead.model_validate(candidate, from_attributes=True) for candidate in candidates]
+    return [CandidatePublicRead.model_validate(candidate, from_attributes=True) for candidate in candidates]
+
+
+@router.get(
+    '/{candidate_id}',
+    response_model=CandidateRead,
+    responses={400: {'model': ErrorResponse}, 401: {'model': ErrorResponse}, 403: {'model': ErrorResponse}, 404: {'model': ErrorResponse}},
+)
+def get_candidate(
+    candidate_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    identity: AuthIdentity = Depends(require_admin),
+) -> CandidateRead:
+    _ = identity
+    candidate = CandidateService.get_candidate(db, candidate_id)
+    return CandidateRead.model_validate(candidate, from_attributes=True)
+
+
+@router.patch(
+    '/{candidate_id}',
+    response_model=CandidateRead,
+    responses={400: {'model': ErrorResponse}, 401: {'model': ErrorResponse}, 403: {'model': ErrorResponse}, 404: {'model': ErrorResponse}, 422: {'model': ErrorResponse}},
+)
+def update_candidate(
+    candidate_id: uuid.UUID,
+    payload: CandidateUpdate,
+    db: Session = Depends(get_db),
+    identity: AuthIdentity = Depends(require_admin),
+) -> CandidateRead:
+    if not payload.model_fields_set:
+        raise AppError('candidate_update_empty', 'Candidate update requires at least one field.', status_code=422)
+    candidate = CandidateService.update_candidate(
+        db,
+        candidate_id,
+        payload,
+        actor_reviewer_id=identity.reviewer_id,
+    )
+    return CandidateRead.model_validate(candidate, from_attributes=True)

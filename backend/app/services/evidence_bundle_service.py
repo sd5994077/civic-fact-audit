@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.core.errors import AppError
 from app.models.entities import Claim, ClaimEvidenceBundle, ClaimEvidenceLink, Source
-from app.models.enums import EvidenceLinkType, SourceOrigin
+from app.models.enums import EvidenceLinkType, SourceClass, SourceOrigin
 from app.schemas.api import ClaimEvidenceBundleRead, EvidenceBundleLinkRead
 
 
@@ -24,6 +24,12 @@ class _DesiredBundleLink:
 
 def _build_bundle_link_read(link: ClaimEvidenceLink) -> EvidenceBundleLinkRead:
     source = link.source
+    inferred_source_class = source.source_class if source is not None else None
+    inferred_source_origin = source.source_origin if source is not None else None
+    if source is None and link.statement_id is not None:
+        inferred_source_class = SourceClass.primary
+        inferred_source_origin = SourceOrigin.candidate
+
     return EvidenceBundleLinkRead(
         id=link.id,
         bundle_id=link.bundle_id,
@@ -32,8 +38,8 @@ def _build_bundle_link_read(link: ClaimEvidenceLink) -> EvidenceBundleLinkRead:
         url=link.url,
         label=link.label,
         link_type=link.link_type,
-        source_class=source.source_class if source is not None else None,
-        source_origin=source.source_origin if source is not None else None,
+        source_class=inferred_source_class,
+        source_origin=inferred_source_origin,
         publisher=source.publisher if source is not None else None,
         quality_score=source.quality_score if source is not None else None,
         display_order=link.display_order,
