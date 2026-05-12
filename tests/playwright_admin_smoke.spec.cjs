@@ -555,9 +555,11 @@ test("admin workspace smoke", async ({ page }) => {
     return json({ error: { message: `No mock for ${method} ${path}` } }, 404);
     });
 
-    await page.goto(`${baseUrl}/admin/`, { waitUntil: "networkidle" });
+  await page.goto(`${baseUrl}/admin/`, { waitUntil: "networkidle" });
 
   await expect(page.locator("#auth-form")).toBeVisible();
+  await page.fill("#auth-email", "admin@local");
+  await page.fill("#auth-password", "change-me");
   await page.click("#auth-form button[type=\"submit\"]");
   await expect(page.locator("#admin-workspace")).toBeVisible();
   await expect(page.locator("#identity-label")).toContainText("admin@local");

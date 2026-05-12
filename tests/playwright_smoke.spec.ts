@@ -1,4 +1,4 @@
-﻿import { test } from 'playwright/test';
+import { test } from '@playwright/test';
 
 test('cfa filters smoke', async ({ page }) => {
   await page.goto('http://localhost:3001', { waitUntil: 'networkidle' });
