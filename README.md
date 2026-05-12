@@ -15,7 +15,8 @@ A standalone project to track political candidate claims, verify them against cr
 - Factual verdicts must rely on verification sources, not campaign content alone.
 - Published fact reviews should be human reviewed and citation-backed.
 - Attached sources are labeled as candidate-originated or verification-originated in the API/UI.
-- See [VERIFICATION_POLICY.md](C:\Users\steph\Documents\civic-fact-audit\docs\VERIFICATION_POLICY.md).
+- See [VERIFICATION_POLICY.md](docs/VERIFICATION_POLICY.md).
+- See [MODERATION_POLICY.md](docs/MODERATION_POLICY.md).
 
 ## Tech Stack (MVP)
 - **Backend:** FastAPI (Python 3.11+)
@@ -159,7 +160,8 @@ civic-fact-audit/
 - Texas 2026 evidence attachment batch script with targeted source mappings for known factual claims.
 - Review queue endpoint (`GET /v1/claims/review-queue`) and Texas report script for human adjudication triage.
 - Reviewer authentication endpoints (`POST /v1/auth/login`, `GET /v1/auth/me`) with signed bearer tokens.
-- Frontend human-review panel sign-in flow and authenticated `POST /v1/claims/{id}/evaluate` submission.
+- Dedicated admin workspace at `/admin/` for admin sign-in, candidate lifecycle updates, review-queue adjudication, evidence-queue triage, bulk source attach operations, proposal triage, publish controls, and audit-event inspection, including profile-driven intake job inputs for roster and statement batch ingestion.
+- Public dashboard keeps comparison/export browsing only; reviewer/admin mutation workflows are moved to `/admin/`.
 - Claim reviewability heuristics so rhetorical slogans are excluded from evidence/review/compare workflows.
 - Scoring service with transparent numerators/denominators and formula versioning.
 - Unit tests for score calculations and denominator policy behavior.
