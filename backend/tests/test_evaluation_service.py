@@ -116,3 +116,52 @@ def test_publish_claim_moderation_failure_returns_violation_details(monkeypatch)
         violations = exc.details.get('moderation_violations', [])
         assert len(violations) == 2
         assert {item['rejection_field'] for item in violations} == {'rationale', 'citation_notes'}
+
+
+def test_list_publish_queue_uses_verification_counts_from_review_row(monkeypatch) -> None:
+    claim_id = uuid.uuid4()
+
+    class _PublishClaim:
+        def __init__(self) -> None:
+            self.id = claim_id
+            self.is_published = False
+            self.published_at = None
+            self.published_by_reviewer_id = None
+
+    class _Db:
+        def get(self, _model, id_):  # type: ignore[no-untyped-def]
+            if id_ == claim_id:
+                return _PublishClaim()
+            return None
+
+    monkeypatch.setattr(
+        'app.services.evaluation_service.EvaluationService.list_review_queue',
+        lambda *_args, **_kwargs: [
+            {
+                'claim_id': claim_id,
+                'claim_text': 'Claim text',
+                'issue_tag': 'Economy',
+                'candidate_name': 'Candidate A',
+                'candidate_party': 'Independent',
+                'statement_source_url': 'https://example.com/statement',
+                'statement_published_at': None,
+                'latest_verdict': None,
+                'latest_confidence': None,
+                'latest_rationale': None,
+                'latest_citation_notes': None,
+                'latest_reviewer_id': None,
+                'primary_source_count': 5,
+                'secondary_source_count': 4,
+                'verification_primary_count': 3,
+                'verification_secondary_count': 2,
+            }
+        ],
+    )
+    monkeypatch.setattr('app.services.evaluation_service.EvaluationService._latest_evaluation', lambda *_args, **_kwargs: None)
+    monkeypatch.setattr('app.services.evaluation_service.EvaluationService._publish_gate_failures', lambda *_args, **_kwargs: [])
+
+    rows = EvaluationService.list_publish_queue(_Db())  # type: ignore[arg-type]
+
+    assert len(rows) == 1
+    assert rows[0]['verification_primary_count'] == 3
+    assert rows[0]['verification_secondary_count'] == 2

@@ -126,20 +126,26 @@ class ProposalService:
         }
 
     @staticmethod
-    def create_proposal(db: Session, claim_id: uuid.UUID, payload: ClaimProposalCreateRequest) -> ClaimProposal:
+    def create_proposal(
+        db: Session,
+        claim_id: uuid.UUID,
+        payload: ClaimProposalCreateRequest,
+        *,
+        proposed_by: str,
+    ) -> ClaimProposal:
         claim = db.get(Claim, claim_id)
         if claim is None:
             raise AppError('claim_not_found', 'Claim does not exist.', status_code=404)
 
         ProposalService._validate_payload(payload.proposal_type, payload.proposal_payload)
-        proposed_by = payload.proposed_by.strip()
-        if not proposed_by:
+        normalized_proposed_by = proposed_by.strip()
+        if not normalized_proposed_by:
             raise AppError('invalid_proposal_payload', 'proposed_by must not be blank.', status_code=422)
         proposal = ClaimProposal(
             claim_id=claim_id,
             proposal_type=payload.proposal_type,
             status=ProposalStatus.proposed,
-            proposed_by=proposed_by,
+            proposed_by=normalized_proposed_by,
             proposal_payload=json.dumps(payload.proposal_payload, separators=(',', ':'), sort_keys=True),
         )
         db.add(proposal)

@@ -152,6 +152,63 @@ def test_create_candidate_rejects_blank_name_after_trim() -> None:
         assert exc.code == 'candidate_invalid'
 
 
+def test_create_candidate_flushes_before_audit_event(monkeypatch) -> None:
+    captured = {}
+    candidate_id = uuid.uuid4()
+
+    class _FakeDb:
+        def __init__(self) -> None:
+            self.candidate = None
+            self.flush_called = False
+
+        def add(self, candidate):  # type: ignore[no-untyped-def]
+            self.candidate = candidate
+
+        def flush(self):  # type: ignore[no-untyped-def]
+            self.flush_called = True
+            if self.candidate is not None:
+                self.candidate.id = candidate_id
+
+        def commit(self):  # type: ignore[no-untyped-def]
+            return None
+
+        def refresh(self, _candidate):  # type: ignore[no-untyped-def]
+            return None
+
+    def _fake_record_event(
+        _db,
+        *,
+        actor_reviewer_id,
+        action,
+        entity_type,
+        entity_id,
+        before_payload,
+        after_payload,
+        metadata,
+        commit,
+    ):  # type: ignore[no-untyped-def]
+        captured['actor_reviewer_id'] = actor_reviewer_id
+        captured['action'] = action
+        captured['entity_type'] = entity_type
+        captured['entity_id'] = entity_id
+        captured['after_payload'] = after_payload
+        captured['commit'] = commit
+
+    monkeypatch.setattr('app.services.candidate_service.AdminAuditService.record_event', _fake_record_event)
+
+    db = _FakeDb()
+    payload = CandidateCreate(name='Candidate A', office='US Senate', state='TX', election_cycle=2026, race_stage=RaceStage.primary)
+    CandidateService.create_candidate(db, payload, actor_reviewer_id='admin@local')  # type: ignore[arg-type]
+
+    assert db.flush_called is True
+    assert captured['actor_reviewer_id'] == 'admin@local'
+    assert captured['action'] == 'candidate_created'
+    assert captured['entity_type'] == 'candidate'
+    assert captured['entity_id'] == str(candidate_id)
+    assert captured['after_payload']['id'] == str(candidate_id)
+    assert captured['commit'] is False
+
+
 def test_update_candidate_rejects_blank_name_after_trim() -> None:
     candidate_id = uuid.uuid4()
 

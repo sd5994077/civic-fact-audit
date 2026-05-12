@@ -120,6 +120,42 @@ def test_get_partisan_match_detects_domain_rule_from_config() -> None:
     assert match.pattern == 'dailykos.com'
 
 
+def test_get_partisan_match_detects_domain_rule_with_port_and_userinfo() -> None:
+    match = SourceService.get_partisan_match(
+        publisher='Neutral Publisher',
+        url='https://user:token@subdomain.dailykos.com:443/story',
+    )
+    assert match is not None
+    assert match.field == 'domain'
+    assert match.pattern == 'dailykos.com'
+
+
+def test_add_source_candidate_direct_quote_accepts_social_url_with_port_and_userinfo(monkeypatch) -> None:
+    claim_id = 'claim-1'
+    db = _FakeDbForAddSource(claim_id=claim_id)
+    monkeypatch.setattr(
+        'app.services.source_service.EvidenceBundleService.sync_claim_bundle',
+        lambda *_args, **_kwargs: None,
+    )
+    payload = type(
+        'Payload',
+        (),
+        {
+            'url': 'https://user@x.com:443/candidate/status/123',
+            'source_class': SourceClass.primary,
+            'source_origin': SourceOrigin.candidate,
+            'publisher': 'Republican Party of Texas',
+            'quality_score': 0.8,
+            'is_direct_candidate_quote': True,
+        },
+    )()
+
+    SourceService.add_source(db, claim_id, payload)
+
+    assert db.committed == 1
+    assert db.rolled_back == 0
+
+
 def test_has_minimum_evidence_requires_verification_origin() -> None:
     db = _FakeDb(
         [

@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 
 from fastapi.testclient import TestClient
 
@@ -26,7 +27,6 @@ def test_create_proposal_requires_reviewer_or_admin() -> None:
         f'/v1/claims/{uuid.uuid4()}/proposals',
         json={
             'proposal_type': ProposalType.issue_frame_mapping.value,
-            'proposed_by': 'system:ai',
             'proposal_payload': {'issue_frame_id': str(uuid.uuid4())},
         },
     )
@@ -93,4 +93,47 @@ def test_list_proposals_invalid_filter_returns_422() -> None:
     client = TestClient(app)
     response = client.get('/v1/claims/proposals?status=not-a-status')
     assert response.status_code == 422
+    app.dependency_overrides.clear()
+
+
+def test_create_proposal_forwards_identity_reviewer_id_as_proposed_by(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[require_reviewer_or_admin] = _override_identity
+    claim_id = uuid.uuid4()
+    proposal_id = uuid.uuid4()
+    captured = {}
+
+    class _FakeProposal:
+        def __init__(self) -> None:
+            self.id = proposal_id
+            self.claim_id = claim_id
+            self.proposal_type = ProposalType.issue_frame_mapping
+            self.status = ProposalStatus.proposed
+            self.proposed_by = 'reviewer@local'
+            self.reviewed_by = None
+            self.reviewed_at = None
+            self.proposal_payload = '{}'
+            self.review_notes = None
+            self.created_at = datetime(2026, 5, 12, tzinfo=timezone.utc)
+            self.updated_at = datetime(2026, 5, 12, tzinfo=timezone.utc)
+
+    def _fake_create(_db, _claim_id, _payload, *, proposed_by):  # type: ignore[no-untyped-def]
+        captured['claim_id'] = _claim_id
+        captured['proposed_by'] = proposed_by
+        return _FakeProposal()
+
+    monkeypatch.setattr('app.api.v1.claims.ProposalService.create_proposal', _fake_create)
+
+    client = TestClient(app)
+    response = client.post(
+        f'/v1/claims/{claim_id}/proposals',
+        json={
+            'proposal_type': ProposalType.issue_frame_mapping.value,
+            'proposal_payload': {'issue_frame_id': str(uuid.uuid4())},
+            'proposed_by': 'spoof@attacker',
+        },
+    )
+    assert response.status_code == 200
+    assert captured['claim_id'] == claim_id
+    assert captured['proposed_by'] == 'reviewer@local'
     app.dependency_overrides.clear()

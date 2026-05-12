@@ -10,6 +10,7 @@ from app.services.comparison_service import (
     _build_item_warnings,
     _build_issue_frame_policy_by_key,
     _curate_public_evidence_bundle,
+    _build_compare_sources_query,
     _resolve_issue_frame_policy,
     _resolve_issue_tag,
     _sanitize_public_citation_notes,
@@ -260,6 +261,13 @@ def test_curate_public_evidence_bundle_caps_links_per_side() -> None:
     assert len(curated.verification_links) == PUBLIC_EVIDENCE_LINKS_PER_SIDE
     assert [link.display_order for link in curated.stance_links] == [0, 1, 2, 3, 4]
     assert [link.display_order for link in curated.verification_links] == [0, 1, 2, 3, 4]
+
+
+def test_build_compare_sources_query_excludes_flagged_verification_sources() -> None:
+    query = _build_compare_sources_query([uuid.uuid4()])
+    compiled = str(query)
+    assert 'sources.policy_flagged' in compiled
+    assert 'sources.source_origin' in compiled
 
 
 def test_build_item_warnings_flags_missing_verification_classes() -> None:

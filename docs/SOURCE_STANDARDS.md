@@ -39,7 +39,7 @@ Config keys:
 
 Matching behavior:
 - publisher: `contains` (case-insensitive)
-- domain: `suffix` (exact host or subdomain)
+- domain: `suffix` on normalized hostname (exact host or subdomain; userinfo/port stripped)
 
 ## Legacy Cleanup and Auditability
 

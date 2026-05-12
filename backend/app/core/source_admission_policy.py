@@ -70,10 +70,20 @@ def _matches(value: str, pattern: str, behavior: MatchBehavior) -> bool:
     return False
 
 
+def _normalized_hostname(url: str) -> str:
+    parsed = urlparse(url.strip())
+    hostname = parsed.hostname
+    if hostname is None and parsed.netloc:
+        hostname = urlparse(f'//{parsed.netloc}').hostname
+    if hostname is None and parsed.path and '://' not in url:
+        hostname = urlparse(f'//{url.strip()}').hostname
+    return (hostname or '').strip().lower().rstrip('.')
+
+
 def find_partisan_rule_match(*, publisher: str | None, url: str) -> SourcePolicyRuleMatch | None:
     policy = get_source_admission_policy()
     lowered_publisher = (publisher or '').strip().lower()
-    host = (urlparse(url).netloc or '').strip().lower()
+    host = _normalized_hostname(url)
 
     if lowered_publisher:
         for pattern in policy.partisan_publishers:
@@ -100,5 +110,5 @@ def find_partisan_rule_match(*, publisher: str | None, url: str) -> SourcePolicy
 
 def is_social_url(url: str) -> bool:
     policy = get_source_admission_policy()
-    host = (urlparse(url).netloc or '').strip().lower()
+    host = _normalized_hostname(url)
     return any(_matches(host, pattern, 'suffix') for pattern in policy.social_domains)

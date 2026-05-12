@@ -2,7 +2,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
@@ -179,6 +179,20 @@ def _build_item_warnings(
                 )
             )
     return warnings
+
+
+def _build_compare_sources_query(claim_ids: list[uuid.UUID]):
+    eligible = or_(Source.source_origin != SourceOrigin.verification, Source.policy_flagged.is_(False))
+    return (
+        select(Source)
+        .where(Source.claim_id.in_(claim_ids), eligible)
+        .order_by(
+            Source.claim_id.asc(),
+            Source.source_origin.asc(),
+            Source.source_class.asc(),
+            Source.quality_score.desc(),
+        )
+    )
 
 
 def _build_issue_warnings(issue_items: list[CompareClaimItem]) -> list[ParityWarningRead]:
@@ -400,16 +414,7 @@ class ComparisonService:
         sources_by_claim: dict[uuid.UUID, list[SourceRead]] = {}
         if rep_claim_ids:
             src_rows = (
-                db.execute(
-                    select(Source)
-                    .where(Source.claim_id.in_(rep_claim_ids))
-                    .order_by(
-                        Source.claim_id.asc(),
-                        Source.source_origin.asc(),
-                        Source.source_class.asc(),
-                        Source.quality_score.desc(),
-                    )
-                )
+                db.execute(_build_compare_sources_query(rep_claim_ids))
                 .scalars()
                 .all()
             )
