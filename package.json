@@ -1,0 +1,28 @@
+{
+  "name": "civic-fact-audit",
+  "version": "1.0.0",
+  "description": "A standalone project to track political candidate claims, verify them against credible evidence, and publish transparent fact-consistency scores.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sd5994077/civic-fact-audit.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/sd5994077/civic-fact-audit/issues"
+  },
+  "homepage": "https://github.com/sd5994077/civic-fact-audit#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.60.0"
+  }
+}
