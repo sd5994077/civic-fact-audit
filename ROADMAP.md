@@ -54,7 +54,7 @@
 - [x] Source quality scoring automation (`score_source_quality()` heuristic, `quality_score` now optional on add/bulk-attach, versioned formula `quality_v1_2026_05_13`).
 - [ ] Caching and query optimization.
 - [x] Security hardening and threat model review (`docs/THREAT_MODEL.md`, CORS middleware, production startup validators for `postgres_password` + `cors_allowed_origins`, `.env.example`).
-- [ ] Expand moderation beyond boundary phrase gates (context-aware abuse detection, adversarial prompting controls, and reviewer override risk scoring).
+- [x] Expand moderation beyond boundary phrase gates (regex rule engine, 4 new violation types: `violence_or_threat`, `harassment_or_doxxing`, `defamatory_framing`, `prompt_injection_attempt`; prompt injection gate on claim extraction; per-reviewer violation audit logging; `GET /v1/admin/moderation-risk` risk endpoint).
 - [x] Generalize the Texas Senate workflow into a reusable multi-race intake pipeline.
 - [x] Add a runoff onboarding playbook and templated script generator (`generate_race_stubs.py`, `run_generic_pipeline.py`, `pipeline_helpers.py`, `docs/ONBOARDING_PLAYBOOK.md`) — new races require only a profile config entry + editorial roster/statement data; extraction, backfill, and KPI run generically.
 - [x] Harden source-admission enforcement with config-backed partisan/domain rules, proposal-path validation parity, and non-destructive legacy verification-source exclusion flags.

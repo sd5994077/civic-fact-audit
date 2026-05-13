@@ -205,3 +205,66 @@ def test_admin_audit_dual_control_v2_events_expose_reviewer_metadata(monkeypatch
     assert body[2]['metadata']['bulk_operation_id'] == 'bulk-op-1'
     assert body[2]['metadata']['dual_control_enforced'] is True
     app.dependency_overrides.clear()
+
+
+def test_get_moderation_risk_requires_admin() -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides.pop(require_admin, None)
+
+    client = TestClient(app)
+    response = client.get('/v1/admin/moderation-risk')
+
+    assert response.status_code == 401
+    app.dependency_overrides.clear()
+
+
+def test_get_moderation_risk_returns_risk_summary(monkeypatch) -> None:
+    from app.services.admin_audit_service import AdminAuditService
+    from datetime import datetime, timezone
+
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[require_admin] = _override_admin
+    now = datetime(2026, 5, 13, 12, 0, tzinfo=timezone.utc)
+
+    monkeypatch.setattr(
+        AdminAuditService,
+        'get_moderation_risk',
+        lambda _db, **_kwargs: [
+            {'reviewer_id': 'reviewer_a@local', 'violation_count': 3, 'last_violation_at': now},
+            {'reviewer_id': 'reviewer_b@local', 'violation_count': 1, 'last_violation_at': now},
+        ],
+    )
+
+    client = TestClient(app)
+    response = client.get('/v1/admin/moderation-risk?window_days=7')
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body['window_days'] == 7
+    assert 'policy_version' in body
+    assert len(body['risks']) == 2
+    assert body['risks'][0]['reviewer_id'] == 'reviewer_a@local'
+    assert body['risks'][0]['violation_count'] == 3
+    app.dependency_overrides.clear()
+
+
+def test_get_moderation_risk_empty_returns_valid_response(monkeypatch) -> None:
+    from app.services.admin_audit_service import AdminAuditService
+
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[require_admin] = _override_admin
+
+    monkeypatch.setattr(
+        AdminAuditService,
+        'get_moderation_risk',
+        lambda _db, **_kwargs: [],
+    )
+
+    client = TestClient(app)
+    response = client.get('/v1/admin/moderation-risk')
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body['risks'] == []
+    assert body['window_days'] == 30
+    app.dependency_overrides.clear()

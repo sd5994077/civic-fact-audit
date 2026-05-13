@@ -5,9 +5,13 @@ from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
+from app.core.moderation_policy import find_moderation_violation
 from app.models.entities import Claim, Statement
 from app.models.enums import ClaimStatus
+from app.services.admin_audit_service import AdminAuditService
 from app.services.claim_reviewability_service import ClaimReviewabilityService
+
+_EXTRACTION_PIPELINE_ACTOR = 'system:extraction_pipeline'
 
 
 @dataclass
@@ -37,6 +41,22 @@ class ClaimExtractionService:
         statement = db.get(Statement, statement_id)
         if statement is None:
             raise AppError('statement_not_found', 'Statement does not exist.', status_code=404)
+
+        injection = find_moderation_violation(statement.statement_text)
+        if injection and injection.violation_type == 'prompt_injection_attempt':
+            AdminAuditService.record_moderation_violation(
+                db,
+                reviewer_id=_EXTRACTION_PIPELINE_ACTOR,
+                text_preview=statement.statement_text,
+                rejection_field='statement.statement_text',
+                violation=injection,
+            )
+            raise AppError(
+                'statement_text_rejected',
+                'Statement text contains adversarial content and cannot be processed.',
+                status_code=422,
+                details=injection.to_details(rejection_field='statement.statement_text'),
+            )
 
         proposed_claims = cls._heuristic_extract(statement.statement_text, max_claims)
         if not proposed_claims:

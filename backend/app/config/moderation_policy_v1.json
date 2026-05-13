@@ -1,23 +1,66 @@
 {
-  "version": "moderation_policy_v1_2026_05_11",
+  "version": "moderation_policy_v2_2026_05_13",
   "matching": {
-    "mode": "contains"
+    "mode": "regex"
   },
   "rules": [
     {
       "rule_id": "endorsement_vote_for",
       "violation_type": "endorsement_or_recommendation",
-      "patterns": ["vote for", "support this candidate", "elect this candidate"]
+      "patterns": ["\\bvote\\s+for\\b", "\\bsupport\\s+this\\s+candidate\\b", "\\belect\\s+this\\s+candidate\\b"]
     },
     {
       "rule_id": "endorsement_vote_against",
       "violation_type": "endorsement_or_recommendation",
-      "patterns": ["vote against", "do not vote for", "defeat this candidate"]
+      "patterns": ["\\bvote\\s+against\\b", "\\bdo\\s+not\\s+vote\\s+for\\b", "\\bdefeat\\s+this\\s+candidate\\b"]
     },
     {
       "rule_id": "directive_recommendation",
       "violation_type": "endorsement_or_recommendation",
-      "patterns": ["you should vote", "voters should choose", "the best candidate is"]
+      "patterns": ["\\byou\\s+should\\s+vote\\b", "\\bvoters\\s+should\\s+choose\\b", "\\bthe\\s+best\\s+candidate\\s+is\\b"]
+    },
+    {
+      "rule_id": "violence_threats",
+      "violation_type": "violence_or_threat",
+      "patterns": [
+        "\\bshould\\s+be\\s+killed?\\b",
+        "\\bdeserves?\\s+to\\s+die\\b",
+        "\\bi\\s+will\\s+(kill|hurt|shoot)\\b",
+        "\\bkill\\s+(him|her|them|you|this\\s+person)\\b",
+        "\\bdeath\\s+threat\\b"
+      ]
+    },
+    {
+      "rule_id": "harassment_doxxing",
+      "violation_type": "harassment_or_doxxing",
+      "patterns": [
+        "\\bhome\\s+address\\s+is\\b",
+        "\\bsocial\\s+security\\s+(number|#|num)\\b",
+        "\\bpersonal\\s+phone\\s+(number|#)\\b",
+        "\\bwhere\\s+(he|she|they|the\\s+candidate)\\s+live[sd]?\\b"
+      ]
+    },
+    {
+      "rule_id": "defamatory_framing",
+      "violation_type": "defamatory_framing",
+      "patterns": [
+        "\\bis\\s+a\\s+(pedophile|sex\\s+offender)\\b",
+        "\\bis\\s+a\\s+convicted\\s+(criminal|felon|murderer)\\b",
+        "\\bconfirmed\\s+(terrorist|traitor|spy)\\b"
+      ]
+    },
+    {
+      "rule_id": "prompt_injection",
+      "violation_type": "prompt_injection_attempt",
+      "patterns": [
+        "\\bignore\\s+(all\\s+)?previous\\s+instructions?\\b",
+        "\\bdisregard\\s+(your\\s+)?(guidelines|instructions|training)\\b",
+        "\\bact\\s+as\\s+(a\\s+)?(different|new|unrestricted|unfiltered)\\b",
+        "\\bforget\\s+(your\\s+)?(instructions|guidelines|training)\\b",
+        "\\bjailbreak\\b",
+        "\\bdan\\s+mode\\b",
+        "\\byou\\s+are\\s+now\\s+(free|unrestricted|uncensored)\\b"
+      ]
     }
   ]
 }

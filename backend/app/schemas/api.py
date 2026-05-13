@@ -508,6 +508,18 @@ class WorkerHealthTerminalFailureSummary(BaseModel):
     created_at: datetime
 
 
+class ModerationRiskItem(BaseModel):
+    reviewer_id: str
+    violation_count: int
+    last_violation_at: datetime | None = None
+
+
+class ModerationRiskResponse(BaseModel):
+    risks: list[ModerationRiskItem]
+    policy_version: str
+    window_days: int
+
+
 class WorkerHealthResponse(BaseModel):
     worker_alive: bool
     queue_depth: int

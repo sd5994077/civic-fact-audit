@@ -9,7 +9,7 @@ from sqlalchemy import Select, and_, case, func, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
-from app.core.moderation_policy import enforce_boundary_safe_text
+from app.core.moderation_policy import find_moderation_violation
 from app.models.entities import Candidate, Claim, ClaimEvaluation, ClaimProposal, IssueFrame, Source, Statement
 from app.models.enums import ProposalStatus, ProposalType, RaceStage, SourceClass, SourceOrigin, Verdict
 from app.schemas.api import AddSourceRequest, ClaimProposalCreateRequest, EvaluateClaimRequest
@@ -193,7 +193,12 @@ class ProposalService:
         return source_payload
 
     @staticmethod
-    def _validate_draft_verdict_payload(payload: dict[str, Any]) -> None:
+    def _validate_draft_verdict_payload(
+        payload: dict[str, Any],
+        *,
+        db: Session | None = None,
+        reviewer_id: str | None = None,
+    ) -> None:
         required = {'verdict', 'confidence', 'rationale', 'citation_notes'}
         missing = sorted(required.difference(payload.keys()))
         if missing:
@@ -222,11 +227,35 @@ class ProposalService:
             )
         except Exception as exc:
             raise AppError('invalid_proposal_payload', 'draft_verdict payload has invalid field values.', status_code=422) from exc
-        enforce_boundary_safe_text(text=str(payload['rationale']), rejection_field='proposal_payload.rationale')
-        enforce_boundary_safe_text(text=str(payload['citation_notes']), rejection_field='proposal_payload.citation_notes')
+        for field_name, field_value in [
+            ('proposal_payload.rationale', str(payload['rationale'])),
+            ('proposal_payload.citation_notes', str(payload['citation_notes'])),
+        ]:
+            violation = find_moderation_violation(field_value)
+            if violation:
+                if db is not None and reviewer_id is not None:
+                    AdminAuditService.record_moderation_violation(
+                        db,
+                        reviewer_id=reviewer_id,
+                        text_preview=field_value,
+                        rejection_field=field_name,
+                        violation=violation,
+                    )
+                raise AppError(
+                    'moderation_policy_violation',
+                    'Text violates moderation policy boundaries.',
+                    status_code=422,
+                    details=violation.to_details(rejection_field=field_name),
+                )
 
     @staticmethod
-    def _validate_payload(proposal_type: ProposalType, payload: dict[str, Any]) -> None:
+    def _validate_payload(
+        proposal_type: ProposalType,
+        payload: dict[str, Any],
+        *,
+        db: Session | None = None,
+        reviewer_id: str | None = None,
+    ) -> None:
         if proposal_type == ProposalType.issue_frame_mapping:
             issue_frame_id = payload.get('issue_frame_id')
             if not isinstance(issue_frame_id, str):
@@ -242,7 +271,7 @@ class ProposalService:
             return
 
         if proposal_type == ProposalType.draft_verdict:
-            ProposalService._validate_draft_verdict_payload(payload)
+            ProposalService._validate_draft_verdict_payload(payload, db=db, reviewer_id=reviewer_id)
             return
 
         raise AppError('invalid_proposal_type', 'Unsupported proposal type.', status_code=422)
@@ -276,7 +305,7 @@ class ProposalService:
         if claim is None:
             raise AppError('claim_not_found', 'Claim does not exist.', status_code=404)
 
-        ProposalService._validate_payload(payload.proposal_type, payload.proposal_payload)
+        ProposalService._validate_payload(payload.proposal_type, payload.proposal_payload, db=db, reviewer_id=proposed_by)
         normalized_proposed_by = proposed_by.strip()
         if not normalized_proposed_by:
             raise AppError('invalid_proposal_payload', 'proposed_by must not be blank.', status_code=422)

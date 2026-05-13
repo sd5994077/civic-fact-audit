@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime, timezone
 
 from app.core.errors import AppError
+from app.core.moderation_policy import ModerationViolation
 from app.models.entities import AdminAuditEvent
 from app.services.admin_audit_service import AdminAuditService
 
@@ -116,3 +117,53 @@ def test_record_event_metadata_roundtrip_for_dual_control_v2_events() -> None:
         assert row['metadata']['approval_reviewer_id'] == 'approver@local'
         assert row['metadata']['applying_reviewer_id'] == 'applier@local'
         assert row['metadata']['dual_control_enforced'] is True
+
+
+def test_record_moderation_violation_writes_audit_event() -> None:
+    db = _FakeDb()
+    violation = ModerationViolation(
+        rule_id='prompt_injection',
+        violation_type='prompt_injection_attempt',
+        matched_pattern='\\bjailbreak\\b',
+        policy_version='moderation_policy_v2_2026_05_13',
+    )
+    AdminAuditService.record_moderation_violation(
+        db,  # type: ignore[arg-type]
+        reviewer_id='reviewer@local',
+        text_preview='use jailbreak to bypass check',
+        rejection_field='statement.statement_text',
+        violation=violation,
+    )
+
+    assert len(db.rows) == 1
+    event = next(iter(db.rows.values()))
+    assert event.action == 'moderation_violation'
+    assert event.actor_reviewer_id == 'reviewer@local'
+    assert event.entity_type == 'moderation_rule'
+    assert event.entity_id == 'prompt_injection'
+    row = AdminAuditService.get_event(db, event.id)  # type: ignore[arg-type]
+    assert row['metadata']['violation_type'] == 'prompt_injection_attempt'
+    assert row['metadata']['rejection_field'] == 'statement.statement_text'
+    assert row['metadata']['policy_version'] == 'moderation_policy_v2_2026_05_13'
+    assert 'text_preview' in row['metadata']
+
+
+def test_record_moderation_violation_truncates_long_text() -> None:
+    db = _FakeDb()
+    violation = ModerationViolation(
+        rule_id='violence_threats',
+        violation_type='violence_or_threat',
+        matched_pattern='\\bdeserves?\\s+to\\s+die\\b',
+        policy_version='moderation_policy_v2_2026_05_13',
+    )
+    long_text = 'x' * 500
+    AdminAuditService.record_moderation_violation(
+        db,  # type: ignore[arg-type]
+        reviewer_id='reviewer@local',
+        text_preview=long_text,
+        rejection_field='rationale',
+        violation=violation,
+    )
+    event = next(iter(db.rows.values()))
+    row = AdminAuditService.get_event(db, event.id)  # type: ignore[arg-type]
+    assert len(row['metadata']['text_preview']) == 200
