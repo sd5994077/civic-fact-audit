@@ -625,3 +625,46 @@ def test_attach_sources_bulk_operation_id_ignores_item_order(monkeypatch) -> Non
         items=[item_b, item_a],
     )
     assert first['bulk_operation_id'] == second['bulk_operation_id']
+
+
+def test_add_source_auto_fills_quality_score_when_omitted(monkeypatch) -> None:
+    claim_id = uuid.uuid4()
+    db = _FakeDbForAddSource(claim_id)
+    monkeypatch.setattr('app.services.source_service.EvidenceBundleService.sync_claim_bundle', lambda *_a, **_kw: None)
+
+    from app.schemas.api import AddSourceRequest
+
+    payload = AddSourceRequest(
+        url='https://cbo.gov/report/2024',
+        source_class=SourceClass.primary,
+        source_origin=SourceOrigin.verification,
+    )
+    assert payload.quality_score is None
+
+    SourceService.add_source(db, claim_id, payload)
+
+    assert len(db.added) == 1
+    source = db.added[0]
+    assert source.quality_score is not None
+    assert 0.0 <= source.quality_score <= 1.0
+    assert source.quality_score == 1.0
+
+
+def test_add_source_preserves_explicit_quality_score(monkeypatch) -> None:
+    claim_id = uuid.uuid4()
+    db = _FakeDbForAddSource(claim_id)
+    monkeypatch.setattr('app.services.source_service.EvidenceBundleService.sync_claim_bundle', lambda *_a, **_kw: None)
+
+    from app.schemas.api import AddSourceRequest
+
+    payload = AddSourceRequest(
+        url='https://example.com/article',
+        source_class=SourceClass.secondary,
+        source_origin=SourceOrigin.verification,
+        quality_score=0.55,
+    )
+
+    SourceService.add_source(db, claim_id, payload)
+
+    source = db.added[0]
+    assert source.quality_score == 0.55

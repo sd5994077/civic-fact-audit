@@ -119,7 +119,7 @@ class AddSourceRequest(BaseModel):
     source_class: SourceClass
     source_origin: SourceOrigin = SourceOrigin.verification
     publisher: str | None = Field(default=None, max_length=255)
-    quality_score: float = Field(ge=0, le=1)
+    quality_score: float | None = Field(default=None, ge=0, le=1)
     is_direct_candidate_quote: bool = False
 
 
@@ -238,7 +238,7 @@ class BulkSourceAttachItem(BaseModel):
     source_class: SourceClass
     source_origin: SourceOrigin = SourceOrigin.verification
     publisher: str | None = Field(default=None, max_length=255)
-    quality_score: float = Field(ge=0, le=1)
+    quality_score: float | None = Field(default=None, ge=0, le=1)
     is_direct_candidate_quote: bool = False
 
 

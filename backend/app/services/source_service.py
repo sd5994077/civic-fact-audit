@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
+from app.core.source_quality_scoring import score_source_quality
 from app.core.source_admission_policy import (
     SourcePolicyRuleMatch,
     find_partisan_rule_match,
@@ -240,13 +241,22 @@ class SourceService:
             raise AppError('claim_not_found', 'Claim does not exist.', status_code=404)
         SourceService.validate_source_admission(payload)
 
+        quality_score = payload.quality_score
+        if quality_score is None:
+            quality_score = score_source_quality(
+                url=str(payload.url),
+                source_class=payload.source_class,
+                source_origin=payload.source_origin,
+                is_direct_candidate_quote=payload.is_direct_candidate_quote,
+            )
+
         source = Source(
             claim_id=claim.id,
             url=str(payload.url),
             source_class=payload.source_class,
             source_origin=payload.source_origin,
             publisher=payload.publisher,
-            quality_score=payload.quality_score,
+            quality_score=quality_score,
         )
         db.add(source)
         try:

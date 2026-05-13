@@ -211,6 +211,7 @@ function showWorkspace(show) {
 function clearSession() {
   authToken = "";
   identity = null;
+  stopWorkerHealthAutoRefresh();
   localStorage.removeItem(AUTH_STORAGE_KEY);
   showWorkspace(false);
   setStatus("auth-status", "Signed out.");
