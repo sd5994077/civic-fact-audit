@@ -46,7 +46,7 @@ def test_evaluate_claim_returns_422_for_moderation_violation(monkeypatch) -> Non
     app.dependency_overrides[get_db] = _override_db
     app.dependency_overrides[require_reviewer_or_admin] = _override_reviewer
 
-    def _fake_evaluate(_db, _claim_id, _payload, *, reviewer_id):  # type: ignore[no-untyped-def]
+    def _fake_evaluate(_db, _claim_id, _payload, *, reviewer_id, approval_reviewer_id=None):  # type: ignore[no-untyped-def]
         assert reviewer_id == 'reviewer@local'
         raise AppError(
             'moderation_policy_violation',
@@ -85,7 +85,7 @@ def test_evaluate_claim_returns_409_for_overwrite_dual_control_conflict(monkeypa
     claim_id = uuid.uuid4()
     _mock_dual_control_token(monkeypatch, reviewer_id='reviewer@local')
 
-    def _fake_evaluate(_db, _claim_id, _payload, *, reviewer_id):  # type: ignore[no-untyped-def]
+    def _fake_evaluate(_db, _claim_id, _payload, *, reviewer_id, approval_reviewer_id=None):  # type: ignore[no-untyped-def]
         assert reviewer_id == 'reviewer@local'
         assert _claim_id == claim_id
         raise AppError(
@@ -142,10 +142,10 @@ def test_evaluate_claim_first_write_allows_blank_approval_reviewer(monkeypatch) 
             self.reviewer_id = 'reviewer@local'
             self.created_at = datetime(2026, 5, 12, tzinfo=timezone.utc)
 
-    def _fake_evaluate(_db, _claim_id, payload, *, reviewer_id):  # type: ignore[no-untyped-def]
+    def _fake_evaluate(_db, _claim_id, payload, *, reviewer_id, approval_reviewer_id=None):  # type: ignore[no-untyped-def]
         assert _claim_id == claim_id
         assert reviewer_id == 'reviewer@local'
-        captured['approval_reviewer_id'] = payload.approval_reviewer_id
+        captured['approval_reviewer_id'] = approval_reviewer_id
         return _Eval()
 
     monkeypatch.setattr('app.api.v1.evaluations.EvaluationService.evaluate_claim', _fake_evaluate)

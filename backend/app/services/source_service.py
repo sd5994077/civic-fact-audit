@@ -17,18 +17,14 @@ from app.models.enums import RaceStage, SourceClass, SourceOrigin
 from app.models.enums import ClaimStatus as ClaimStatusEnum
 from app.schemas.api import AddSourceRequest, BulkSourceAttachItem
 from app.services.admin_audit_service import AdminAuditService
+from app.services.auth_service import AuthService
 from app.services.evidence_bundle_service import EvidenceBundleService
 
 
 class SourceService:
     @staticmethod
     def _normalize_reviewer_id(reviewer_id: str | None) -> str | None:
-        if reviewer_id is None:
-            return None
-        normalized = reviewer_id.strip().lower()
-        if not normalized:
-            return None
-        return normalized
+        return AuthService.normalize_reviewer_id(reviewer_id)
 
     @staticmethod
     def _build_bulk_operation_id(
@@ -363,8 +359,16 @@ class SourceService:
         applying_reviewer_id: str,
         items: list[BulkSourceAttachItem],
     ) -> dict[str, object]:
-        normalized_approval_reviewer_id = SourceService._normalize_reviewer_id(approval_reviewer_id)
-        normalized_applying_reviewer_id = SourceService._normalize_reviewer_id(applying_reviewer_id)
+        normalized_approval_reviewer_id = AuthService.resolve_active_reviewer_id(
+            db,
+            approval_reviewer_id,
+            allowed_roles={'reviewer', 'admin'},
+        )
+        normalized_applying_reviewer_id = AuthService.resolve_active_reviewer_id(
+            db,
+            applying_reviewer_id,
+            allowed_roles={'reviewer', 'admin'},
+        )
         bulk_operation_id = SourceService._build_bulk_operation_id(
             approval_reviewer_id=normalized_approval_reviewer_id,
             applying_reviewer_id=normalized_applying_reviewer_id,

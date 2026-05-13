@@ -147,6 +147,41 @@ class AuthService:
         return normalized
 
     @staticmethod
+    def normalize_reviewer_id(reviewer_id: str | None) -> str | None:
+        if reviewer_id is None:
+            return None
+        normalized = reviewer_id.strip().lower()
+        if not normalized:
+            return None
+        return normalized
+
+    @staticmethod
+    def resolve_active_reviewer_id(
+        db: Session,
+        reviewer_id: str | None,
+        *,
+        allowed_roles: set[str] | None = None,
+    ) -> str | None:
+        normalized = AuthService.normalize_reviewer_id(reviewer_id)
+        if normalized is None:
+            return None
+        if not hasattr(db, 'execute'):
+            return None
+        try:
+            reviewer = (
+                db.execute(select(ReviewerUser).where(func.lower(ReviewerUser.email) == normalized))
+                .scalars()
+                .first()
+            )
+        except Exception:
+            return None
+        if reviewer is None or not reviewer.is_active:
+            return None
+        if allowed_roles is not None and reviewer.role not in allowed_roles:
+            return None
+        return normalized
+
+    @staticmethod
     def _identity_from_payload_subject(db: Session, payload: dict[str, object]) -> AuthIdentity:
         raw_sub = payload.get('sub')
         if not isinstance(raw_sub, str):

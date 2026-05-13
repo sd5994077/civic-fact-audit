@@ -128,7 +128,7 @@ def test_patch_candidate_forwards_to_service(monkeypatch) -> None:
             self.race_stage = RaceStage.primary
             self.created_at = datetime(2026, 5, 1, tzinfo=timezone.utc)
 
-    def _fake_update(_db, _candidate_id, payload, *, actor_reviewer_id):  # type: ignore[no-untyped-def]
+    def _fake_update(_db, _candidate_id, payload, *, actor_reviewer_id, approval_reviewer_id=None):  # type: ignore[no-untyped-def]
         captured['id'] = _candidate_id
         captured['fields_set'] = payload.model_fields_set
         captured['actor'] = actor_reviewer_id
@@ -166,10 +166,10 @@ def test_patch_candidate_returns_409_for_dual_control_conflict(monkeypatch) -> N
     candidate_id = uuid.uuid4()
     _mock_dual_control_token(monkeypatch, reviewer_id='admin@local')
 
-    def _fake_update(_db, _candidate_id, payload, *, actor_reviewer_id):  # type: ignore[no-untyped-def]
+    def _fake_update(_db, _candidate_id, payload, *, actor_reviewer_id, approval_reviewer_id=None):  # type: ignore[no-untyped-def]
         assert _candidate_id == candidate_id
         assert actor_reviewer_id == 'admin@local'
-        assert payload.approval_reviewer_id == 'admin@local'
+        assert approval_reviewer_id == 'admin@local'
         raise AppError(
             'candidate_dual_control_required',
             'Candidate mutations require different reviewers for approval and final mutation.',
@@ -204,9 +204,9 @@ def test_create_candidate_returns_409_for_dual_control_conflict(monkeypatch) -> 
     app.dependency_overrides[require_admin] = _override_admin
     _mock_dual_control_token(monkeypatch, reviewer_id='admin@local')
 
-    def _fake_create(_db, payload, *, actor_reviewer_id):  # type: ignore[no-untyped-def]
+    def _fake_create(_db, payload, *, actor_reviewer_id, approval_reviewer_id=None):  # type: ignore[no-untyped-def]
         assert actor_reviewer_id == 'admin@local'
-        assert payload.approval_reviewer_id == 'admin@local'
+        assert approval_reviewer_id == 'admin@local'
         raise AppError(
             'candidate_dual_control_required',
             'Candidate mutations require different reviewers for approval and final mutation.',

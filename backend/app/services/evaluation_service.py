@@ -10,6 +10,7 @@ from app.models.entities import Candidate, Claim, ClaimEvaluation, Source, State
 from app.models.enums import ClaimStatus, RaceStage, SourceClass, SourceOrigin, Verdict
 from app.schemas.api import EvaluateClaimRequest
 from app.services.admin_audit_service import AdminAuditService
+from app.services.auth_service import AuthService
 from app.services.source_service import SourceService
 
 
@@ -254,7 +255,14 @@ class EvaluationService:
         ]
 
     @staticmethod
-    def evaluate_claim(db: Session, claim_id: uuid.UUID, payload: EvaluateClaimRequest, reviewer_id: str) -> ClaimEvaluation:
+    def evaluate_claim(
+        db: Session,
+        claim_id: uuid.UUID,
+        payload: EvaluateClaimRequest,
+        reviewer_id: str,
+        *,
+        approval_reviewer_id: str | None = None,
+    ) -> ClaimEvaluation:
         claim = EvaluationService._get_claim_for_evaluation_mutation(db, claim_id)
         if claim is None:
             raise AppError('claim_not_found', 'Claim does not exist.', status_code=404)
@@ -287,8 +295,16 @@ class EvaluationService:
                     status_code=422,
                 )
 
-        normalized_applying_reviewer_id = EvaluationService._normalize_reviewer_id(reviewer_id)
-        normalized_approval_reviewer_id = EvaluationService._normalize_reviewer_id(payload.approval_reviewer_id)
+        normalized_applying_reviewer_id = AuthService.resolve_active_reviewer_id(
+            db,
+            reviewer_id,
+            allowed_roles={'reviewer', 'admin'},
+        )
+        normalized_approval_reviewer_id = AuthService.resolve_active_reviewer_id(
+            db,
+            approval_reviewer_id,
+            allowed_roles={'reviewer', 'admin'},
+        )
         if latest_evaluation is not None:
             if (
                 normalized_approval_reviewer_id is None
@@ -439,12 +455,7 @@ class EvaluationService:
 
     @staticmethod
     def _normalize_reviewer_id(reviewer_id: str | None) -> str | None:
-        if reviewer_id is None:
-            return None
-        normalized = reviewer_id.strip().lower()
-        if not normalized:
-            return None
-        return normalized
+        return AuthService.normalize_reviewer_id(reviewer_id)
 
     @staticmethod
     def _resolve_publish_approval_reviewer_id(

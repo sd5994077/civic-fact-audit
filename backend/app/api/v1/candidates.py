@@ -38,12 +38,12 @@ def create_candidate(
             expected_action='candidate_mutation',
         )
         approval_reviewer_id = approval_identity.reviewer_id
-    payload_for_service = payload.model_copy(
-        update={
-            'approval_reviewer_id': approval_reviewer_id,
-        }
+    candidate = CandidateService.create_candidate(
+        db,
+        payload,
+        actor_reviewer_id=identity.reviewer_id,
+        approval_reviewer_id=approval_reviewer_id,
     )
-    candidate = CandidateService.create_candidate(db, payload_for_service, actor_reviewer_id=identity.reviewer_id)
     return CandidateRead.model_validate(candidate, from_attributes=True)
 
 
@@ -102,7 +102,7 @@ def update_candidate(
     db: Session = Depends(get_db),
     identity: AuthIdentity = Depends(require_admin),
 ) -> CandidateRead:
-    mutable_fields = set(payload.model_fields_set).difference({'approval_reviewer_id', 'approval_token'})
+    mutable_fields = set(payload.model_fields_set).difference({'approval_token'})
     if not mutable_fields:
         raise AppError('candidate_update_empty', 'Candidate update requires at least one field.', status_code=422)
     approval_reviewer_id: str | None = None
@@ -113,15 +113,11 @@ def update_candidate(
             expected_action='candidate_mutation',
         )
         approval_reviewer_id = approval_identity.reviewer_id
-    payload_for_service = payload.model_copy(
-        update={
-            'approval_reviewer_id': approval_reviewer_id,
-        }
-    )
     candidate = CandidateService.update_candidate(
         db,
         candidate_id,
-        payload_for_service,
+        payload,
         actor_reviewer_id=identity.reviewer_id,
+        approval_reviewer_id=approval_reviewer_id,
     )
     return CandidateRead.model_validate(candidate, from_attributes=True)

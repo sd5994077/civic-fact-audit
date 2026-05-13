@@ -10,6 +10,7 @@ from app.models.entities import Candidate, Statement
 from app.models.enums import RaceStage
 from app.schemas.api import CandidateCreate, CandidateUpdate
 from app.services.admin_audit_service import AdminAuditService
+from app.services.auth_service import AuthService
 
 
 @dataclass(frozen=True)
@@ -52,23 +53,27 @@ class CandidateService:
 
     @staticmethod
     def _normalize_reviewer_id(reviewer_id: str | None) -> str | None:
-        if reviewer_id is None:
-            return None
-        normalized = reviewer_id.strip().lower()
-        if not normalized:
-            return None
-        return normalized
+        return AuthService.normalize_reviewer_id(reviewer_id)
 
     @staticmethod
     def _enforce_candidate_dual_control(
+        db: Session,
         *,
         candidate_id: uuid.UUID | None,
         approval_reviewer_id: str | None,
         applying_reviewer_id: str | None,
         action: str,
     ) -> tuple[str, str]:
-        normalized_approval_reviewer_id = CandidateService._normalize_reviewer_id(approval_reviewer_id)
-        normalized_applying_reviewer_id = CandidateService._normalize_reviewer_id(applying_reviewer_id)
+        normalized_approval_reviewer_id = AuthService.resolve_active_reviewer_id(
+            db,
+            approval_reviewer_id,
+            allowed_roles={'reviewer', 'admin'},
+        )
+        normalized_applying_reviewer_id = AuthService.resolve_active_reviewer_id(
+            db,
+            applying_reviewer_id,
+            allowed_roles={'reviewer', 'admin'},
+        )
         if (
             normalized_approval_reviewer_id is None
             or normalized_applying_reviewer_id is None
@@ -130,8 +135,13 @@ class CandidateService:
         return query.order_by(Candidate.name.asc())
 
     @staticmethod
-    def create_candidate(db: Session, payload: CandidateCreate, *, actor_reviewer_id: str | None = None) -> Candidate:
-        approval_reviewer_id = payload.approval_reviewer_id
+    def create_candidate(
+        db: Session,
+        payload: CandidateCreate,
+        *,
+        actor_reviewer_id: str | None = None,
+        approval_reviewer_id: str | None = None,
+    ) -> Candidate:
         applying_reviewer_id = actor_reviewer_id
         candidate = Candidate(
             name=CandidateService._normalize_required_name(payload.name),
@@ -150,6 +160,7 @@ class CandidateService:
         normalized_applying_reviewer_id: str | None = None
         if applying_reviewer_id is not None:
             normalized_approval_reviewer_id, normalized_applying_reviewer_id = CandidateService._enforce_candidate_dual_control(
+                db,
                 candidate_id=None,
                 approval_reviewer_id=approval_reviewer_id,
                 applying_reviewer_id=applying_reviewer_id,
@@ -200,6 +211,7 @@ class CandidateService:
         payload: CandidateUpdate,
         *,
         actor_reviewer_id: str | None = None,
+        approval_reviewer_id: str | None = None,
     ) -> Candidate:
         candidate = CandidateService.get_candidate(db, candidate_id)
         before_payload = CandidateService._candidate_audit_payload(candidate)
@@ -275,8 +287,9 @@ class CandidateService:
         normalized_applying_reviewer_id: str | None = None
         if actor_reviewer_id is not None:
             normalized_approval_reviewer_id, normalized_applying_reviewer_id = CandidateService._enforce_candidate_dual_control(
+                db,
                 candidate_id=candidate.id,
-                approval_reviewer_id=payload.approval_reviewer_id,
+                approval_reviewer_id=approval_reviewer_id,
                 applying_reviewer_id=actor_reviewer_id,
                 action='candidate_update',
             )

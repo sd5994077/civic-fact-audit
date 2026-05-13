@@ -370,9 +370,13 @@ def test_add_source_allows_partisan_candidate_direct_quote_on_social_url(monkeyp
     assert len(sync_calls) == 1
 
 
-def test_attach_sources_bulk_blocks_verification_items_when_reviewers_match() -> None:
+def test_attach_sources_bulk_blocks_verification_items_when_reviewers_match(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     claim_id = uuid.uuid4()
     db = _FakeDbForAddSource(claim_id=claim_id)
+    monkeypatch.setattr(
+        'app.services.source_service.AuthService.resolve_active_reviewer_id',
+        lambda _db, reviewer_id, *, allowed_roles=None: reviewer_id.strip().lower() if reviewer_id else None,
+    )
     items = [
         BulkSourceAttachItem(
             claim_id=claim_id,
@@ -434,6 +438,10 @@ def test_attach_sources_bulk_allows_candidate_origin_when_reviewers_match(monkey
 def test_attach_sources_bulk_mixed_batch_enforces_verification_only_and_writes_audit(monkeypatch) -> None:
     claim_id = uuid.uuid4()
     db = _FakeDbForAddSource(claim_id=claim_id)
+    monkeypatch.setattr(
+        'app.services.source_service.AuthService.resolve_active_reviewer_id',
+        lambda _db, reviewer_id, *, allowed_roles=None: reviewer_id.strip().lower() if reviewer_id else None,
+    )
     monkeypatch.setattr(
         'app.services.source_service.EvidenceBundleService.sync_claim_bundle',
         lambda *_args, **_kwargs: None,
@@ -548,6 +556,10 @@ def test_attach_sources_bulk_operation_id_is_deterministic(monkeypatch) -> None:
     claim_id = uuid.uuid4()
     db = _FakeDbForAddSource(claim_id=claim_id)
     monkeypatch.setattr(
+        'app.services.source_service.AuthService.resolve_active_reviewer_id',
+        lambda _db, reviewer_id, *, allowed_roles=None: reviewer_id.strip().lower() if reviewer_id else None,
+    )
+    monkeypatch.setattr(
         'app.services.source_service.SourceService.add_source',
         lambda *_args, **_kwargs: [],
     )
@@ -578,6 +590,10 @@ def test_attach_sources_bulk_operation_id_is_deterministic(monkeypatch) -> None:
 def test_attach_sources_bulk_operation_id_ignores_item_order(monkeypatch) -> None:
     claim_id = uuid.uuid4()
     db = _FakeDbForAddSource(claim_id=claim_id)
+    monkeypatch.setattr(
+        'app.services.source_service.AuthService.resolve_active_reviewer_id',
+        lambda _db, reviewer_id, *, allowed_roles=None: reviewer_id.strip().lower() if reviewer_id else None,
+    )
     monkeypatch.setattr(
         'app.services.source_service.SourceService.add_source',
         lambda *_args, **_kwargs: [],

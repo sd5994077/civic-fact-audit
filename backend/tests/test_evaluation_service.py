@@ -567,6 +567,10 @@ def test_evaluate_claim_overwrite_blocks_same_reviewer_after_normalization(monke
         lambda *_args, **_kwargs: _LatestEval(),
     )
     monkeypatch.setattr('app.services.evaluation_service.SourceService.has_minimum_evidence', lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        'app.services.evaluation_service.AuthService.resolve_active_reviewer_id',
+        lambda _db, reviewer_id, *, allowed_roles=None: reviewer_id.strip().lower() if reviewer_id else None,
+    )
 
     try:
         EvaluationService.evaluate_claim(
@@ -577,9 +581,9 @@ def test_evaluate_claim_overwrite_blocks_same_reviewer_after_normalization(monke
                 confidence=0.81,
                 rationale='Updated rationale references neutral records.',
                 citation_notes='Source packet B',
-                approval_reviewer_id='  APPROVER@LOCAL ',
             ),
             reviewer_id=' approver@local ',
+            approval_reviewer_id='  APPROVER@LOCAL ',
         )
         assert False, 'Expected evaluation_overwrite_dual_control_required'
     except AppError as exc:
@@ -635,6 +639,10 @@ def test_evaluate_claim_overwrite_allows_different_reviewer_and_writes_audit(mon
         lambda *_args, **_kwargs: _LatestEval(),
     )
     monkeypatch.setattr('app.services.evaluation_service.SourceService.has_minimum_evidence', lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        'app.services.evaluation_service.AuthService.resolve_active_reviewer_id',
+        lambda _db, reviewer_id, *, allowed_roles=None: reviewer_id.strip().lower() if reviewer_id else None,
+    )
 
     db = _Db()
     evaluation = EvaluationService.evaluate_claim(
@@ -645,9 +653,9 @@ def test_evaluate_claim_overwrite_allows_different_reviewer_and_writes_audit(mon
             confidence=0.86,
             rationale='Updated rationale references neutral records.',
             citation_notes='Source packet C',
-            approval_reviewer_id=' APPROVER@LOCAL ',
         ),
         reviewer_id='applier@local',
+        approval_reviewer_id=' APPROVER@LOCAL ',
     )
 
     assert evaluation.reviewer_id == 'applier@local'

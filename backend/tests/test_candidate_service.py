@@ -195,17 +195,25 @@ def test_create_candidate_flushes_before_audit_event(monkeypatch) -> None:
         captured['commit'] = commit
 
     monkeypatch.setattr('app.services.candidate_service.AdminAuditService.record_event', _fake_record_event)
+    monkeypatch.setattr(
+        'app.services.candidate_service.AuthService.resolve_active_reviewer_id',
+        lambda _db, reviewer_id, *, allowed_roles=None: reviewer_id.strip().lower() if reviewer_id else None,
+    )
 
     db = _FakeDb()
     payload = CandidateCreate(
         name='Candidate A',
-        approval_reviewer_id='approver@local',
         office='US Senate',
         state='TX',
         election_cycle=2026,
         race_stage=RaceStage.primary,
     )
-    CandidateService.create_candidate(db, payload, actor_reviewer_id='admin@local')  # type: ignore[arg-type]
+    CandidateService.create_candidate(
+        db,
+        payload,
+        actor_reviewer_id='admin@local',
+        approval_reviewer_id='approver@local',
+    )  # type: ignore[arg-type]
 
     assert db.flush_called is True
     assert captured['actor_reviewer_id'] == 'admin@local'
@@ -354,15 +362,20 @@ def test_create_candidate_blocks_when_approval_and_applying_reviewer_match() -> 
         def refresh(self, _candidate):  # type: ignore[no-untyped-def]
             return None
 
-    payload = CandidateCreate(name='Candidate A', approval_reviewer_id='admin@local')
+    payload = CandidateCreate(name='Candidate A')
     try:
-        CandidateService.create_candidate(_FakeDb(), payload, actor_reviewer_id='admin@local')  # type: ignore[arg-type]
+        CandidateService.create_candidate(
+            _FakeDb(),
+            payload,
+            actor_reviewer_id='admin@local',
+            approval_reviewer_id='admin@local',
+        )  # type: ignore[arg-type]
         assert False, 'Expected candidate_dual_control_required'
     except AppError as exc:
         assert exc.code == 'candidate_dual_control_required'
         assert exc.status_code == 409
-        assert exc.details['approval_reviewer_id'] == 'admin@local'
-        assert exc.details['applying_reviewer_id'] == 'admin@local'
+        assert exc.details['approval_reviewer_id'] is None
+        assert exc.details['applying_reviewer_id'] is None
         assert exc.details['action'] == 'candidate_create'
 
 
@@ -408,14 +421,15 @@ def test_update_candidate_blocks_when_approval_and_applying_reviewer_match() -> 
         CandidateService.update_candidate(
             _FakeDb(),
             candidate_id,
-            CandidateUpdate(approval_reviewer_id='ADMIN@LOCAL', party='Democratic'),
+            CandidateUpdate(party='Democratic'),
             actor_reviewer_id=' admin@local ',
+            approval_reviewer_id='ADMIN@LOCAL',
         )  # type: ignore[arg-type]
         assert False, 'Expected candidate_dual_control_required'
     except AppError as exc:
         assert exc.code == 'candidate_dual_control_required'
         assert exc.status_code == 409
         assert exc.details['candidate_id'] == str(candidate_id)
-        assert exc.details['approval_reviewer_id'] == 'admin@local'
-        assert exc.details['applying_reviewer_id'] == 'admin@local'
+        assert exc.details['approval_reviewer_id'] is None
+        assert exc.details['applying_reviewer_id'] is None
         assert exc.details['action'] == 'candidate_update'

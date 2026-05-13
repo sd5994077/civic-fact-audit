@@ -65,12 +65,13 @@ def evaluate_claim(
             expected_action='evaluation_overwrite',
         )
         approval_reviewer_id = approval_identity.reviewer_id
-    payload_for_service = payload.model_copy(
-        update={
-            'approval_reviewer_id': approval_reviewer_id,
-        }
+    evaluation = EvaluationService.evaluate_claim(
+        db,
+        claim_id,
+        payload,
+        reviewer_id=identity.reviewer_id,
+        approval_reviewer_id=approval_reviewer_id,
     )
-    evaluation = EvaluationService.evaluate_claim(db, claim_id, payload_for_service, reviewer_id=identity.reviewer_id)
     return ClaimEvaluationRead.model_validate(evaluation, from_attributes=True)
 
 
