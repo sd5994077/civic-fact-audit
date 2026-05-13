@@ -18,6 +18,11 @@ All tables include `created_at` and `updated_at` audit timestamps.
 - `created_at`
 - `updated_at`
 
+Operational API controls:
+- `POST /v1/candidates` and `PATCH /v1/candidates/{id}` accept `approval_token` for dual-control.
+- Client-supplied `approval_reviewer_id` is ignored for these endpoints; reviewer identity is resolved from token subject server-side.
+- Final mutation actor (authenticated admin) must differ from resolved approval reviewer; conflicts return `409 candidate_dual_control_required`.
+
 ## Statement
 - `id` (UUID)
 - `candidate_id` (FK)
@@ -79,6 +84,12 @@ These policy fields let each shared frame declare what evidence classes are acce
 
 `source_class` describes evidence depth. `source_origin` describes who controls the source. Candidate-originated material may document what was said, but it is not sufficient verification on its own.
 
+Bulk attach contract:
+- `POST /v1/claims/sources/bulk` accepts `{ approval_token, items[] }` for verification-origin batches.
+- Dual-control enforcement in this phase is verification-only:
+  - if any `items[].source_origin == verification`, resolved token reviewer must differ from the applying reviewer/admin actor;
+  - candidate-origin-only batches keep prior behavior.
+
 ## ClaimEvidenceBundle
 - `id` (UUID)
 - `claim_id` (unique FK)
@@ -114,6 +125,10 @@ Public compare cards currently render a curated subset capped per side (candidat
 
 Multiple evaluations per claim are allowed. The latest evaluation is used for scoring; prior rows remain as revision history.
 Evaluation writes require authenticated bearer token; reviewer identity is resolved server-side from reviewer account records.
+Evaluation overwrite dual-control:
+- request supports optional `approval_token` (action `evaluation_overwrite`).
+- first evaluation write is allowed without dual-control.
+- overwrite writes (claim already has prior evaluation row) require different token reviewer identity and applying reviewer identity; conflicts return `409 evaluation_overwrite_dual_control_required`.
 
 ## ClaimProposal
 - `id` (UUID)

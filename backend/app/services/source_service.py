@@ -1,10 +1,12 @@
 import uuid
+import json
 
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
+from app.core.source_quality_scoring import score_source_quality
 from app.core.source_admission_policy import (
     SourcePolicyRuleMatch,
     find_partisan_rule_match,
@@ -15,10 +17,54 @@ from app.models.entities import Candidate, Claim, Source, Statement
 from app.models.enums import RaceStage, SourceClass, SourceOrigin
 from app.models.enums import ClaimStatus as ClaimStatusEnum
 from app.schemas.api import AddSourceRequest, BulkSourceAttachItem
+from app.services.admin_audit_service import AdminAuditService
+from app.services.auth_service import AuthService
 from app.services.evidence_bundle_service import EvidenceBundleService
 
 
 class SourceService:
+    @staticmethod
+    def _normalize_reviewer_id(reviewer_id: str | None) -> str | None:
+        return AuthService.normalize_reviewer_id(reviewer_id)
+
+    @staticmethod
+    def _build_bulk_operation_id(
+        *,
+        approval_reviewer_id: str | None,
+        applying_reviewer_id: str | None,
+        items: list[BulkSourceAttachItem],
+    ) -> str:
+        canonical_items = sorted(
+            (
+                {
+                    'claim_id': str(item.claim_id),
+                    'url': str(item.url),
+                    'source_class': item.source_class.value,
+                    'source_origin': item.source_origin.value,
+                    'publisher': item.publisher,
+                    'quality_score': item.quality_score,
+                    'is_direct_candidate_quote': item.is_direct_candidate_quote,
+                }
+                for item in items
+            ),
+            key=lambda entry: (
+                entry['claim_id'],
+                entry['url'],
+                entry['source_class'],
+                entry['source_origin'],
+                entry['publisher'] or '',
+                str(entry['quality_score']),
+                str(entry['is_direct_candidate_quote']),
+            ),
+        )
+        payload = {
+            'approval_reviewer_id': SourceService._normalize_reviewer_id(approval_reviewer_id),
+            'applying_reviewer_id': SourceService._normalize_reviewer_id(applying_reviewer_id),
+            'items': canonical_items,
+        }
+        canonical = json.dumps(payload, separators=(',', ':'), sort_keys=True)
+        return str(uuid.uuid5(uuid.NAMESPACE_URL, canonical))
+
     @staticmethod
     def _fact_checkable_predicate():
         return Claim.fact_checkable.is_(True)
@@ -195,13 +241,22 @@ class SourceService:
             raise AppError('claim_not_found', 'Claim does not exist.', status_code=404)
         SourceService.validate_source_admission(payload)
 
+        quality_score = payload.quality_score
+        if quality_score is None:
+            quality_score = score_source_quality(
+                url=str(payload.url),
+                source_class=payload.source_class,
+                source_origin=payload.source_origin,
+                is_direct_candidate_quote=payload.is_direct_candidate_quote,
+            )
+
         source = Source(
             claim_id=claim.id,
             url=str(payload.url),
             source_class=payload.source_class,
             source_origin=payload.source_origin,
             publisher=payload.publisher,
-            quality_score=payload.quality_score,
+            quality_score=quality_score,
         )
         db.add(source)
         try:
@@ -307,12 +362,86 @@ class SourceService:
         return items
 
     @staticmethod
-    def attach_sources_bulk(db: Session, items: list[BulkSourceAttachItem]) -> dict[str, object]:
+    def attach_sources_bulk(
+        db: Session,
+        *,
+        approval_reviewer_id: str | None,
+        applying_reviewer_id: str,
+        items: list[BulkSourceAttachItem],
+    ) -> dict[str, object]:
+        normalized_approval_reviewer_id = AuthService.resolve_active_reviewer_id(
+            db,
+            approval_reviewer_id,
+            allowed_roles={'reviewer', 'admin'},
+        )
+        normalized_applying_reviewer_id = AuthService.resolve_active_reviewer_id(
+            db,
+            applying_reviewer_id,
+            allowed_roles={'reviewer', 'admin'},
+        )
+        bulk_operation_id = SourceService._build_bulk_operation_id(
+            approval_reviewer_id=normalized_approval_reviewer_id,
+            applying_reviewer_id=normalized_applying_reviewer_id,
+            items=items,
+        )
+        has_verification_items = any(item.source_origin == SourceOrigin.verification for item in items)
+        has_candidate_items = any(item.source_origin == SourceOrigin.candidate for item in items)
+        dual_control_valid = (
+            normalized_approval_reviewer_id is not None
+            and normalized_applying_reviewer_id is not None
+            and normalized_approval_reviewer_id != normalized_applying_reviewer_id
+        )
+        if has_verification_items and (
+            not dual_control_valid
+            and not has_candidate_items
+        ):
+            raise AppError(
+                'bulk_attach_dual_control_required',
+                'Verification-source bulk attach operations require different reviewers for approval and final mutation.',
+                status_code=409,
+                details={
+                    'bulk_operation_id': bulk_operation_id,
+                    'approval_reviewer_id': normalized_approval_reviewer_id,
+                    'applying_reviewer_id': normalized_applying_reviewer_id,
+                    'action': 'bulk_attach_verification_sources',
+                },
+            )
+
         attached = 0
         failed = 0
         results: list[dict[str, object]] = []
+        status_counts: dict[str, int] = {
+            'attached': 0,
+            'duplicate': 0,
+            'policy_violation': 0,
+            'claim_not_found': 0,
+            'error': 0,
+        }
 
         for item in items:
+            if item.source_origin == SourceOrigin.verification and not dual_control_valid:
+                failed += 1
+                status_counts['error'] += 1
+                results.append(
+                    {
+                        'claim_id': item.claim_id,
+                        'url': str(item.url),
+                        'source_class': item.source_class,
+                        'source_origin': item.source_origin,
+                        'status': 'error',
+                        'error': {
+                            'code': 'bulk_attach_dual_control_required',
+                            'message': 'Verification-source bulk attach operations require different reviewers for approval and final mutation.',
+                            'details': {
+                                'bulk_operation_id': bulk_operation_id,
+                                'approval_reviewer_id': normalized_approval_reviewer_id,
+                                'applying_reviewer_id': normalized_applying_reviewer_id,
+                                'action': 'bulk_attach_verification_sources',
+                            },
+                        },
+                    }
+                )
+                continue
             payload = AddSourceRequest(
                 url=item.url,
                 source_class=item.source_class,
@@ -324,6 +453,7 @@ class SourceService:
             try:
                 SourceService.add_source(db, item.claim_id, payload)
                 attached += 1
+                status_counts['attached'] += 1
                 results.append(
                     {
                         'claim_id': item.claim_id,
@@ -336,18 +466,44 @@ class SourceService:
                 )
             except AppError as exc:
                 failed += 1
+                status = SourceService._bulk_status_from_error_code(exc.code)
+                if status not in status_counts:
+                    status = 'error'
+                status_counts[status] += 1
                 results.append(
                     {
                         'claim_id': item.claim_id,
                         'url': str(item.url),
                         'source_class': item.source_class,
                         'source_origin': item.source_origin,
-                        'status': SourceService._bulk_status_from_error_code(exc.code),
+                        'status': status,
                         'error': {'code': exc.code, 'message': exc.message, 'details': exc.details},
                     }
                 )
 
+        if normalized_applying_reviewer_id is not None:
+            AdminAuditService.record_event(
+                db,
+                actor_reviewer_id=normalized_applying_reviewer_id,
+                action='bulk_sources_attached',
+                entity_type='bulk_source_attach',
+                entity_id=bulk_operation_id,
+                metadata={
+                    'bulk_operation_id': bulk_operation_id,
+                    'total': len(items),
+                    'attached': attached,
+                    'failed': failed,
+                    'status_counts': status_counts,
+                    'approval_reviewer_id': normalized_approval_reviewer_id,
+                    'applying_reviewer_id': normalized_applying_reviewer_id,
+                    'dual_control_enforced': has_verification_items,
+                },
+                commit=False,
+            )
+            db.commit()
+
         return {
+            'bulk_operation_id': bulk_operation_id,
             'total': len(items),
             'attached': attached,
             'failed': failed,

@@ -48,6 +48,8 @@ class Candidate(TimestampMixin, Base):
     statements: Mapped[list['Statement']] = relationship(back_populates='candidate', cascade='all, delete-orphan')
     score_snapshots: Mapped[list['ScoreSnapshot']] = relationship(back_populates='candidate', cascade='all, delete-orphan')
 
+    __table_args__ = (Index('ix_candidates_race_context', 'state', 'office', 'election_cycle', 'race_stage'),)
+
 
 class ReviewerUser(TimestampMixin, Base):
     __tablename__ = 'reviewer_users'
@@ -153,6 +155,8 @@ class Claim(TimestampMixin, Base):
     __table_args__ = (
         Index('ix_claims_statement_status', 'statement_id', 'status'),
         Index('ix_claims_issue_frame_id', 'issue_frame_id'),
+        Index('ix_claims_fact_checkable', 'fact_checkable'),
+        Index('ix_claims_fact_checkable_published', 'fact_checkable', 'is_published'),
     )
 
 
@@ -290,6 +294,11 @@ class AdminJobRun(TimestampMixin, Base):
     input_payload: Mapped[str] = mapped_column(Text, nullable=False, default='{}', server_default='{}')
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    attempt_count: Mapped[int] = mapped_column(nullable=False, default=0, server_default='0')
+    max_attempts: Mapped[int] = mapped_column(nullable=False, default=3, server_default='3')
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     result_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_details: Mapped[str | None] = mapped_column(Text, nullable=True)
 

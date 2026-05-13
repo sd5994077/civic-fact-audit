@@ -3,14 +3,20 @@
 This workflow keeps race setup and statement intake reproducible and auditable.
 
 ## Admin job intake profiles (Step 2)
-- Intake jobs in `POST /v1/admin/jobs` are now profile-driven and still execute synchronously in-request (no async worker yet).
+- Intake jobs in `POST /v1/admin/jobs` are profile-driven and now enqueue for background worker execution with retries.
 - Supported payload shapes:
   - `{"job_type":"ingest_candidate_roster","input_payload":{"profile_id":"tx_2026_senate"}}`
-  - `{"job_type":"ingest_statement_batch","input_payload":{"profile_id":"tx_2026_senate","statement_batch":"round3"}}`
+  - `{"job_type":"ingest_statement_batch","input_payload":{"profile_id":"tx_2026_senate","statement_batch":"round4"}}`
+  - `{"job_type":"extract_claims_batch","input_payload":{"profile_id":"tx_2026_senate"}}`
+  - `{"job_type":"backfill_claim_reviewability","input_payload":{"profile_id":"tx_2026_ag_runoff"}}`
+  - `{"job_type":"generate_publish_queue_report","input_payload":{"profile_id":"tx_2026_ag_runoff"}}`
+  - `{"job_type":"generate_publish_progress_report","input_payload":{"profile_id":"tx_2026_ag_runoff"}}`
+  - `{"job_type":"generate_profile_claim_coverage_report","input_payload":{"profile_id":"tx_2026_senate"}}`
 - Current profile ids:
   - `tx_2026_senate`
   - `tx_2026_ag_runoff`
 - `statement_batch` values are profile-specific and must match configured batch keys for the selected profile.
+- Additional profile-scoped job support is surfaced via `GET /v1/admin/jobs/metadata` (`allowed_values.profile_id` per job type).
 
 ## 1) Create/refresh race roster
 - Run the race roster ingester for the target race.
@@ -29,9 +35,11 @@ This workflow keeps race setup and statement intake reproducible and auditable.
   - `python -m app.scripts.ingest_tx_2026_statement_batch`
   - `python -m app.scripts.ingest_tx_2026_statement_batch_round2`
   - `python -m app.scripts.ingest_tx_2026_statement_batch_round3`
+  - `python -m app.scripts.ingest_tx_2026_statement_batch_round4`
 - Example (Texas 2026 Attorney General runoff starter):
   - `python -m app.scripts.ingest_tx_2026_attorney_general_runoff_statement_batch --dry-run`
   - `python -m app.scripts.ingest_tx_2026_attorney_general_runoff_statement_batch`
+  - `python -m app.scripts.ingest_tx_2026_attorney_general_runoff_statement_batch_round2`
 - Use the later batches to introduce narrower, record-checkable claims after initial campaign-context capture.
 
 ## 3) Extract claims
@@ -80,3 +88,20 @@ Backfill non-curated evidence bundles after source attachment so compare/public 
 - Prioritize expansion by explicit race list and stage:
   - current pilot: Texas 2026 U.S. Senate primary/runoff context
   - next discussions should cover which additional 2026 races matter most and are realistic to review well
+
+## Coverage-to-3 operator sequence (current profiles)
+Use this sequence for `tx_2026_senate` and `tx_2026_ag_runoff` when the goal is at least 3 published verified claims per candidate.
+
+1. Ingest approved statement batches through `POST /v1/admin/jobs`:
+   - Senate: `round4` (in addition to already-approved earlier rounds).
+   - AG runoff: `round2` (in addition to starter).
+2. Run `extract_claims_batch` then `backfill_claim_reviewability` for each profile.
+3. Run `generate_publish_queue_report` and `generate_publish_progress_report` for each profile.
+4. Attach evidence with `POST /v1/claims/sources/bulk`:
+   - at least one verification `primary`
+   - at least one verification `secondary`
+   - no partisan/advocacy verification sources
+5. Evaluate via `POST /v1/claims/{id}/evaluate` and publish via `POST /v1/claims/{id}/publish`.
+6. Run `generate_profile_claim_coverage_report` for each profile and require pass:
+   - every candidate `published_verified_claims >= 3`
+7. If any candidate fails coverage gate, keep remaining claims unpublished and continue evidence/review work until gate passes.

@@ -11,6 +11,9 @@ node_modules/
 .next/
 dist/
 out/
+test-results/
+playwright-report/
+blob-report/
 
 # Editor/OS
 .vscode/

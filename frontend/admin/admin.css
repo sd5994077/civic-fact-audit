@@ -258,6 +258,68 @@ textarea { min-height: 84px; resize: vertical; }
   word-break: break-word;
 }
 
+.checklist-box {
+  margin: 0.6rem 0;
+  padding: 0.7rem;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.checklist-box h4 {
+  margin: 0 0 0.5rem;
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.checklist {
+  margin: 0;
+  padding-left: 1rem;
+  display: grid;
+  gap: 0.25rem;
+  color: var(--muted);
+}
+
+.checklist .ok {
+  color: var(--ok);
+}
+
+.checklist .bad {
+  color: var(--bad);
+}
+
+.health-stat-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.health-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.55rem 0.8rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
+  min-width: 7rem;
+}
+
+.health-stat-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+.health-stat-value {
+  font-size: 1.15rem;
+  font-family: Consolas, "Courier New", monospace;
+  color: var(--ink);
+}
+
+.health-stat-value.is-ok { color: var(--ok); }
+.health-stat-value.is-bad { color: var(--bad); }
+.health-stat-value.is-warn { color: #ffd078; }
+
 @media (max-width: 1000px) {
   .admin-header,
   .grid-two,

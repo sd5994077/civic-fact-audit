@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -8,7 +9,7 @@ from typing import Literal
 
 from app.core.errors import AppError
 
-MatchMode = Literal['contains']
+MatchMode = Literal['contains', 'regex']
 
 
 @dataclass(frozen=True)
@@ -50,7 +51,7 @@ def get_moderation_policy(path: str | None = None) -> ModerationPolicy:
     payload = json.loads(policy_path.read_text(encoding='utf-8'))
     version = str(payload.get('version', 'moderation_policy_unversioned')).strip() or 'moderation_policy_unversioned'
     mode = str(payload.get('matching', {}).get('mode', 'contains')).strip().lower()
-    if mode != 'contains':
+    if mode not in ('contains', 'regex'):
         raise ValueError(f'Unsupported moderation matching mode: {mode}')
 
     rules_payload = payload.get('rules', [])
@@ -69,9 +70,17 @@ def get_moderation_policy(path: str | None = None) -> ModerationPolicy:
         normalized_patterns = tuple(str(pattern).strip().lower() for pattern in patterns if str(pattern).strip())
         if not normalized_patterns:
             continue
+        if mode == 'regex':
+            for pat in normalized_patterns:
+                try:
+                    re.compile(pat)
+                except re.error as exc:
+                    raise ValueError(
+                        f'Rule "{rule_id}" contains invalid regex pattern "{pat}": {exc}'
+                    ) from exc
         rules.append(ModerationRule(rule_id=rule_id, violation_type=violation_type, patterns=normalized_patterns))
 
-    return ModerationPolicy(version=version, mode='contains', rules=tuple(rules))
+    return ModerationPolicy(version=version, mode=mode, rules=tuple(rules))
 
 
 def find_moderation_violation(text: str) -> ModerationViolation | None:
@@ -79,9 +88,15 @@ def find_moderation_violation(text: str) -> ModerationViolation | None:
     if not normalized:
         return None
     policy = get_moderation_policy()
+    use_regex = policy.mode == 'regex'
     for rule in policy.rules:
         for pattern in rule.patterns:
-            if pattern in normalized:
+            matched = (
+                bool(re.search(pattern, normalized))
+                if use_regex
+                else pattern in normalized
+            )
+            if matched:
                 return ModerationViolation(
                     rule_id=rule.rule_id,
                     violation_type=rule.violation_type,

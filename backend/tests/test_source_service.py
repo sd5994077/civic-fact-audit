@@ -1,5 +1,10 @@
+import uuid
+import json
+
 from app.models.enums import RaceStage, SourceClass, SourceOrigin
+from app.models.entities import AdminAuditEvent
 from app.core.errors import AppError
+from app.schemas.api import BulkSourceAttachItem
 from app.services.source_service import SourceService
 
 
@@ -363,3 +368,303 @@ def test_add_source_allows_partisan_candidate_direct_quote_on_social_url(monkeyp
 
     SourceService.add_source(db, claim_id, payload)
     assert len(sync_calls) == 1
+
+
+def test_attach_sources_bulk_blocks_verification_items_when_reviewers_match(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    claim_id = uuid.uuid4()
+    db = _FakeDbForAddSource(claim_id=claim_id)
+    monkeypatch.setattr(
+        'app.services.source_service.AuthService.resolve_active_reviewer_id',
+        lambda _db, reviewer_id, *, allowed_roles=None: reviewer_id.strip().lower() if reviewer_id else None,
+    )
+    items = [
+        BulkSourceAttachItem(
+            claim_id=claim_id,
+            url='https://example.gov/record',
+            source_class=SourceClass.primary,
+            source_origin=SourceOrigin.verification,
+            quality_score=0.9,
+        )
+    ]
+    try:
+        SourceService.attach_sources_bulk(
+            db,  # type: ignore[arg-type]
+            approval_reviewer_id='ADMIN@LOCAL',
+            applying_reviewer_id=' admin@local ',
+            items=items,
+        )
+        assert False, 'Expected bulk_attach_dual_control_required'
+    except AppError as exc:
+        assert exc.code == 'bulk_attach_dual_control_required'
+        assert exc.status_code == 409
+        assert exc.details['approval_reviewer_id'] == 'admin@local'
+        assert exc.details['applying_reviewer_id'] == 'admin@local'
+        assert exc.details['action'] == 'bulk_attach_verification_sources'
+        assert isinstance(exc.details['bulk_operation_id'], str)
+
+
+def test_attach_sources_bulk_allows_candidate_origin_when_reviewers_match(monkeypatch) -> None:
+    claim_id = uuid.uuid4()
+    db = _FakeDbForAddSource(claim_id=claim_id)
+    monkeypatch.setattr(
+        'app.services.source_service.EvidenceBundleService.sync_claim_bundle',
+        lambda *_args, **_kwargs: None,
+    )
+    items = [
+        BulkSourceAttachItem(
+            claim_id=claim_id,
+            url='https://x.com/candidate/status/1',
+            source_class=SourceClass.primary,
+            source_origin=SourceOrigin.candidate,
+            quality_score=0.6,
+            is_direct_candidate_quote=True,
+        )
+    ]
+
+    result = SourceService.attach_sources_bulk(
+        db,  # type: ignore[arg-type]
+        approval_reviewer_id='admin@local',
+        applying_reviewer_id='admin@local',
+        items=items,
+    )
+
+    assert result['total'] == 1
+    assert result['attached'] == 1
+    assert result['failed'] == 0
+    assert result['results'][0]['status'] == 'attached'
+    assert isinstance(result['bulk_operation_id'], str)
+
+
+def test_attach_sources_bulk_mixed_batch_enforces_verification_only_and_writes_audit(monkeypatch) -> None:
+    claim_id = uuid.uuid4()
+    db = _FakeDbForAddSource(claim_id=claim_id)
+    monkeypatch.setattr(
+        'app.services.source_service.AuthService.resolve_active_reviewer_id',
+        lambda _db, reviewer_id, *, allowed_roles=None: reviewer_id.strip().lower() if reviewer_id else None,
+    )
+    monkeypatch.setattr(
+        'app.services.source_service.EvidenceBundleService.sync_claim_bundle',
+        lambda *_args, **_kwargs: None,
+    )
+    items = [
+        BulkSourceAttachItem(
+            claim_id=claim_id,
+            url='https://example.gov/record-1',
+            source_class=SourceClass.primary,
+            source_origin=SourceOrigin.verification,
+            quality_score=0.9,
+        ),
+        BulkSourceAttachItem(
+            claim_id=claim_id,
+            url='https://example.gov/duplicate',
+            source_class=SourceClass.secondary,
+            source_origin=SourceOrigin.verification,
+            quality_score=0.5,
+        ),
+        BulkSourceAttachItem(
+            claim_id=claim_id,
+            url='https://x.com/candidate/status/1',
+            source_class=SourceClass.primary,
+            source_origin=SourceOrigin.candidate,
+            quality_score=0.6,
+            is_direct_candidate_quote=True,
+        ),
+    ]
+
+    def _fake_add_source(_db, _claim_id, payload, *, commit=True):  # type: ignore[no-untyped-def]
+        if 'duplicate' in str(payload.url):
+            raise AppError('duplicate_source', 'Duplicate source', status_code=409)
+        return []
+
+    monkeypatch.setattr('app.services.source_service.SourceService.add_source', _fake_add_source)
+
+    result = SourceService.attach_sources_bulk(
+        db,  # type: ignore[arg-type]
+        approval_reviewer_id='Approver@Local',
+        applying_reviewer_id='applier@local',
+        items=items,
+    )
+
+    assert result['total'] == 3
+    assert result['attached'] == 2
+    assert result['failed'] == 1
+    assert [row['status'] for row in result['results']] == ['attached', 'duplicate', 'attached']
+    assert isinstance(result['bulk_operation_id'], str)
+    events = [item for item in db.added if isinstance(item, AdminAuditEvent)]
+    assert len(events) == 1
+    metadata = json.loads(events[0].metadata_payload or '{}')
+    assert metadata['bulk_operation_id'] == result['bulk_operation_id']
+    assert metadata['status_counts']['attached'] == 2
+    assert metadata['status_counts']['duplicate'] == 1
+    assert metadata['status_counts']['policy_violation'] == 0
+    assert metadata['status_counts']['claim_not_found'] == 0
+    assert metadata['status_counts']['error'] == 0
+    assert metadata['approval_reviewer_id'] == 'approver@local'
+    assert metadata['applying_reviewer_id'] == 'applier@local'
+    assert metadata['dual_control_enforced'] is True
+
+
+def test_attach_sources_bulk_mixed_batch_same_reviewer_blocks_only_verification_items(monkeypatch) -> None:
+    claim_id = uuid.uuid4()
+    db = _FakeDbForAddSource(claim_id=claim_id)
+    monkeypatch.setattr(
+        'app.services.source_service.EvidenceBundleService.sync_claim_bundle',
+        lambda *_args, **_kwargs: None,
+    )
+    items = [
+        BulkSourceAttachItem(
+            claim_id=claim_id,
+            url='https://example.gov/record-1',
+            source_class=SourceClass.primary,
+            source_origin=SourceOrigin.verification,
+            quality_score=0.9,
+        ),
+        BulkSourceAttachItem(
+            claim_id=claim_id,
+            url='https://x.com/candidate/status/1',
+            source_class=SourceClass.primary,
+            source_origin=SourceOrigin.candidate,
+            quality_score=0.6,
+            is_direct_candidate_quote=True,
+        ),
+    ]
+
+    def _fake_add_source(_db, _claim_id, payload, *, commit=True):  # type: ignore[no-untyped-def]
+        assert payload.source_origin == SourceOrigin.candidate
+        return []
+
+    monkeypatch.setattr('app.services.source_service.SourceService.add_source', _fake_add_source)
+
+    result = SourceService.attach_sources_bulk(
+        db,  # type: ignore[arg-type]
+        approval_reviewer_id='admin@local',
+        applying_reviewer_id='admin@local',
+        items=items,
+    )
+
+    assert result['total'] == 2
+    assert result['attached'] == 1
+    assert result['failed'] == 1
+    assert result['results'][0]['source_origin'] == SourceOrigin.verification
+    assert result['results'][0]['status'] == 'error'
+    assert result['results'][0]['error']['code'] == 'bulk_attach_dual_control_required'
+    assert result['results'][1]['source_origin'] == SourceOrigin.candidate
+    assert result['results'][1]['status'] == 'attached'
+
+
+def test_attach_sources_bulk_operation_id_is_deterministic(monkeypatch) -> None:
+    claim_id = uuid.uuid4()
+    db = _FakeDbForAddSource(claim_id=claim_id)
+    monkeypatch.setattr(
+        'app.services.source_service.AuthService.resolve_active_reviewer_id',
+        lambda _db, reviewer_id, *, allowed_roles=None: reviewer_id.strip().lower() if reviewer_id else None,
+    )
+    monkeypatch.setattr(
+        'app.services.source_service.SourceService.add_source',
+        lambda *_args, **_kwargs: [],
+    )
+    items = [
+        BulkSourceAttachItem(
+            claim_id=claim_id,
+            url='https://example.gov/record',
+            source_class=SourceClass.primary,
+            source_origin=SourceOrigin.verification,
+            quality_score=0.9,
+        )
+    ]
+    first = SourceService.attach_sources_bulk(
+        db,  # type: ignore[arg-type]
+        approval_reviewer_id='approver@local',
+        applying_reviewer_id='applier@local',
+        items=items,
+    )
+    second = SourceService.attach_sources_bulk(
+        db,  # type: ignore[arg-type]
+        approval_reviewer_id='approver@local',
+        applying_reviewer_id='applier@local',
+        items=items,
+    )
+    assert first['bulk_operation_id'] == second['bulk_operation_id']
+
+
+def test_attach_sources_bulk_operation_id_ignores_item_order(monkeypatch) -> None:
+    claim_id = uuid.uuid4()
+    db = _FakeDbForAddSource(claim_id=claim_id)
+    monkeypatch.setattr(
+        'app.services.source_service.AuthService.resolve_active_reviewer_id',
+        lambda _db, reviewer_id, *, allowed_roles=None: reviewer_id.strip().lower() if reviewer_id else None,
+    )
+    monkeypatch.setattr(
+        'app.services.source_service.SourceService.add_source',
+        lambda *_args, **_kwargs: [],
+    )
+    item_a = BulkSourceAttachItem(
+        claim_id=claim_id,
+        url='https://example.gov/record-a',
+        source_class=SourceClass.primary,
+        source_origin=SourceOrigin.verification,
+        quality_score=0.9,
+    )
+    item_b = BulkSourceAttachItem(
+        claim_id=claim_id,
+        url='https://example.gov/record-b',
+        source_class=SourceClass.secondary,
+        source_origin=SourceOrigin.verification,
+        quality_score=0.8,
+    )
+    first = SourceService.attach_sources_bulk(
+        db,  # type: ignore[arg-type]
+        approval_reviewer_id='approver@local',
+        applying_reviewer_id='applier@local',
+        items=[item_a, item_b],
+    )
+    second = SourceService.attach_sources_bulk(
+        db,  # type: ignore[arg-type]
+        approval_reviewer_id='approver@local',
+        applying_reviewer_id='applier@local',
+        items=[item_b, item_a],
+    )
+    assert first['bulk_operation_id'] == second['bulk_operation_id']
+
+
+def test_add_source_auto_fills_quality_score_when_omitted(monkeypatch) -> None:
+    claim_id = uuid.uuid4()
+    db = _FakeDbForAddSource(claim_id)
+    monkeypatch.setattr('app.services.source_service.EvidenceBundleService.sync_claim_bundle', lambda *_a, **_kw: None)
+
+    from app.schemas.api import AddSourceRequest
+
+    payload = AddSourceRequest(
+        url='https://cbo.gov/report/2024',
+        source_class=SourceClass.primary,
+        source_origin=SourceOrigin.verification,
+    )
+    assert payload.quality_score is None
+
+    SourceService.add_source(db, claim_id, payload)
+
+    assert len(db.added) == 1
+    source = db.added[0]
+    assert source.quality_score is not None
+    assert 0.0 <= source.quality_score <= 1.0
+    assert source.quality_score == 1.0
+
+
+def test_add_source_preserves_explicit_quality_score(monkeypatch) -> None:
+    claim_id = uuid.uuid4()
+    db = _FakeDbForAddSource(claim_id)
+    monkeypatch.setattr('app.services.source_service.EvidenceBundleService.sync_claim_bundle', lambda *_a, **_kw: None)
+
+    from app.schemas.api import AddSourceRequest
+
+    payload = AddSourceRequest(
+        url='https://example.com/article',
+        source_class=SourceClass.secondary,
+        source_origin=SourceOrigin.verification,
+        quality_score=0.55,
+    )
+
+    SourceService.add_source(db, claim_id, payload)
+
+    source = db.added[0]
+    assert source.quality_score == 0.55

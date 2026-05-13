@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from fastapi.testclient import TestClient
 
+from app.core.errors import AppError
 from app.db.database import get_db
 from app.main import app
 from app.models.enums import ProposalStatus, ProposalType
@@ -57,6 +58,53 @@ def test_list_proposals_filters_forwarded(monkeypatch) -> None:
     assert captured['office'] == 'US Senate'
     assert captured['election_cycle'] == 2026
     assert captured['limit'] == 5
+    app.dependency_overrides.clear()
+
+
+def test_list_proposals_includes_optional_claim_context(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[require_reviewer_or_admin] = _override_identity
+    proposal_id = uuid.uuid4()
+    claim_id = uuid.uuid4()
+    now = datetime.now(timezone.utc)
+
+    def _fake_list_proposals(_db, **_kwargs):  # type: ignore[no-untyped-def]
+        return [
+            {
+                'id': proposal_id,
+                'claim_id': claim_id,
+                'proposal_type': ProposalType.verification_source_suggestion,
+                'status': ProposalStatus.proposed,
+                'proposed_by': 'reviewer@local',
+                'reviewed_by': None,
+                'reviewed_at': None,
+                'proposal_payload': {'url': 'https://example.com'},
+                'review_notes': None,
+                'claim_context': {
+                    'verification_primary_count': 1,
+                    'verification_secondary_count': 0,
+                    'missing_source_classes': ['secondary'],
+                    'verification_evidence_sufficient': False,
+                    'latest_verdict': 'mixed',
+                    'latest_confidence': 0.7,
+                    'latest_rationale': 'Draft rationale',
+                    'latest_citation_notes': 'Citation',
+                    'latest_reviewer_id': 'reviewer@local',
+                    'latest_evaluated_at': now,
+                },
+                'created_at': now,
+                'updated_at': now,
+            }
+        ]
+
+    monkeypatch.setattr('app.api.v1.claims.ProposalService.list_proposals', _fake_list_proposals)
+    client = TestClient(app)
+    response = client.get('/v1/claims/proposals')
+    body = response.json()
+    assert response.status_code == 200
+    assert body[0]['id'] == str(proposal_id)
+    assert body[0]['claim_context']['verification_primary_count'] == 1
+    assert body[0]['claim_context']['missing_source_classes'] == ['secondary']
     app.dependency_overrides.clear()
 
 
@@ -136,4 +184,32 @@ def test_create_proposal_forwards_identity_reviewer_id_as_proposed_by(monkeypatc
     assert response.status_code == 200
     assert captured['claim_id'] == claim_id
     assert captured['proposed_by'] == 'reviewer@local'
+    app.dependency_overrides.clear()
+
+
+def test_apply_proposal_dual_control_error_shape(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[require_reviewer_or_admin] = _override_identity
+    proposal_id = uuid.uuid4()
+
+    def _fake_apply(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        raise AppError(
+            'proposal_dual_control_required',
+            'Verification-source proposals require different reviewers for approval and apply actions.',
+            status_code=409,
+            details={
+                'proposal_id': str(proposal_id),
+                'proposal_type': 'verification_source_suggestion',
+                'approval_reviewer_id': 'reviewer@local',
+                'applying_reviewer_id': 'reviewer@local',
+            },
+        )
+
+    monkeypatch.setattr('app.api.v1.claims.ProposalService.apply_proposal', _fake_apply)
+    client = TestClient(app)
+    response = client.post(f'/v1/claims/proposals/{proposal_id}/apply', json={'review_notes': 'apply'})
+    body = response.json()
+    assert response.status_code == 409
+    assert body['error']['code'] == 'proposal_dual_control_required'
+    assert body['error']['details']['proposal_id'] == str(proposal_id)
     app.dependency_overrides.clear()

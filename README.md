@@ -36,18 +36,17 @@ A standalone project to track political candidate claims, verify them against cr
    ```
 3. Create Python environment and install deps:
    ```bash
-   cd backend
-   python -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
+   python -m venv backend/.venv
+   source backend/.venv/bin/activate
+   pip install -r backend/requirements.txt
    ```
-4. Run API:
+4. Run API from repository root:
    ```bash
-   uvicorn app.main:app --reload --port 8000
+   uvicorn app.main:app --reload --port 8000 --app-dir backend
    ```
-5. Run migrations:
+5. Run migrations from repository root:
    ```bash
-   alembic upgrade head
+   alembic -c backend/alembic.ini upgrade head
    ```
 6. Open health endpoint:
    - `http://localhost:8000/health`
@@ -167,7 +166,9 @@ civic-fact-audit/
 - Unit tests for score calculations and denominator policy behavior.
 
 ## Next Steps
-- Implement SQLAlchemy models + Alembic migrations.
-- Add claim extraction worker and source ingestion connectors.
-- Add evaluation workflow and reviewer UI.
-- Build frontend dashboard for claim transparency.
+- Add worker-health observability for queue lag, retry counts, and terminal failures.
+- Add source quality scoring automation.
+- Add caching and query optimization.
+- Finish security hardening and threat model review.
+- Expand moderation beyond boundary phrase gates.
+- Formalize the 2026 priority-race list before broader campaign onboarding.

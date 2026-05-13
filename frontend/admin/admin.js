@@ -10,10 +10,12 @@ const API_EVALUATE_BASE_URL = "/api/v1/claims";
 const API_PROPOSALS_URL = "/api/v1/claims/proposals";
 const API_PUBLISH_QUEUE_URL = "/api/v1/claims/publish-queue";
 const API_BULK_SOURCE_ATTACH_URL = "/api/v1/claims/sources/bulk";
+const API_WORKER_HEALTH_URL = "/api/v1/admin/jobs/worker-health";
 const AUTH_STORAGE_KEY = "cfa_admin_token";
 
 let authToken = localStorage.getItem(AUTH_STORAGE_KEY) || "";
 let identity = null;
+let _healthRefreshTimer = null;
 let selectedCandidateId = "";
 let selectedJobId = "";
 let selectedAuditId = "";
@@ -83,17 +85,21 @@ function normalizeOptionalInt(value) {
 const RACE_STAGE_VALUES = new Set(["primary", "primary_runoff", "general", "special"]);
 const SOURCE_CLASS_VALUES = new Set(["primary", "secondary"]);
 const SOURCE_ORIGIN_VALUES = new Set(["candidate", "verification"]);
-const BULK_ATTACH_EXAMPLE = [
-  {
-    claim_id: "00000000-0000-0000-0000-000000000000",
-    url: "https://example.gov/report",
-    source_class: "primary",
-    source_origin: "verification",
-    publisher: "Example Government Office",
-    quality_score: 0.9,
-    is_direct_candidate_quote: false,
-  },
-];
+const SOURCE_PROPOSAL_TYPES = new Set(["candidate_source_capture", "verification_source_suggestion"]);
+const BULK_ATTACH_EXAMPLE = {
+  approval_token: "paste-approval-token-here",
+  items: [
+    {
+      claim_id: "00000000-0000-0000-0000-000000000000",
+      url: "https://example.gov/report",
+      source_class: "primary",
+      source_origin: "verification",
+      publisher: "Example Government Office",
+      quality_score: 0.9,
+      is_direct_candidate_quote: false,
+    },
+  ],
+};
 
 function shortId(id) {
   const text = String(id || "");
@@ -114,6 +120,44 @@ function parseApiError(err, fallback) {
   const payloadMessage = err?.payload?.error?.message;
   if (payloadMessage) return payloadMessage;
   return err.message || fallback;
+}
+
+function parseDualControlError(err, expectedCode, defaultAction, defaultMessage) {
+  const code = err?.payload?.error?.code;
+  if (code !== expectedCode) return null;
+  const details = err?.payload?.error?.details || {};
+  const approvalReviewerId = details.approval_reviewer_id;
+  const applyingReviewerId = details.applying_reviewer_id;
+  const dualControlAction = details.action || defaultAction || "mutation";
+  const approvalLabel = approvalReviewerId ? `latest approval reviewer is ${approvalReviewerId}` : "approval reviewer could not be resolved";
+  const applyingLabel = applyingReviewerId ? `current actor is ${applyingReviewerId}` : "current actor is unknown";
+  return `${defaultMessage} for ${dualControlAction}: ${approvalLabel}; ${applyingLabel}. Hand off to a different reviewer/admin and retry.`;
+}
+
+function parsePublishDualControlError(err, action) {
+  return parseDualControlError(err, "publish_dual_control_required", action || "publish", "Dual-control blocked");
+}
+
+function parseCandidateDualControlError(err, action) {
+  return parseDualControlError(err, "candidate_dual_control_required", action || "candidate_update", "Dual-control blocked");
+}
+
+function parseEvaluationDualControlError(err) {
+  return parseDualControlError(
+    err,
+    "evaluation_overwrite_dual_control_required",
+    "evaluate_overwrite",
+    "Dual-control blocked"
+  );
+}
+
+function parseBulkAttachDualControlError(err) {
+  return parseDualControlError(
+    err,
+    "bulk_attach_dual_control_required",
+    "bulk_attach_verification_sources",
+    "Dual-control blocked"
+  );
 }
 
 function isUuid(value) {
@@ -167,6 +211,7 @@ function showWorkspace(show) {
 function clearSession() {
   authToken = "";
   identity = null;
+  stopWorkerHealthAutoRefresh();
   localStorage.removeItem(AUTH_STORAGE_KEY);
   showWorkspace(false);
   setStatus("auth-status", "Signed out.");
@@ -200,6 +245,86 @@ function setActiveTab(tabName) {
     const panel = $(`tab-${name}`);
     if (panel) panel.hidden = name !== tabName;
   });
+
+  if (tabName === "jobs") {
+    startWorkerHealthAutoRefresh();
+  } else {
+    stopWorkerHealthAutoRefresh();
+  }
+}
+
+function _fmtAge(seconds) {
+  if (seconds === null || seconds === undefined) return "\u2014";
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
+  return `${Math.round(seconds / 3600)}h`;
+}
+
+function renderWorkerHealth(data) {
+  const stats = $("worker-health-stats");
+  const failures = $("worker-health-failures");
+  if (!stats || !failures) return;
+
+  const workerEl = $("health-worker-alive");
+  const queueEl = $("health-queue-depth");
+  const dueEl = $("health-due-depth");
+  const retryEl = $("health-retry-depth");
+  const runningEl = $("health-running");
+  const oldestDueEl = $("health-oldest-due");
+  const terminalEl = $("health-terminal-count");
+
+  function _setTile(el, text, tone) {
+    if (!el) return;
+    el.textContent = text;
+    el.className = "health-stat-value" + (tone ? ` is-${tone}` : "");
+  }
+
+  _setTile(workerEl, data.worker_alive ? "alive" : "dead", data.worker_alive ? "ok" : "bad");
+  _setTile(queueEl, String(data.queue_depth), data.queue_depth > 0 ? "warn" : null);
+  _setTile(dueEl, String(data.due_depth), data.due_depth > 0 ? "warn" : null);
+  _setTile(retryEl, String(data.retry_queue_depth), data.retry_queue_depth > 0 ? "warn" : null);
+  _setTile(runningEl, String(data.running_count), null);
+  _setTile(oldestDueEl, _fmtAge(data.oldest_due_age_seconds), data.oldest_due_age_seconds > 300 ? "bad" : data.oldest_due_age_seconds > 60 ? "warn" : null);
+  _setTile(terminalEl, String(data.terminal_failure_count), data.terminal_failure_count > 0 ? "bad" : null);
+
+  stats.hidden = false;
+
+  const list = $("worker-health-failures-list");
+  const recent = data.recent_terminal_failures || [];
+  if (list && recent.length) {
+    list.innerHTML = recent
+      .map((f) => {
+        const age = f.finished_at ? formatDateTime(f.finished_at) : "\u2014";
+        return `<div class="row-btn" style="cursor:default;"><strong>${escapeHtml(f.job_type)}</strong><span class="row-meta">attempts ${escapeHtml(String(f.attempt_count))}/${escapeHtml(String(f.max_attempts))} | ${escapeHtml(f.last_error_code || "\u2014")} | finished ${escapeHtml(age)}</span></div>`;
+      })
+      .join("");
+    failures.hidden = false;
+  } else {
+    failures.hidden = true;
+  }
+}
+
+async function loadWorkerHealth() {
+  try {
+    setStatus("worker-health-status", "Loading...");
+    const data = await apiRequest(API_WORKER_HEALTH_URL);
+    renderWorkerHealth(data);
+    setStatus("worker-health-status", `Updated ${formatDateTime(data.checked_at)}.`, "ok");
+  } catch (err) {
+    setStatus("worker-health-status", parseApiError(err, "Failed to load worker health."), "bad");
+  }
+}
+
+function startWorkerHealthAutoRefresh() {
+  if (_healthRefreshTimer !== null) return;
+  loadWorkerHealth();
+  _healthRefreshTimer = setInterval(loadWorkerHealth, 30000);
+}
+
+function stopWorkerHealthAutoRefresh() {
+  if (_healthRefreshTimer === null) return;
+  clearInterval(_healthRefreshTimer);
+  _healthRefreshTimer = null;
 }
 
 function renderJsonDetail(preId, emptyId, payload) {
@@ -267,6 +392,7 @@ function renderCandidateList(rows) {
 
 function populateCandidateForm(candidate) {
   $("candidate-id").value = candidate.id || "";
+  $("candidate-approval-token").value = "";
   $("candidate-name").value = candidate.name || "";
   $("candidate-party").value = candidate.party || "";
   $("candidate-office").value = candidate.office || "";
@@ -307,6 +433,7 @@ async function loadCandidateDetail(candidateId) {
 
 function buildCandidatePayload(prefix) {
   return {
+    approval_token: normalizeOptionalText($(`${prefix}-approval-token`).value) || "",
     name: normalizeOptionalText($(`${prefix}-name`).value) || "",
     party: normalizeOptionalText($(`${prefix}-party`).value),
     office: normalizeOptionalText($(`${prefix}-office`).value),
@@ -330,6 +457,10 @@ async function saveCandidate(event) {
 
   try {
     const payload = buildCandidatePayload("candidate");
+    if (!payload.approval_token) {
+      setStatus("candidate-edit-status", "Approval token is required.", "bad");
+      return;
+    }
     setStatus("candidate-edit-status", "Saving candidate...");
     const row = await apiRequest(`${API_CANDIDATES_URL}/${encodeURIComponent(selectedCandidateId)}`, {
       method: "PATCH",
@@ -340,7 +471,8 @@ async function saveCandidate(event) {
     setStatus("candidate-edit-status", "Candidate saved.", "ok");
     await loadCandidateList();
   } catch (err) {
-    setStatus("candidate-edit-status", parseApiError(err, "Failed to save candidate."), "bad");
+    const dualControlMessage = parseCandidateDualControlError(err, "candidate_update");
+    setStatus("candidate-edit-status", dualControlMessage || parseApiError(err, "Failed to save candidate."), "bad");
   }
 }
 
@@ -348,6 +480,10 @@ async function createCandidate(event) {
   event.preventDefault();
   try {
     const payload = buildCandidatePayload("create");
+    if (!payload.approval_token) {
+      setStatus("candidate-create-status", "Approval token is required.", "bad");
+      return;
+    }
     setStatus("candidate-create-status", "Creating candidate...");
     const row = await apiRequest(API_CANDIDATES_URL, {
       method: "POST",
@@ -360,7 +496,8 @@ async function createCandidate(event) {
     await loadCandidateList();
     await loadCandidateDetail(row.id);
   } catch (err) {
-    setStatus("candidate-create-status", parseApiError(err, "Failed to create candidate."), "bad");
+    const dualControlMessage = parseCandidateDualControlError(err, "candidate_create");
+    setStatus("candidate-create-status", dualControlMessage || parseApiError(err, "Failed to create candidate."), "bad");
   }
 }
 
@@ -467,6 +604,12 @@ function getIntakeProfile(profileId) {
   return getIntakeProfiles().find((item) => item.profile_id === profileId) || null;
 }
 
+function getAllowedProfileIdsForJob(jobType) {
+  const schema = getJobInputSchema(jobType);
+  const values = schema?.allowed_values?.profile_id;
+  return Array.isArray(values) ? values.map((item) => String(item)) : [];
+}
+
 function getJobInputPayloadText(payload) {
   return JSON.stringify(payload, null, 2);
 }
@@ -484,27 +627,33 @@ function renderJobTypeOptions() {
   select.value = hasPrevious ? previous : jobs[0].job_type;
 }
 
-function populateJobProfileOptions() {
+function populateJobProfileOptions(jobType) {
   const select = $("job-profile-id");
   if (!select) return;
+  const activeJobType = String(jobType || $("job-type")?.value || "").trim();
+  const allowedProfileIds = getAllowedProfileIdsForJob(activeJobType);
   const profiles = getIntakeProfiles();
+  const filteredProfiles =
+    allowedProfileIds.length > 0
+      ? profiles.filter((profile) => allowedProfileIds.includes(profile.profile_id))
+      : profiles;
   if (!profiles.length) {
     select.innerHTML = "";
     return;
   }
   const previous = String(select.value || "");
-  select.innerHTML = profiles
+  select.innerHTML = filteredProfiles
     .map((profile) => `<option value="${escapeHtml(profile.profile_id)}">${escapeHtml(profile.label)} (${escapeHtml(profile.profile_id)})</option>`)
     .join("");
-  const hasPrevious = profiles.some((profile) => profile.profile_id === previous);
-  select.value = hasPrevious ? previous : profiles[0].profile_id;
+  const hasPrevious = filteredProfiles.some((profile) => profile.profile_id === previous);
+  select.value = hasPrevious ? previous : filteredProfiles[0]?.profile_id || "";
 }
 
 async function loadAdminJobMetadata() {
   const metadata = await apiRequest(API_ADMIN_JOB_METADATA_URL);
   adminJobMetadata = metadata;
   renderJobTypeOptions();
-  populateJobProfileOptions();
+  populateJobProfileOptions(String($("job-type")?.value || "").trim());
   refreshJobTypeSpecificControls();
 }
 
@@ -527,11 +676,12 @@ function populateJobStatementBatchOptions(profileId) {
 
 function buildTypedJobPayload(jobType) {
   const schema = getJobInputSchema(jobType);
+  const allowedFields = new Set(Array.isArray(schema.allowed_fields) ? schema.allowed_fields : []);
   const payload = {};
-  if (jobType === "ingest_candidate_roster" || jobType === "ingest_statement_batch") {
+  if (allowedFields.has("profile_id")) {
     payload.profile_id = String($("job-profile-id")?.value || "").trim();
   }
-  if (jobType === "ingest_statement_batch") {
+  if (allowedFields.has("statement_batch")) {
     payload.statement_batch = String($("job-statement-batch")?.value || "").trim();
   }
   if (schema.supports_dry_run) {
@@ -548,20 +698,24 @@ function syncJobPayloadFromTypedControls() {
 function refreshJobTypeSpecificControls() {
   const jobType = String($("job-type")?.value || "").trim();
   const schema = getJobInputSchema(jobType);
-  const isIntakeRoster = jobType === "ingest_candidate_roster";
-  const isIntakeStatement = jobType === "ingest_statement_batch";
-  const showProfile = isIntakeRoster || isIntakeStatement;
+  const allowedFields = new Set(Array.isArray(schema.allowed_fields) ? schema.allowed_fields : []);
+  const showProfile = allowedFields.has("profile_id");
+  const showStatementBatch = allowedFields.has("statement_batch");
+  const allowedProfileIds = getAllowedProfileIdsForJob(jobType);
 
   if ($("job-profile-field")) $("job-profile-field").hidden = !showProfile;
-  if ($("job-statement-batch-field")) $("job-statement-batch-field").hidden = !isIntakeStatement;
+  if ($("job-statement-batch-field")) $("job-statement-batch-field").hidden = !showStatementBatch;
   if ($("job-dry-run-field")) $("job-dry-run-field").hidden = !schema.supports_dry_run;
 
-  const selectedProfileId = String($("job-profile-id")?.value || "");
-  const intakeProfiles = getIntakeProfiles();
-  if (showProfile && !selectedProfileId && intakeProfiles.length) {
-    $("job-profile-id").value = intakeProfiles[0].profile_id;
+  if (showProfile) {
+    populateJobProfileOptions(jobType);
   }
-  if (isIntakeStatement) {
+  const selectedProfileId = String($("job-profile-id")?.value || "");
+  if (showProfile && !selectedProfileId) {
+    const fallbackProfileId = allowedProfileIds[0] || "";
+    $("job-profile-id").value = fallbackProfileId;
+  }
+  if (showStatementBatch) {
     populateJobStatementBatchOptions(String($("job-profile-id")?.value || ""));
   }
   syncJobPayloadFromTypedControls();
@@ -630,9 +784,9 @@ function parseAndValidateJobPayload(jobType) {
     };
   }
 
-  if (jobType === "ingest_candidate_roster" || jobType === "ingest_statement_batch") {
-    const profileIds = getIntakeProfiles().map((item) => item.profile_id);
-    if (!profileIds.includes(normalized.profile_id)) {
+  if ("profile_id" in normalized) {
+    const profileIds = getAllowedProfileIdsForJob(jobType);
+    if (profileIds.length > 0 && !profileIds.includes(normalized.profile_id)) {
       return {
         payload: null,
         error: `profile_id must be one of ${profileIds.join(", ")}.`,
@@ -833,6 +987,7 @@ async function submitReview(event) {
   const confidenceRaw = $("review-confidence")?.value;
   const rationale = $("review-rationale")?.value?.trim();
   const citationNotes = $("review-citation-notes")?.value?.trim();
+  const approvalToken = $("review-approval-token")?.value?.trim();
 
   if (!claimId || !verdict || !confidenceRaw || !rationale) {
     setStatus("review-submit-status", "Claim, verdict, confidence, and rationale are required.", "bad");
@@ -854,12 +1009,14 @@ async function submitReview(event) {
         confidence,
         rationale,
         citation_notes: citationNotes || null,
+        approval_token: approvalToken || null,
       },
     });
     setStatus("review-submit-status", "Evaluation saved.", "ok");
     await Promise.all([loadReviewQueue(), loadPublishQueue()]);
   } catch (err) {
-    setStatus("review-submit-status", parseApiError(err, "Review submission failed."), "bad");
+    const dualControlMessage = parseEvaluationDualControlError(err);
+    setStatus("review-submit-status", dualControlMessage || parseApiError(err, "Review submission failed."), "bad");
   }
 }
 
@@ -969,14 +1126,14 @@ function parseJsonTextarea(text, fieldName) {
   }
 }
 
-function validateBulkSourceAttachItems(payload) {
+function validateBulkSourceAttachItems(items) {
   const errors = [];
-  if (!Array.isArray(payload)) {
-    errors.push("Payload must be a JSON array.");
+  if (!Array.isArray(items)) {
+    errors.push("Payload.items must be a JSON array.");
     return errors;
   }
 
-  payload.forEach((item, index) => {
+  items.forEach((item, index) => {
     const prefix = `Item ${index + 1}`;
     if (!item || typeof item !== "object" || Array.isArray(item)) {
       errors.push(`${prefix}: must be an object.`);
@@ -1046,17 +1203,40 @@ function renderBulkAttachResults(response) {
 
 function validateBulkAttachTextarea() {
   const raw = $("bulk-attach-json")?.value || "";
+  const approvalToken = normalizeOptionalText($("bulk-approval-token")?.value);
+  if (!approvalToken) {
+    setStatus("bulk-attach-status", "Approval token is required.", "bad");
+    return null;
+  }
   const parsed = parseJsonTextarea(raw, "Attach payload");
   if (parsed.error) {
     setStatus("bulk-attach-status", parsed.error, "bad");
     return null;
   }
-  const errors = validateBulkSourceAttachItems(parsed.value);
+  if (!parsed.value || typeof parsed.value !== "object" || Array.isArray(parsed.value)) {
+    setStatus("bulk-attach-status", "Validation failed: Payload must be an object with approval_token and items.", "bad");
+    return null;
+  }
+  const approvalInPayload = normalizeOptionalText(parsed.value.approval_token);
+  const items = parsed.value.items;
+  if (!approvalInPayload) {
+    setStatus("bulk-attach-status", "Validation failed: approval_token is required in payload.", "bad");
+    return null;
+  }
+  const errors = validateBulkSourceAttachItems(items);
   if (errors.length) {
     setStatus("bulk-attach-status", `Validation failed: ${errors[0]}`, "bad");
     return null;
   }
-  setStatus("bulk-attach-status", `Validation passed for ${parsed.value.length} item(s).`, "ok");
+  if (approvalInPayload !== approvalToken) {
+    setStatus(
+      "bulk-attach-status",
+      "Validation failed: form Approval Token must match payload approval_token.",
+      "bad"
+    );
+    return null;
+  }
+  setStatus("bulk-attach-status", `Validation passed for ${items.length} item(s).`, "ok");
   return parsed.value;
 }
 
@@ -1077,7 +1257,8 @@ async function submitBulkAttach(event) {
     await Promise.all([loadEvidenceQueue(), loadAuditList()]);
   } catch (err) {
     renderBulkAttachResults(null);
-    setStatus("bulk-attach-status", parseApiError(err, "Bulk attach request failed."), "bad");
+    const dualControlMessage = parseBulkAttachDualControlError(err);
+    setStatus("bulk-attach-status", dualControlMessage || parseApiError(err, "Bulk attach request failed."), "bad");
   }
 }
 
@@ -1113,14 +1294,107 @@ function renderProposalList(rows) {
   });
 }
 
+function renderPowerAdminProposalReview(row) {
+  const container = $("proposal-power-admin");
+  const status = $("proposal-power-admin-status");
+  const itemsEl = $("proposal-power-admin-items");
+  const guidance = $("proposal-power-admin-guidance");
+  if (!container || !status || !itemsEl || !guidance) return;
+
+  if (!row || !SOURCE_PROPOSAL_TYPES.has(String(row.proposal_type || ""))) {
+    container.hidden = true;
+    return;
+  }
+
+  container.hidden = false;
+  const payload = row.proposal_payload || {};
+  const sourceOrigin = String(payload.source_origin || "").trim() || "missing";
+  const sourceClass = String(payload.source_class || "").trim() || "missing";
+  const proposalType = String(row.proposal_type || "").trim();
+  const expectedOrigin = proposalType === "verification_source_suggestion" ? "verification" : "candidate";
+  const publisher = normalizeOptionalText(payload.publisher);
+  const quality = typeof payload.quality_score === "number" ? payload.quality_score : null;
+  const claimContext = `claim ${shortId(row.claim_id)} | status ${row.status}`;
+
+  const checks = [
+    { ok: sourceOrigin !== "missing", label: `source_origin recorded: ${sourceOrigin}` },
+    { ok: sourceOrigin === expectedOrigin, label: `source_origin matches proposal type (${expectedOrigin})` },
+    { ok: sourceClass !== "missing", label: `source_class recorded: ${sourceClass}` },
+    { ok: !!publisher, label: `publisher recorded${publisher ? `: ${publisher}` : ""}` },
+    { ok: quality != null, label: `quality_score recorded${quality != null ? `: ${quality}` : ""}` },
+  ];
+
+  status.textContent = `Power-admin source/bundle review for ${claimContext}.`;
+  itemsEl.innerHTML = checks
+    .map((item) => `<li class="${item.ok ? "ok" : "bad"}">${item.ok ? "pass" : "needs review"}: ${escapeHtml(item.label)}</li>`)
+    .join("");
+
+  guidance.textContent =
+    "Action guidance: approve after payload review, reject when admission fields are incomplete, apply only after independent approval and policy readiness.";
+}
+
+function renderProposalClaimContext(row) {
+  const container = $("proposal-claim-context");
+  const statusEl = $("proposal-claim-context-status");
+  const evidenceEl = $("proposal-claim-context-evidence");
+  const evaluationEl = $("proposal-claim-context-evaluation");
+  if (!container || !statusEl || !evidenceEl || !evaluationEl) return;
+
+  const context = row?.claim_context;
+  if (!context) {
+    container.hidden = true;
+    return;
+  }
+  container.hidden = false;
+
+  const primary = Number(context.verification_primary_count || 0);
+  const secondary = Number(context.verification_secondary_count || 0);
+  const missing = Array.isArray(context.missing_source_classes) ? context.missing_source_classes : [];
+  const sufficient = !!context.verification_evidence_sufficient;
+  const verdict = context.latest_verdict || "none";
+  const confidence = context.latest_confidence == null ? "n/a" : String(context.latest_confidence);
+  const reviewer = context.latest_reviewer_id || "unassigned";
+  const evaluatedAt = context.latest_evaluated_at ? formatDateTime(context.latest_evaluated_at) : "n/a";
+
+  statusEl.textContent = sufficient
+    ? "Verification evidence snapshot is sufficient for primary and secondary classes."
+    : "Verification evidence snapshot is currently missing required class coverage.";
+  statusEl.classList.remove("status-ok", "status-bad");
+  statusEl.classList.add(sufficient ? "status-ok" : "status-bad");
+
+  evidenceEl.innerHTML = [
+    `verification primary count: ${primary}`,
+    `verification secondary count: ${secondary}`,
+    `missing source classes: ${missing.length ? missing.join(", ") : "none"}`,
+    `evidence sufficiency gate: ${sufficient ? "passed" : "blocked"}`,
+  ]
+    .map((line) => `<li>${escapeHtml(line)}</li>`)
+    .join("");
+
+  evaluationEl.innerHTML = [
+    `latest verdict: ${verdict}`,
+    `latest confidence: ${confidence}`,
+    `latest reviewer: ${reviewer}`,
+    `latest evaluated at: ${evaluatedAt}`,
+    `latest rationale: ${context.latest_rationale || "none"}`,
+    `latest citation notes: ${context.latest_citation_notes || "none"}`,
+  ]
+    .map((line) => `<li>${escapeHtml(line)}</li>`)
+    .join("");
+}
+
 function loadProposalDetail(proposalId) {
   const row = proposalRows.find((item) => String(item.id) === String(proposalId));
   if (!row) {
     renderJsonDetail("proposal-detail-json", "proposal-detail-empty", null);
+    renderPowerAdminProposalReview(null);
+    renderProposalClaimContext(null);
     return;
   }
   $("proposal-id").value = String(row.id);
   renderJsonDetail("proposal-detail-json", "proposal-detail-empty", row);
+  renderPowerAdminProposalReview(row);
+  renderProposalClaimContext(row);
 }
 
 async function loadProposalList() {
@@ -1146,12 +1420,16 @@ async function loadProposalList() {
       selectedProposalId = "";
       $("proposal-id").value = "";
       renderJsonDetail("proposal-detail-json", "proposal-detail-empty", null);
+      renderPowerAdminProposalReview(null);
+      renderProposalClaimContext(null);
     }
     setStatus("proposal-list-status", `Loaded ${proposalRows.length} proposals.`, "ok");
   } catch (err) {
     proposalRows = [];
     renderProposalList([]);
     renderJsonDetail("proposal-detail-json", "proposal-detail-empty", null);
+    renderPowerAdminProposalReview(null);
+    renderProposalClaimContext(null);
     setStatus("proposal-list-status", parseApiError(err, "Failed to load proposals."), "bad");
   }
 }
@@ -1177,6 +1455,49 @@ async function submitProposalAction(event) {
   } catch (err) {
     setStatus("proposal-action-status", parseApiError(err, "Proposal action failed."), "bad");
   }
+}
+
+function buildPublishChecklist(row) {
+  const failures = Array.isArray(row?.publish_gate_failures) ? row.publish_gate_failures : [];
+  const hasFailure = (code) => failures.includes(code);
+  return [
+    { ok: !hasFailure("latest_rationale_required"), label: "Rationale present and review-ready" },
+    { ok: !hasFailure("latest_citation_notes_required"), label: "Citation notes present" },
+    { ok: !hasFailure("verification_primary_source_required"), label: "Verification primary source attached" },
+    { ok: !hasFailure("verification_secondary_source_required"), label: "Verification secondary source attached" },
+    { ok: !hasFailure("latest_evaluation_moderation_policy_violation"), label: "Moderation policy clean" },
+    { ok: !!row?.publish_gate_passed, label: "Publish gate passed" },
+  ];
+}
+
+function renderPublishChecklist(row) {
+  const container = $("publish-checklist");
+  const itemsEl = $("publish-checklist-items");
+  const status = $("publish-checklist-status");
+  const actionSelect = $("publish-action");
+  const actionButton = document.querySelector("#publish-action-form button[type='submit']");
+  if (!container || !itemsEl || !status || !actionSelect || !actionButton) return;
+
+  if (!row) {
+    container.hidden = true;
+    actionButton.disabled = false;
+    return;
+  }
+
+  container.hidden = false;
+  const checklist = buildPublishChecklist(row);
+  itemsEl.innerHTML = checklist
+    .map((item) => `<li class="${item.ok ? "ok" : "bad"}">${item.ok ? "pass" : "blocked"}: ${escapeHtml(item.label)}</li>`)
+    .join("");
+  const allPassed = checklist.every((item) => item.ok);
+  const publishSelected = actionSelect.value === "publish";
+  const publishBlocked = publishSelected && !allPassed;
+  actionButton.disabled = publishBlocked;
+  status.textContent = allPassed
+    ? "Checklist complete. Publish signoff can proceed."
+    : "Checklist incomplete. Finish required review items before publish.";
+  status.classList.remove("status-ok", "status-bad");
+  status.classList.add(allPassed ? "status-ok" : "status-bad");
 }
 
 function renderPublishList(rows) {
@@ -1217,11 +1538,13 @@ function loadPublishDetail(claimId) {
   const row = publishQueueRows.find((item) => String(item.claim_id) === String(claimId));
   if (!row) {
     renderJsonDetail("publish-detail-json", "publish-detail-empty", null);
+    renderPublishChecklist(null);
     return;
   }
   $("publish-claim-id").value = String(row.claim_id);
   $("publish-action").value = row.is_published ? "unpublish" : "publish";
   renderJsonDetail("publish-detail-json", "publish-detail-empty", row);
+  renderPublishChecklist(row);
 }
 
 async function loadPublishQueue() {
@@ -1247,12 +1570,16 @@ async function loadPublishQueue() {
       selectedPublishClaimId = "";
       $("publish-claim-id").value = "";
       renderJsonDetail("publish-detail-json", "publish-detail-empty", null);
+      renderPublishChecklist(null);
     }
     setStatus("publish-list-status", `Loaded ${publishQueueRows.length} publish queue claims.`, "ok");
   } catch (err) {
     publishQueueRows = [];
+    selectedPublishClaimId = "";
+    if ($("publish-claim-id")) $("publish-claim-id").value = "";
     renderPublishList([]);
     renderJsonDetail("publish-detail-json", "publish-detail-empty", null);
+    renderPublishChecklist(null);
     setStatus("publish-list-status", parseApiError(err, "Failed to load publish queue."), "bad");
   }
 }
@@ -1274,7 +1601,8 @@ async function submitPublishAction(event) {
     setStatus("publish-action-status", `Claim ${action} action completed.`, "ok");
     await Promise.all([loadPublishQueue(), loadAuditList()]);
   } catch (err) {
-    setStatus("publish-action-status", parseApiError(err, "Publish action failed."), "bad");
+    const dualControlMessage = parsePublishDualControlError(err, action);
+    setStatus("publish-action-status", dualControlMessage || parseApiError(err, "Publish action failed."), "bad");
   }
 }
 
@@ -1369,6 +1697,10 @@ function bindEvents() {
   });
   $("publish-refresh")?.addEventListener("click", async () => loadPublishQueue());
   $("publish-action-form")?.addEventListener("submit", submitPublishAction);
+  $("publish-action")?.addEventListener("change", () => {
+    const row = publishQueueRows.find((item) => String(item.claim_id) === String(selectedPublishClaimId));
+    renderPublishChecklist(row || null);
+  });
 
   $("job-type")?.addEventListener("change", () => refreshJobTypeSpecificControls());
   $("job-profile-id")?.addEventListener("change", () => refreshJobTypeSpecificControls());
@@ -1383,6 +1715,7 @@ function bindEvents() {
   $("job-detail-refresh")?.addEventListener("click", async () => {
     if (selectedJobId) await loadJobDetail(selectedJobId);
   });
+  $("worker-health-refresh")?.addEventListener("click", async () => loadWorkerHealth());
 
   $("audit-filter-form")?.addEventListener("submit", async (event) => {
     event.preventDefault();

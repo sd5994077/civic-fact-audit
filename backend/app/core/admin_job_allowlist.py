@@ -11,6 +11,7 @@ from typing import Any
 class AdminJobDefinition:
     job_type: str
     module: str
+    allowed_modules: tuple[str, ...]
     supports_dry_run: bool
     input_schema: dict[str, Any]
     description: str | None = None
@@ -43,9 +44,17 @@ def get_admin_job_allowlist(path: str | None = None) -> AdminJobAllowlist:
         module = str(raw_job.get('module', '')).strip()
         if not job_type or not module:
             continue
+        raw_allowed_modules = raw_job.get('allowed_modules', [])
+        allowed_modules_list: list[str] = []
+        if isinstance(raw_allowed_modules, list):
+            for item in raw_allowed_modules:
+                normalized = str(item).strip()
+                if normalized:
+                    allowed_modules_list.append(normalized)
         jobs_by_type[job_type] = AdminJobDefinition(
             job_type=job_type,
             module=module,
+            allowed_modules=tuple(allowed_modules_list),
             supports_dry_run=bool(raw_job.get('supports_dry_run', False)),
             input_schema=raw_job.get('input_schema', {}) if isinstance(raw_job.get('input_schema', {}), dict) else {},
             description=str(raw_job.get('description')).strip() if raw_job.get('description') is not None else None,

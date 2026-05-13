@@ -30,6 +30,7 @@ class ErrorResponse(BaseModel):
 
 class CandidateCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
+    approval_token: str | None = Field(default=None, min_length=1, max_length=4096)
     party: str | None = Field(default=None, max_length=128)
     office: str | None = Field(default=None, max_length=255)
     state: str | None = Field(default=None, max_length=32)
@@ -43,6 +44,7 @@ class CandidateCreate(BaseModel):
 
 
 class CandidateUpdate(BaseModel):
+    approval_token: str | None = Field(default=None, min_length=1, max_length=4096)
     name: str | None = Field(default=None, min_length=1, max_length=255)
     party: str | None = Field(default=None, max_length=128)
     office: str | None = Field(default=None, max_length=255)
@@ -117,7 +119,7 @@ class AddSourceRequest(BaseModel):
     source_class: SourceClass
     source_origin: SourceOrigin = SourceOrigin.verification
     publisher: str | None = Field(default=None, max_length=255)
-    quality_score: float = Field(ge=0, le=1)
+    quality_score: float | None = Field(default=None, ge=0, le=1)
     is_direct_candidate_quote: bool = False
 
 
@@ -137,6 +139,7 @@ class EvaluateClaimRequest(BaseModel):
     confidence: float = Field(ge=0, le=1)
     rationale: str = Field(min_length=10)
     citation_notes: str | None = None
+    approval_token: str | None = Field(default=None, min_length=1, max_length=4096)
 
 
 class AuthLoginRequest(BaseModel):
@@ -235,8 +238,24 @@ class BulkSourceAttachItem(BaseModel):
     source_class: SourceClass
     source_origin: SourceOrigin = SourceOrigin.verification
     publisher: str | None = Field(default=None, max_length=255)
-    quality_score: float = Field(ge=0, le=1)
+    quality_score: float | None = Field(default=None, ge=0, le=1)
     is_direct_candidate_quote: bool = False
+
+
+class BulkSourceAttachRequest(BaseModel):
+    approval_token: str | None = Field(default=None, min_length=1, max_length=4096)
+    items: list[BulkSourceAttachItem] = Field(default_factory=list)
+
+
+class DualControlApprovalTokenRequest(BaseModel):
+    action: str = Field(min_length=1, max_length=128)
+
+
+class DualControlApprovalTokenResponse(BaseModel):
+    action: str
+    approval_reviewer_id: str
+    approval_token: str
+    expires_at: datetime
 
 
 class BulkSourceAttachResultItem(BaseModel):
@@ -249,6 +268,7 @@ class BulkSourceAttachResultItem(BaseModel):
 
 
 class BulkSourceAttachResponse(BaseModel):
+    bulk_operation_id: str
     total: int
     attached: int
     failed: int
@@ -394,6 +414,7 @@ class ClaimProposalRead(BaseModel):
     reviewed_at: datetime | None
     proposal_payload: dict[str, Any]
     review_notes: str | None
+    claim_context: dict[str, Any] | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -421,6 +442,11 @@ class AdminJobRunRead(BaseModel):
     input_payload: dict[str, Any]
     started_at: datetime | None
     finished_at: datetime | None
+    attempt_count: int = 0
+    max_attempts: int = 3
+    next_attempt_at: datetime | None = None
+    lease_expires_at: datetime | None = None
+    last_error_code: str | None = None
     result_summary: dict[str, Any] | None
     error_details: dict[str, Any] | None
     created_at: datetime
@@ -454,7 +480,7 @@ class AdminIntakeProfileRead(BaseModel):
 class AdminJobMetadataResponse(BaseModel):
     allowlist_version: str
     intake_profile_version: str
-    synchronous_execution: bool = True
+    synchronous_execution: bool = False
     jobs: list[AdminJobTypeMetadataRead] = Field(default_factory=list)
     intake_profiles: list[AdminIntakeProfileRead] = Field(default_factory=list)
 
@@ -470,3 +496,38 @@ class AdminAuditEventRead(BaseModel):
     metadata: dict[str, Any] | None
     created_at: datetime
     updated_at: datetime
+
+
+class WorkerHealthTerminalFailureSummary(BaseModel):
+    id: uuid.UUID
+    job_type: str
+    attempt_count: int
+    max_attempts: int
+    last_error_code: str | None = None
+    finished_at: datetime | None = None
+    created_at: datetime
+
+
+class ModerationRiskItem(BaseModel):
+    reviewer_id: str
+    violation_count: int
+    last_violation_at: datetime | None = None
+
+
+class ModerationRiskResponse(BaseModel):
+    risks: list[ModerationRiskItem]
+    policy_version: str
+    window_days: int
+
+
+class WorkerHealthResponse(BaseModel):
+    worker_alive: bool
+    queue_depth: int
+    due_depth: int
+    retry_queue_depth: int
+    oldest_queued_age_seconds: float | None = None
+    oldest_due_age_seconds: float | None = None
+    running_count: int
+    terminal_failure_count: int
+    recent_terminal_failures: list[WorkerHealthTerminalFailureSummary] = Field(default_factory=list)
+    checked_at: datetime

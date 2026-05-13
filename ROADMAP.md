@@ -5,7 +5,7 @@
 - [x] Stand up FastAPI + Postgres local development.
 - [x] Define canonical data model and migration strategy.
 - [x] Define core verification policy for statement capture vs fact verification (`docs/VERIFICATION_POLICY.md`).
-- [ ] Add ingestion interfaces for speeches, interviews, social posts.
+- [x] Add ingestion interfaces for speeches, interviews, social posts (`StatementSourceType` plus statement ingest routes/scripts).
 - [x] Add race roster ingestion script for Texas 2026 U.S. Senate (`backend/app/scripts/ingest_tx_2026_senate_roster.py`).
 - [x] Add initial Texas 2026 statement-source batch ingester (`backend/app/scripts/ingest_tx_2026_statement_batch.py`).
 - [x] Add round-two Texas statement-source ingester for social/interview/debate (`backend/app/scripts/ingest_tx_2026_statement_batch_round2.py`).
@@ -50,15 +50,15 @@
 - [x] Add shared issue frames so candidate cards compare the same normalized topic/question before public fact-check display.
 
 ## Phase 5 - Reliability + Scale (Weeks 11+)
-- [ ] Background jobs and retries.
-- [ ] Source quality scoring automation.
-- [ ] Caching and query optimization.
-- [ ] Security hardening and threat model review.
-- [ ] Expand moderation beyond boundary phrase gates (context-aware abuse detection, adversarial prompting controls, and reviewer override risk scoring).
-- [ ] Generalize the Texas Senate workflow into a reusable multi-race intake pipeline.
-- [ ] Add a runoff onboarding playbook and templated script generator so new runoff races can be added through config-first inputs (office/state/cycle/stage/source seeds) instead of bespoke scripts.
+- [x] Background jobs and retries.
+- [x] Source quality scoring automation (`score_source_quality()` heuristic, `quality_score` now optional on add/bulk-attach, versioned formula `quality_v1_2026_05_13`).
+- [x] Caching and query optimization (composite index on `candidates(state, office, election_cycle, race_stage)`; `claims(fact_checkable)` and `claims(fact_checkable, is_published)` indexes; `list_publish_queue` `is_published` filter pushed to SQL before `LIMIT` to prevent published claims consuming queue slots).
+- [x] Security hardening and threat model review (`docs/THREAT_MODEL.md`, CORS middleware, production startup validators for `postgres_password` + `cors_allowed_origins`, `.env.example`).
+- [x] Expand moderation beyond boundary phrase gates (regex rule engine, 4 new violation types: `violence_or_threat`, `harassment_or_doxxing`, `defamatory_framing`, `prompt_injection_attempt`; prompt injection gate on claim extraction; per-reviewer violation audit logging; `GET /v1/admin/moderation-risk` risk endpoint).
+- [x] Generalize the Texas Senate workflow into a reusable multi-race intake pipeline.
+- [x] Add a runoff onboarding playbook and templated script generator (`generate_race_stubs.py`, `run_generic_pipeline.py`, `pipeline_helpers.py`, `docs/ONBOARDING_PLAYBOOK.md`) — new races require only a profile config entry + editorial roster/statement data; extraction, backfill, and KPI run generically.
 - [x] Harden source-admission enforcement with config-backed partisan/domain rules, proposal-path validation parity, and non-destructive legacy verification-source exclusion flags.
-- [ ] Define a priority-race list for 2026 so additional Senate, House, gubernatorial, and other high-impact campaigns can be onboarded deliberately.
+- [x] Define a priority-race list for 2026 so additional Senate, House, gubernatorial, and other high-impact campaigns can be onboarded deliberately (`docs/PRIORITY_RACES_2026.md`, Tier 1 profiles `tx_2026_governor` + `tx_2026_senate_general` registered in config, Tier 2/3 races documented with promotion checklist).
 
 ## Phase 6 - Admin Operations Console (Post-Model Revision)
 - Reference implementation spec: `docs/ADMIN_CONSOLE_IMPLEMENTATION_PLAN.md`
@@ -71,9 +71,14 @@
 - [x] Add dedicated admin frontend workspace (`/admin/`) for candidate management, review queue adjudication, proposal triage, publish controls, job execution/status, and audit visibility.
 - [x] Separate public compare/dashboard browsing from staff-only admin/reviewer workflows in the UI information architecture.
 - [x] Add admin audit visibility for who triggered jobs, changed candidate records, applied proposals, and published/unpublished claims.
-- [ ] Generalize current race-specific CLI workflows into config-first admin flows where practical, preserving reproducibility and source traceability.
-- [x] Add config-first preset intake profiles for synchronous admin roster/statement ingestion (`profile_id` + `statement_batch` typed payload validation/routing).
-- [ ] Build the power-admin workflow for AI-assisted claim grouping, source suggestion, evidence-bundle approval, and final human signoff inside the dedicated admin surface.
+- [x] Track and implement remaining dual-control v2 expansion scope for additional high-risk mutation paths (candidate updates, evaluation overwrite paths, bulk attach) with explicit approval reviewer fields, first-evaluation overwrite exception, verification-only bulk enforcement, and deterministic bulk-operation audit correlation; see `docs/DUAL_CONTROL_V2_DISCOVERY_MEMO.md`.
+- [x] Harden dual-control enforcement so approval/applying reviewer identities resolve to active reviewer/admin accounts before candidate mutation, evaluation overwrite, and verification-source bulk attach writes.
+- [x] Implement dual-control v2 first slice for `POST /v1/claims/{id}/publish` and `POST /v1/claims/{id}/unpublish` with reviewer-linkage audit metadata and admin Publish-tab operator guidance.
+- [x] Generalize current race-specific CLI workflows into config-first admin flows for profile-scoped extraction/reviewability/report jobs, preserving reproducibility and source traceability.
+- [x] Add config-first preset intake profiles for admin roster/statement ingestion (`profile_id` + `statement_batch` typed payload validation/routing).
+- [x] Prepare current-profile candidate/source draft inventory artifact (review-only, no direct ingestion) for `tx_2026_senate` and `tx_2026_ag_runoff`.
+- [x] Add current-profile coverage-to-3 workflow support (new factual statement batches, profile-scoped progress/coverage reports, and operator runbook) for `tx_2026_senate` and `tx_2026_ag_runoff`.
+- [x] Build the power-admin workflow v1 for AI-assisted claim grouping, source suggestion, evidence-bundle approval, and final human signoff inside the dedicated admin surface.
 
 ## Near-Term Delivery Plan
 1. Shared issue frames
@@ -101,3 +106,4 @@
 - [x] Ship admin-safe candidate CRUD and roster-verification foundations first.
 - [x] Add persistent job orchestration records before exposing web-triggered intake workflows.
 - [x] Build the admin UI only after backend mutation, audit, and job contracts are stable.
+- [x] Add worker-health observability: queue lag, retry counts, and terminal-failure visibility (`GET /v1/admin/jobs/worker-health`, Jobs tab health panel with 30s auto-refresh).

@@ -3,18 +3,20 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import threading
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.admin_job_allowlist import AdminJobAllowlist, AdminJobDefinition, get_admin_job_allowlist
 from app.core.errors import AppError
 from app.core.intake_profiles import IntakeProfile, get_intake_profiles_config
+from app.db.database import SessionLocal
 from app.models.entities import AdminJobRun
 from app.models.enums import AdminJobStatus
 from app.schemas.api import AdminJobRunCreateRequest
@@ -24,9 +26,51 @@ _BACKEND_ROOT = Path(__file__).resolve().parents[2]
 _INTAKE_ROSTER_JOB_TYPE = 'ingest_candidate_roster'
 _INTAKE_STATEMENT_BATCH_JOB_TYPE = 'ingest_statement_batch'
 _JOB_EXECUTION_TIMEOUT_SECONDS = 300
+_WORKER_POLL_INTERVAL_SECONDS = 2.0
+_LEASE_SECONDS = 600
+_MAX_ATTEMPTS_DEFAULT = 3
+_RETRY_BACKOFF_SECONDS: tuple[int, ...] = (30, 120)
+_SYSTEM_ACTOR = 'system@worker'
 
 
 class AdminJobService:
+    _worker_thread: threading.Thread | None = None
+    _worker_stop_event: threading.Event | None = None
+
+    @staticmethod
+    def _allowlisted_modules_for_job(job: AdminJobDefinition) -> list[str]:
+        modules = [job.module, *job.allowed_modules]
+        deduped: list[str] = []
+        seen: set[str] = set()
+        for module in modules:
+            normalized = str(module).strip()
+            if not normalized or normalized in seen:
+                continue
+            seen.add(normalized)
+            deduped.append(normalized)
+        return deduped
+
+    @staticmethod
+    def _get_job_schema_fields(job: AdminJobDefinition) -> tuple[list[str], list[str]]:
+        raw_schema = job.input_schema if isinstance(job.input_schema, dict) else {}
+        required_fields = sorted({str(item).strip() for item in raw_schema.get('required_fields', []) if str(item).strip()})
+        allowed_fields = sorted({str(item).strip() for item in raw_schema.get('allowed_fields', []) if str(item).strip()})
+        return required_fields, allowed_fields
+
+    @staticmethod
+    def _job_uses_profile_id(job: AdminJobDefinition) -> bool:
+        required_fields, allowed_fields = AdminJobService._get_job_schema_fields(job)
+        return 'profile_id' in required_fields or 'profile_id' in allowed_fields
+
+    @staticmethod
+    def _profile_ids_supporting_job(job_type: str, *, intake_config: Any | None = None) -> list[str]:
+        config = intake_config if intake_config is not None else get_intake_profiles_config()
+        return sorted(
+            profile_id
+            for profile_id, profile in config.profiles_by_id.items()
+            if profile.admin_job_modules.get(job_type)
+        )
+
     @staticmethod
     def _utcnow() -> datetime:
         return datetime.now(timezone.utc)
@@ -267,6 +311,11 @@ class AdminJobService:
 
             if job.job_type in {_INTAKE_ROSTER_JOB_TYPE, _INTAKE_STATEMENT_BATCH_JOB_TYPE}:
                 allowed_values['profile_id'] = profile_ids
+            elif AdminJobService._job_uses_profile_id(job):
+                allowed_values['profile_id'] = AdminJobService._profile_ids_supporting_job(
+                    job.job_type,
+                    intake_config=intake_config,
+                )
 
             jobs.append(
                 {
@@ -300,7 +349,7 @@ class AdminJobService:
         return {
             'allowlist_version': allowlist.version,
             'intake_profile_version': intake_config.version,
-            'synchronous_execution': True,
+            'synchronous_execution': False,
             'jobs': jobs,
             'intake_profiles': intake_profiles,
         }
@@ -348,31 +397,47 @@ class AdminJobService:
                 'statement_batch': statement_batch,
             }
 
+        if AdminJobService._job_uses_profile_id(job):
+            profile_id = str(normalized_payload.get('profile_id', '')).strip()
+            profile, config_version = AdminJobService._get_intake_profile(profile_id)
+            module = profile.admin_job_modules.get(job.job_type)
+            if module is None:
+                allowed_profile_ids = AdminJobService._profile_ids_supporting_job(job.job_type)
+                AdminJobService._raise_job_input_invalid(
+                    'profile_id is not supported for the selected job type.',
+                    required_fields=['profile_id'],
+                    allowed_fields=['profile_id'],
+                    missing_fields=[],
+                    unsupported_fields=[],
+                    allowed_values={'profile_id': allowed_profile_ids},
+                )
+            return module, {'intake_profile_version': config_version, 'intake_profile_id': profile.profile_id}
+
         return job.module, {}
 
     @staticmethod
-    def _mark_running(db: Session, job_run: AdminJobRun) -> None:
-        job_run.status = AdminJobStatus.running.value
-        job_run.started_at = AdminJobService._utcnow()
-        db.commit()
-        db.refresh(job_run)
-
-    @staticmethod
-    def _mark_succeeded(db: Session, job_run: AdminJobRun, result_summary: dict[str, Any]) -> None:
-        job_run.status = AdminJobStatus.succeeded.value
-        job_run.finished_at = AdminJobService._utcnow()
-        job_run.result_summary = AdminJobService._to_json_text(result_summary)
-        job_run.error_details = None
-        db.commit()
-        db.refresh(job_run)
-
-    @staticmethod
-    def _mark_failed(db: Session, job_run: AdminJobRun, error_details: dict[str, Any]) -> None:
-        job_run.status = AdminJobStatus.failed.value
-        job_run.finished_at = AdminJobService._utcnow()
-        job_run.error_details = AdminJobService._to_json_text(error_details)
-        db.commit()
-        db.refresh(job_run)
+    def _assert_resolved_module_allowlisted(
+        job: AdminJobDefinition,
+        *,
+        resolved_module: str,
+        allowlist_version: str,
+        module_metadata: dict[str, Any],
+    ) -> list[str]:
+        allowlisted_modules = AdminJobService._allowlisted_modules_for_job(job)
+        if resolved_module not in allowlisted_modules:
+            raise AppError(
+                'job_module_not_allowlisted',
+                'Resolved module is not allowlisted for admin execution.',
+                status_code=409,
+                details={
+                    'job_type': job.job_type,
+                    'resolved_module': resolved_module,
+                    'allowlisted_modules': allowlisted_modules,
+                    'allowlist_version': allowlist_version,
+                    **module_metadata,
+                },
+            )
+        return allowlisted_modules
 
     @staticmethod
     def _run_job_command(module: str, *, dry_run: bool) -> dict[str, Any]:
@@ -439,6 +504,11 @@ class AdminJobService:
             'input_payload': AdminJobService._parse_json_text(job_run.input_payload) or {},
             'started_at': job_run.started_at,
             'finished_at': job_run.finished_at,
+            'attempt_count': int(job_run.attempt_count or 0),
+            'max_attempts': int(job_run.max_attempts or _MAX_ATTEMPTS_DEFAULT),
+            'next_attempt_at': job_run.next_attempt_at,
+            'lease_expires_at': job_run.lease_expires_at,
+            'last_error_code': job_run.last_error_code,
             'result_summary': AdminJobService._parse_json_text(job_run.result_summary),
             'error_details': AdminJobService._parse_json_text(job_run.error_details),
             'created_at': job_run.created_at,
@@ -446,15 +516,27 @@ class AdminJobService:
         }
 
     @staticmethod
-    def create_and_run_job(db: Session, payload: AdminJobRunCreateRequest, *, requested_by_reviewer_id: str) -> dict[str, Any]:
+    def enqueue_job(db: Session, payload: AdminJobRunCreateRequest, *, requested_by_reviewer_id: str) -> dict[str, Any]:
         job, allowlist_version = AdminJobService._get_job_definition(payload.job_type)
         normalized_payload = AdminJobService._normalize_input_payload(payload.input_payload, job)
         resolved_module, module_metadata = AdminJobService._resolve_job_module(job, normalized_payload)
+        allowlisted_modules = AdminJobService._assert_resolved_module_allowlisted(
+            job,
+            resolved_module=resolved_module,
+            allowlist_version=allowlist_version,
+            module_metadata=module_metadata,
+        )
+        now = AdminJobService._utcnow()
         job_run = AdminJobRun(
             job_type=job.job_type,
             status=AdminJobStatus.queued.value,
             requested_by_reviewer_id=requested_by_reviewer_id,
             input_payload=AdminJobService._to_json_text(normalized_payload),
+            attempt_count=0,
+            max_attempts=_MAX_ATTEMPTS_DEFAULT,
+            next_attempt_at=now,
+            lease_expires_at=None,
+            last_error_code=None,
         )
         db.add(job_run)
         db.flush()
@@ -471,44 +553,236 @@ class AdminJobService:
                 'status': job_run.status,
                 'input_payload': normalized_payload,
             },
-            metadata={'allowlist_version': allowlist_version, **module_metadata, 'resolved_module': resolved_module},
+            metadata={
+                'allowlist_version': allowlist_version,
+                **module_metadata,
+                'resolved_module': resolved_module,
+                'allowlisted_modules': allowlisted_modules,
+                'module_allowlist_enforced': True,
+            },
             commit=False,
         )
         db.commit()
         db.refresh(job_run)
+        return AdminJobService._to_read_model(job_run)
+
+    @staticmethod
+    def _claim_next_due_job(db: Session) -> AdminJobRun | None:
+        now = AdminJobService._utcnow()
+        due_jobs = (
+            select(AdminJobRun)
+            .where(
+                AdminJobRun.status == AdminJobStatus.queued.value,
+                or_(AdminJobRun.next_attempt_at.is_(None), AdminJobRun.next_attempt_at <= now),
+                or_(AdminJobRun.lease_expires_at.is_(None), AdminJobRun.lease_expires_at <= now),
+            )
+            .order_by(AdminJobRun.created_at.asc())
+            .with_for_update(skip_locked=True)
+            .limit(1)
+        )
+        job_run = db.execute(due_jobs).scalars().first()
+        if job_run is None:
+            return None
+
+        job_run.status = AdminJobStatus.running.value
+        if job_run.started_at is None:
+            job_run.started_at = now
+        job_run.attempt_count = int(job_run.attempt_count or 0) + 1
+        job_run.lease_expires_at = now + timedelta(seconds=_LEASE_SECONDS)
+        job_run.next_attempt_at = None
+        db.commit()
+        db.refresh(job_run)
+        return job_run
+
+    @staticmethod
+    def _record_system_audit(
+        db: Session,
+        *,
+        action: str,
+        job_run: AdminJobRun,
+        after_payload: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        AdminAuditService.record_event(
+            db,
+            actor_reviewer_id=_SYSTEM_ACTOR,
+            action=action,
+            entity_type='admin_job_run',
+            entity_id=str(job_run.id),
+            before_payload=None,
+            after_payload=after_payload,
+            metadata=metadata,
+            commit=False,
+        )
+
+    @staticmethod
+    def _mark_succeeded(db: Session, job_run: AdminJobRun, result_summary: dict[str, Any]) -> None:
+        now = AdminJobService._utcnow()
+        job_run.status = AdminJobStatus.succeeded.value
+        job_run.finished_at = now
+        job_run.lease_expires_at = None
+        job_run.next_attempt_at = None
+        job_run.result_summary = AdminJobService._to_json_text(result_summary)
+        job_run.error_details = None
+        job_run.last_error_code = None
+        AdminJobService._record_system_audit(
+            db,
+            action='admin_job_succeeded',
+            job_run=job_run,
+            after_payload={'job_run_id': str(job_run.id), 'status': job_run.status},
+            metadata={'attempt_count': int(job_run.attempt_count or 0)},
+        )
+        db.commit()
+
+    @staticmethod
+    def _get_retry_delay_seconds(attempt_count: int) -> int:
+        if attempt_count <= 1:
+            return _RETRY_BACKOFF_SECONDS[0]
+        if attempt_count == 2:
+            return _RETRY_BACKOFF_SECONDS[1]
+        return _RETRY_BACKOFF_SECONDS[-1]
+
+    @staticmethod
+    def _mark_failed_or_requeued(
+        db: Session,
+        job_run: AdminJobRun,
+        *,
+        error_code: str,
+        error_message: str,
+        error_details: dict[str, Any] | None,
+    ) -> None:
+        max_attempts = int(job_run.max_attempts or _MAX_ATTEMPTS_DEFAULT)
+        attempts = int(job_run.attempt_count or 0)
+        now = AdminJobService._utcnow()
+        details_payload = {
+            'code': error_code,
+            'message': error_message,
+            'details': error_details or {},
+            'attempt_count': attempts,
+            'max_attempts': max_attempts,
+        }
+        job_run.error_details = AdminJobService._to_json_text(details_payload)
+        job_run.last_error_code = error_code
+        job_run.lease_expires_at = None
+
+        if attempts < max_attempts:
+            retry_delay = AdminJobService._get_retry_delay_seconds(attempts)
+            job_run.status = AdminJobStatus.queued.value
+            job_run.next_attempt_at = now + timedelta(seconds=retry_delay)
+            AdminJobService._record_system_audit(
+                db,
+                action='admin_job_retried',
+                job_run=job_run,
+                after_payload={'job_run_id': str(job_run.id), 'status': job_run.status},
+                metadata={'attempt_count': attempts, 'next_attempt_in_seconds': retry_delay, 'error_code': error_code},
+            )
+        else:
+            job_run.status = AdminJobStatus.failed.value
+            job_run.next_attempt_at = None
+            job_run.finished_at = now
+            AdminJobService._record_system_audit(
+                db,
+                action='admin_job_failed',
+                job_run=job_run,
+                after_payload={'job_run_id': str(job_run.id), 'status': job_run.status},
+                metadata={'attempt_count': attempts, 'error_code': error_code},
+            )
+        db.commit()
+
+    @staticmethod
+    def _resolve_execution_for_job_run(job_run: AdminJobRun) -> tuple[dict[str, Any], str, dict[str, Any], str]:
+        payload = AdminJobService._parse_json_text(job_run.input_payload) or {}
+        job, allowlist_version = AdminJobService._get_job_definition(job_run.job_type)
+        normalized_payload = AdminJobService._normalize_input_payload(payload, job)
+        resolved_module, module_metadata = AdminJobService._resolve_job_module(job, normalized_payload)
+        AdminJobService._assert_resolved_module_allowlisted(
+            job,
+            resolved_module=resolved_module,
+            allowlist_version=allowlist_version,
+            module_metadata=module_metadata,
+        )
+        return normalized_payload, resolved_module, module_metadata, allowlist_version
+
+    @staticmethod
+    def run_next_due_job(db: Session) -> bool:
+        job_run = AdminJobService._claim_next_due_job(db)
+        if job_run is None:
+            return False
+
+        AdminJobService._record_system_audit(
+            db,
+            action='admin_job_started',
+            job_run=job_run,
+            after_payload={'job_run_id': str(job_run.id), 'status': job_run.status},
+            metadata={'attempt_count': int(job_run.attempt_count or 0)},
+        )
+        db.commit()
 
         try:
-            AdminJobService._mark_running(db, job_run)
+            normalized_payload, resolved_module, module_metadata, allowlist_version = AdminJobService._resolve_execution_for_job_run(job_run)
             result_summary = AdminJobService._run_job_command(resolved_module, dry_run=bool(normalized_payload.get('dry_run', False)))
             result_summary['allowlist_version'] = allowlist_version
             result_summary['resolved_module'] = resolved_module
             result_summary.update(module_metadata)
+            result_summary['attempt_count'] = int(job_run.attempt_count or 0)
             AdminJobService._mark_succeeded(db, job_run, result_summary)
-            return AdminJobService._to_read_model(job_run)
         except AppError as exc:
-            AdminJobService._mark_failed(
+            AdminJobService._mark_failed_or_requeued(
                 db,
                 job_run,
-                {
-                    'code': exc.code,
-                    'message': exc.message,
-                    'details': exc.details,
-                    'allowlist_version': allowlist_version,
-                },
+                error_code=exc.code,
+                error_message=exc.message,
+                error_details=exc.details if isinstance(exc.details, dict) else {'raw': exc.details},
             )
-            raise
         except Exception as exc:
-            AdminJobService._mark_failed(
+            AdminJobService._mark_failed_or_requeued(
                 db,
                 job_run,
-                {
-                    'code': 'job_execution_failed',
-                    'message': 'Admin job execution failed.',
-                    'details': {'reason': exc.__class__.__name__},
-                    'allowlist_version': allowlist_version,
-                },
+                error_code='job_execution_failed',
+                error_message='Admin job execution failed.',
+                error_details={'reason': exc.__class__.__name__},
             )
-            raise AppError('job_execution_failed', 'Admin job execution failed.', status_code=500) from exc
+        return True
+
+    @staticmethod
+    def process_next_due_job() -> bool:
+        db = SessionLocal()
+        try:
+            return AdminJobService.run_next_due_job(db)
+        finally:
+            db.close()
+
+    @staticmethod
+    def _worker_loop(stop_event: threading.Event) -> None:
+        while not stop_event.is_set():
+            processed = False
+            try:
+                processed = AdminJobService.process_next_due_job()
+            except Exception:
+                processed = False
+            if not processed:
+                stop_event.wait(_WORKER_POLL_INTERVAL_SECONDS)
+
+    @staticmethod
+    def start_worker() -> None:
+        if AdminJobService._worker_thread is not None and AdminJobService._worker_thread.is_alive():
+            return
+        stop_event = threading.Event()
+        thread = threading.Thread(target=AdminJobService._worker_loop, args=(stop_event,), daemon=True, name='admin-job-worker')
+        AdminJobService._worker_stop_event = stop_event
+        AdminJobService._worker_thread = thread
+        thread.start()
+
+    @staticmethod
+    def stop_worker() -> None:
+        stop_event = AdminJobService._worker_stop_event
+        thread = AdminJobService._worker_thread
+        if stop_event is None or thread is None:
+            return
+        stop_event.set()
+        thread.join(timeout=3.0)
+        AdminJobService._worker_stop_event = None
+        AdminJobService._worker_thread = None
 
     @staticmethod
     def get_job_run(db: Session, job_run_id: uuid.UUID) -> dict[str, Any]:
@@ -516,6 +790,91 @@ class AdminJobService:
         if job_run is None:
             raise AppError('admin_job_not_found', 'Admin job run does not exist.', status_code=404)
         return AdminJobService._to_read_model(job_run)
+
+    @staticmethod
+    def _to_health_failure_summary(job_run: AdminJobRun) -> dict[str, Any]:
+        return {
+            'id': job_run.id,
+            'job_type': job_run.job_type,
+            'attempt_count': int(job_run.attempt_count or 0),
+            'max_attempts': int(job_run.max_attempts or _MAX_ATTEMPTS_DEFAULT),
+            'last_error_code': job_run.last_error_code,
+            'finished_at': job_run.finished_at,
+            'created_at': job_run.created_at,
+        }
+
+    @staticmethod
+    def get_worker_health(db: Session) -> dict[str, Any]:
+        now = AdminJobService._utcnow()
+        is_due = or_(AdminJobRun.next_attempt_at.is_(None), AdminJobRun.next_attempt_at <= now)
+
+        agg = db.execute(
+            select(
+                func.count()
+                .filter(AdminJobRun.status == AdminJobStatus.queued.value)
+                .label('queue_depth'),
+                func.count()
+                .filter(
+                    AdminJobRun.status == AdminJobStatus.queued.value,
+                    AdminJobRun.attempt_count > 0,
+                )
+                .label('retry_queue_depth'),
+                func.count()
+                .filter(
+                    AdminJobRun.status == AdminJobStatus.queued.value,
+                    is_due,
+                )
+                .label('due_depth'),
+                func.min(AdminJobRun.created_at)
+                .filter(AdminJobRun.status == AdminJobStatus.queued.value)
+                .label('oldest_queued_at'),
+                func.min(AdminJobRun.created_at)
+                .filter(
+                    AdminJobRun.status == AdminJobStatus.queued.value,
+                    is_due,
+                )
+                .label('oldest_due_at'),
+                func.count()
+                .filter(AdminJobRun.status == AdminJobStatus.running.value)
+                .label('running_count'),
+                func.count()
+                .filter(AdminJobRun.status == AdminJobStatus.failed.value)
+                .label('terminal_failure_count'),
+            ).select_from(AdminJobRun)
+        ).one()
+
+        recent_failures = db.execute(
+            select(AdminJobRun)
+            .where(AdminJobRun.status == AdminJobStatus.failed.value)
+            .order_by(AdminJobRun.finished_at.desc().nullslast(), AdminJobRun.updated_at.desc())
+            .limit(10)
+        ).scalars().all()
+
+        def _age_seconds(dt: datetime | None) -> float | None:
+            if dt is None:
+                return None
+            aware = dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+            return max(0.0, round((now - aware).total_seconds(), 1))
+
+        worker_alive = (
+            AdminJobService._worker_thread is not None
+            and AdminJobService._worker_thread.is_alive()
+        )
+
+        return {
+            'worker_alive': worker_alive,
+            'queue_depth': int(agg.queue_depth or 0),
+            'due_depth': int(agg.due_depth or 0),
+            'retry_queue_depth': int(agg.retry_queue_depth or 0),
+            'oldest_queued_age_seconds': _age_seconds(agg.oldest_queued_at),
+            'oldest_due_age_seconds': _age_seconds(agg.oldest_due_at),
+            'running_count': int(agg.running_count or 0),
+            'terminal_failure_count': int(agg.terminal_failure_count or 0),
+            'recent_terminal_failures': [
+                AdminJobService._to_health_failure_summary(f) for f in recent_failures
+            ],
+            'checked_at': now,
+        }
 
     @staticmethod
     def list_job_runs(

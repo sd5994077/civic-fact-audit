@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import json
 import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
+from app.core.moderation_policy import ModerationViolation
 from app.models.entities import AdminAuditEvent
 
 
@@ -82,6 +84,65 @@ class AdminAuditService:
         if event is None:
             raise AppError('admin_audit_event_not_found', 'Admin audit event does not exist.', status_code=404)
         return AdminAuditService._to_read_model(event)
+
+    @staticmethod
+    def record_moderation_violation(
+        db: Session,
+        *,
+        reviewer_id: str,
+        text_preview: str,
+        rejection_field: str,
+        violation: ModerationViolation,
+    ) -> None:
+        AdminAuditService.record_event(
+            db,
+            actor_reviewer_id=reviewer_id,
+            action='moderation_violation',
+            entity_type='moderation_rule',
+            entity_id=violation.rule_id,
+            metadata={
+                'rejection_field': rejection_field,
+                'violation_type': violation.violation_type,
+                'matched_pattern': violation.matched_pattern,
+                'policy_version': violation.policy_version,
+                'text_preview': text_preview[:200],
+            },
+        )
+
+    @staticmethod
+    def get_moderation_risk(
+        db: Session,
+        *,
+        window_days: int = 30,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=window_days)
+        rows = (
+            db.execute(
+                select(
+                    AdminAuditEvent.actor_reviewer_id,
+                    func.count(AdminAuditEvent.id).label('violation_count'),
+                    func.max(AdminAuditEvent.created_at).label('last_violation_at'),
+                )
+                .where(
+                    AdminAuditEvent.action == 'moderation_violation',
+                    AdminAuditEvent.created_at >= cutoff,
+                )
+                .group_by(AdminAuditEvent.actor_reviewer_id)
+                .order_by(func.count(AdminAuditEvent.id).desc())
+                .limit(limit)
+            )
+            .mappings()
+            .all()
+        )
+        return [
+            {
+                'reviewer_id': row['actor_reviewer_id'],
+                'violation_count': int(row['violation_count']),
+                'last_violation_at': row['last_violation_at'],
+            }
+            for row in rows
+        ]
 
     @staticmethod
     def list_events(

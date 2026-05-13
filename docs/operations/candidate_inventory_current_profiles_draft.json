@@ -1,0 +1,480 @@
+{
+  "inventory_version": "candidate_inventory_current_profiles_v3_2026_05_12",
+  "generated_at": "2026-05-12T00:00:00Z",
+  "scope": {
+    "profile_ids": ["tx_2026_senate", "tx_2026_ag_runoff"],
+    "mode": "draft_review_only",
+    "ingestion_allowed": false
+  },
+  "entries": [
+    {
+      "profile_id": "tx_2026_senate",
+      "candidate": {
+        "name": "James Talarico",
+        "party": "Democratic",
+        "office": "US Senate",
+        "state": "TX",
+        "election_cycle": 2026,
+        "race_stage": "primary",
+        "is_active": true,
+        "roster_status": "primary_nominee_reported",
+        "roster_source_url": "https://www.houstonchronicle.com/politics/election/2026/article/texas-primary-live-updates-21941132.php",
+        "roster_checked_at": "2026-05-12T00:00:00Z",
+        "roster_notes": "Copied from roster ingest script seed; pending source-admission reviewer confirmation."
+      },
+      "statement_sources": [
+        {
+          "batch_key": "starter",
+          "url": "https://jamestalarico.com/",
+          "source_type": "press_release",
+          "source_origin": "candidate",
+          "source_class": "primary",
+          "publisher": "James Talarico Campaign",
+          "rationale": "Candidate-originated homepage statement capture.",
+          "policy_precheck": {
+            "is_disallowed_for_verification": true,
+            "requires_manual_review": true,
+            "review_note": "Candidate-originated content is stance evidence only, not verification truth evidence."
+          }
+        },
+        {
+          "batch_key": "round2",
+          "url": "https://x.com/jamestalarico/status/1903521519155962163",
+          "source_type": "social",
+          "source_origin": "candidate",
+          "source_class": "primary",
+          "publisher": "James Talarico (@jamestalarico)",
+          "rationale": "Direct candidate social post capture.",
+          "policy_precheck": {
+            "is_disallowed_for_verification": true,
+            "requires_manual_review": true,
+            "review_note": "Direct quote capture allowed; do not use as sole verification evidence."
+          }
+        },
+        {
+          "batch_key": "round3",
+          "url": "https://jamestalarico.com/issue/public-education/",
+          "source_type": "press_release",
+          "source_origin": "candidate",
+          "source_class": "primary",
+          "publisher": "James Talarico Campaign",
+          "rationale": "Candidate issue-page factual claim seed for downstream record checking.",
+          "policy_precheck": {
+            "is_disallowed_for_verification": true,
+            "requires_manual_review": true,
+            "review_note": "Candidate page claim should be paired with independent verification before adjudication."
+          }
+        },
+        {
+          "batch_key": "round4",
+          "url": "https://jamestalarico.com/issue/health-care/",
+          "source_type": "press_release",
+          "source_origin": "candidate",
+          "source_class": "primary",
+          "publisher": "James Talarico Campaign",
+          "rationale": "Additional candidate issue-page factual claim seed for coverage-to-3 expansion.",
+          "policy_precheck": {
+            "is_disallowed_for_verification": true,
+            "requires_manual_review": true,
+            "review_note": "Must be corroborated with neutral health-insurance statistics records before adjudication."
+          }
+        }
+      ],
+      "verification_source_candidates": [
+        {
+          "target_batch_key": "round3",
+          "url": "https://www.lbb.texas.gov/Documents/Publications/Fiscal_SizeUp/2024_FiscalSizeUp_Full.pdf",
+          "source_origin": "verification",
+          "source_class": "primary",
+          "publisher": "Texas Legislative Budget Board",
+          "rationale": "Neutral state budget record candidate for claims about public education appropriations.",
+          "review_note": "Confirm exact fiscal-year budget baseline and dollar figure match before attach."
+        },
+        {
+          "target_batch_key": "round4",
+          "url": "https://www.census.gov/library/publications/2025/demo/p60-286.html",
+          "source_origin": "verification",
+          "source_class": "primary",
+          "publisher": "U.S. Census Bureau",
+          "rationale": "Record-based federal dataset candidate for uninsured-rate comparisons.",
+          "review_note": "Verify Texas ranking year and metric definition align with claim language."
+        },
+        {
+          "target_batch_key": "round4",
+          "url": "https://www.kff.org/state-category/health-coverage-uninsured/",
+          "source_origin": "verification",
+          "source_class": "secondary",
+          "publisher": "KFF",
+          "rationale": "Independent secondary synthesis to corroborate uninsured-rate context.",
+          "review_note": "Use only as corroboration after attaching primary record source."
+        }
+      ]
+    },
+    {
+      "profile_id": "tx_2026_senate",
+      "candidate": {
+        "name": "John Cornyn",
+        "party": "Republican",
+        "office": "US Senate",
+        "state": "TX",
+        "election_cycle": 2026,
+        "race_stage": "primary_runoff",
+        "is_active": true,
+        "roster_status": "runoff_reported",
+        "roster_source_url": "https://www.houstonchronicle.com/politics/election/2026/article/texas-primary-live-updates-21941132.php",
+        "roster_checked_at": "2026-05-12T00:00:00Z",
+        "roster_notes": "Copied from roster ingest script seed; pending source-admission reviewer confirmation."
+      },
+      "statement_sources": [
+        {
+          "batch_key": "starter",
+          "url": "https://www.johncornyn.com/",
+          "source_type": "press_release",
+          "source_origin": "candidate",
+          "source_class": "primary",
+          "publisher": "John Cornyn Campaign",
+          "rationale": "Candidate-originated homepage statement capture.",
+          "policy_precheck": {
+            "is_disallowed_for_verification": true,
+            "requires_manual_review": true,
+            "review_note": "Candidate-originated content is stance evidence only, not verification truth evidence."
+          }
+        },
+        {
+          "batch_key": "round2",
+          "url": "https://x.com/JohnCornyn/status/2038257392652100008",
+          "source_type": "social",
+          "source_origin": "candidate",
+          "source_class": "primary",
+          "publisher": "John Cornyn (@JohnCornyn)",
+          "rationale": "Direct candidate social post capture.",
+          "policy_precheck": {
+            "is_disallowed_for_verification": true,
+            "requires_manual_review": true,
+            "review_note": "Direct quote capture allowed; do not use as sole verification evidence."
+          }
+        },
+        {
+          "batch_key": "round3",
+          "url": "https://www.johncornyn.com/the-cornyn-trump-record/",
+          "source_type": "press_release",
+          "source_origin": "candidate",
+          "source_class": "primary",
+          "publisher": "John Cornyn Campaign",
+          "rationale": "Candidate record-page factual claim seed for downstream record checking.",
+          "policy_precheck": {
+            "is_disallowed_for_verification": true,
+            "requires_manual_review": true,
+            "review_note": "Candidate page claim should be paired with independent verification before adjudication."
+          }
+        },
+        {
+          "batch_key": "round4",
+          "url": "https://www.johncornyn.com/the-cornyn-trump-record/",
+          "source_type": "press_release",
+          "source_origin": "candidate",
+          "source_class": "primary",
+          "publisher": "John Cornyn Campaign",
+          "rationale": "Additional candidate record-page factual claim seed for coverage-to-3 expansion.",
+          "policy_precheck": {
+            "is_disallowed_for_verification": true,
+            "requires_manual_review": true,
+            "review_note": "Treat as candidate-originated until verified with legislative records."
+          }
+        },
+        {
+          "batch_key": "round2",
+          "url": "https://www.houstonchronicle.com/politics/election/2026/article/senate-republican-primary-results-21318098.php",
+          "source_type": "interview",
+          "source_origin": "verification",
+          "source_class": "secondary",
+          "publisher": "Houston Chronicle",
+          "rationale": "Independent reporting source used for runoff-context statement capture.",
+          "policy_precheck": {
+            "is_disallowed_for_verification": false,
+            "requires_manual_review": true,
+            "review_note": "Secondary reporting only; upgrade with neutral primary record when available."
+          }
+        }
+      ],
+      "verification_source_candidates": [
+        {
+          "target_batch_key": "round3",
+          "url": "https://www.senate.gov/legislative/votes.htm",
+          "source_origin": "verification",
+          "source_class": "primary",
+          "publisher": "U.S. Senate",
+          "rationale": "Primary legislative roll-call records candidate for justice-confirmation claims.",
+          "review_note": "Capture exact roll-call entries and year references in citation notes."
+        },
+        {
+          "target_batch_key": "round4",
+          "url": "https://www.congress.gov/bill/109th-congress/senate-bill/2454",
+          "source_origin": "verification",
+          "source_class": "primary",
+          "publisher": "Congress.gov",
+          "rationale": "Primary congressional bill history candidate for border-security-package claim checks.",
+          "review_note": "Confirm 'largest' qualifier with comparative appropriations context."
+        },
+        {
+          "target_batch_key": "round4",
+          "url": "https://www.texastribune.org/2026/03/17/texas-senate-gop-primary-runoff-deadline-remove-name-from-ballot-cornyn-paxton/",
+          "source_origin": "verification",
+          "source_class": "secondary",
+          "publisher": "Texas Tribune",
+          "rationale": "Independent reporting candidate for runoff-context corroboration of campaign record claims.",
+          "review_note": "Corroboration only; keep congressional records as primary evidence."
+        }
+      ]
+    },
+    {
+      "profile_id": "tx_2026_senate",
+      "candidate": {
+        "name": "Ken Paxton",
+        "party": "Republican",
+        "office": "US Senate",
+        "state": "TX",
+        "election_cycle": 2026,
+        "race_stage": "primary_runoff",
+        "is_active": true,
+        "roster_status": "runoff_reported",
+        "roster_source_url": "https://www.houstonchronicle.com/politics/election/2026/article/texas-primary-live-updates-21941132.php",
+        "roster_checked_at": "2026-05-12T00:00:00Z",
+        "roster_notes": "Copied from roster ingest script seed; pending source-admission reviewer confirmation."
+      },
+      "statement_sources": [
+        {
+          "batch_key": "starter",
+          "url": "https://www.kenpaxton.com/",
+          "source_type": "press_release",
+          "source_origin": "candidate",
+          "source_class": "primary",
+          "publisher": "Ken Paxton Campaign",
+          "rationale": "Candidate-originated homepage statement capture.",
+          "policy_precheck": {
+            "is_disallowed_for_verification": true,
+            "requires_manual_review": true,
+            "review_note": "Candidate-originated content is stance evidence only, not verification truth evidence."
+          }
+        },
+        {
+          "batch_key": "round2",
+          "url": "https://x.com/KenPaxtonTX/status/1935360538781040857",
+          "source_type": "social",
+          "source_origin": "candidate",
+          "source_class": "primary",
+          "publisher": "Ken Paxton (@KenPaxtonTX)",
+          "rationale": "Direct candidate social post capture.",
+          "policy_precheck": {
+            "is_disallowed_for_verification": true,
+            "requires_manual_review": true,
+            "review_note": "Direct quote capture allowed; do not use as sole verification evidence."
+          }
+        },
+        {
+          "batch_key": "round3",
+          "url": "https://www.kenpaxton.com/about",
+          "source_type": "press_release",
+          "source_origin": "candidate",
+          "source_class": "primary",
+          "publisher": "Ken Paxton Campaign",
+          "rationale": "Candidate about-page factual claim seed for downstream record checking.",
+          "policy_precheck": {
+            "is_disallowed_for_verification": true,
+            "requires_manual_review": true,
+            "review_note": "Candidate page claim should be paired with independent verification before adjudication."
+          }
+        },
+        {
+          "batch_key": "round4",
+          "url": "https://www.kenpaxton.com/about",
+          "source_type": "press_release",
+          "source_origin": "candidate",
+          "source_class": "primary",
+          "publisher": "Ken Paxton Campaign",
+          "rationale": "Additional candidate about-page factual claim seed for coverage-to-3 expansion.",
+          "policy_precheck": {
+            "is_disallowed_for_verification": true,
+            "requires_manual_review": true,
+            "review_note": "Treat as candidate-originated until court/agency records are attached."
+          }
+        },
+        {
+          "batch_key": "round2",
+          "url": "https://www.houstonchronicle.com/politics/election/2026/article/senate-republican-primary-results-21318098.php",
+          "source_type": "interview",
+          "source_origin": "verification",
+          "source_class": "secondary",
+          "publisher": "Houston Chronicle",
+          "rationale": "Independent reporting source used for runoff-context statement capture.",
+          "policy_precheck": {
+            "is_disallowed_for_verification": false,
+            "requires_manual_review": true,
+            "review_note": "Secondary reporting only; upgrade with neutral primary record when available."
+          }
+        }
+      ],
+      "verification_source_candidates": [
+        {
+          "target_batch_key": "round3",
+          "url": "https://www.texasattorneygeneral.gov/news/releases",
+          "source_origin": "verification",
+          "source_class": "primary",
+          "publisher": "Office of the Texas Attorney General",
+          "rationale": "Official office records candidate for lawsuit-count claim substantiation.",
+          "review_note": "Cross-check against case dockets before final citation to avoid office self-report bias."
+        },
+        {
+          "target_batch_key": "round4",
+          "url": "https://www.texasattorneygeneral.gov/consumer-protection",
+          "source_origin": "verification",
+          "source_class": "primary",
+          "publisher": "Office of the Texas Attorney General",
+          "rationale": "Official office activity records candidate for amicus-brief claims.",
+          "review_note": "Reviewer must capture a specific page/filed-brief count and date range."
+        },
+        {
+          "target_batch_key": "round4",
+          "url": "https://www.texastribune.org/2026/03/17/texas-senate-gop-primary-runoff-deadline-remove-name-from-ballot-cornyn-paxton/",
+          "source_origin": "verification",
+          "source_class": "secondary",
+          "publisher": "Texas Tribune",
+          "rationale": "Independent Texas policy reporting candidate for secondary corroboration.",
+          "review_note": "Corroboration only; do not use as substitute for official filing or court records."
+        }
+      ]
+    },
+    {
+      "profile_id": "tx_2026_ag_runoff",
+      "candidate": {
+        "name": "Chip Roy",
+        "party": "Republican",
+        "office": "Attorney General",
+        "state": "TX",
+        "election_cycle": 2026,
+        "race_stage": "primary_runoff",
+        "is_active": true,
+        "roster_status": "runoff_reported",
+        "roster_source_url": "https://www.texastribune.org/2026/04/22/texas-2026-attorney-general-runoff-chip-roy-mayes-middleton-q-and-a/",
+        "roster_checked_at": "2026-05-12T00:00:00Z",
+        "roster_notes": "Copied from roster ingest script seed; pending source-admission reviewer confirmation."
+      },
+      "statement_sources": [
+        {
+          "batch_key": "starter",
+          "url": "https://www.texastribune.org/2026/04/22/texas-2026-attorney-general-runoff-chip-roy-mayes-middleton-q-and-a/",
+          "source_type": "interview",
+          "source_origin": "verification",
+          "source_class": "secondary",
+          "publisher": "Texas Tribune",
+          "rationale": "Independent reporting source used for runoff statement seed capture.",
+          "policy_precheck": {
+            "is_disallowed_for_verification": false,
+            "requires_manual_review": true,
+            "review_note": "Secondary reporting only; upgrade with neutral primary record when available."
+          }
+        },
+        {
+          "batch_key": "round2",
+          "url": "https://www.texastribune.org/2026/04/22/texas-2026-attorney-general-runoff-chip-roy-mayes-middleton-q-and-a/",
+          "source_type": "interview",
+          "source_origin": "verification",
+          "source_class": "secondary",
+          "publisher": "Texas Tribune",
+          "rationale": "Additional specific policy-process statements for coverage-to-3 expansion.",
+          "policy_precheck": {
+            "is_disallowed_for_verification": false,
+            "requires_manual_review": true,
+            "review_note": "Keep as secondary; attach agency-level primary records for each metric claim."
+          }
+        }
+      ],
+      "verification_source_candidates": [
+        {
+          "target_batch_key": "round2",
+          "url": "https://www.texasattorneygeneral.gov/open-records",
+          "source_origin": "verification",
+          "source_class": "primary",
+          "publisher": "Office of the Texas Attorney General",
+          "rationale": "Official AG process documentation candidate for open-records operational commitments.",
+          "review_note": "Supplement with quarterly/monthly reporting artifacts once published."
+        },
+        {
+          "target_batch_key": "round2",
+          "url": "https://comptroller.texas.gov/transparency/",
+          "source_origin": "verification",
+          "source_class": "secondary",
+          "publisher": "Texas Comptroller Transparency Portal",
+          "rationale": "Independent state transparency data candidate for corroborating reporting commitments.",
+          "review_note": "Attach only if specific dataset row supports the claim details."
+        }
+      ]
+    },
+    {
+      "profile_id": "tx_2026_ag_runoff",
+      "candidate": {
+        "name": "Mayes Middleton",
+        "party": "Republican",
+        "office": "Attorney General",
+        "state": "TX",
+        "election_cycle": 2026,
+        "race_stage": "primary_runoff",
+        "is_active": true,
+        "roster_status": "runoff_reported",
+        "roster_source_url": "https://www.texastribune.org/2026/04/22/texas-2026-attorney-general-runoff-chip-roy-mayes-middleton-q-and-a/",
+        "roster_checked_at": "2026-05-12T00:00:00Z",
+        "roster_notes": "Copied from roster ingest script seed; pending source-admission reviewer confirmation."
+      },
+      "statement_sources": [
+        {
+          "batch_key": "starter",
+          "url": "https://www.texastribune.org/2026/04/22/texas-2026-attorney-general-runoff-chip-roy-mayes-middleton-q-and-a/",
+          "source_type": "interview",
+          "source_origin": "verification",
+          "source_class": "secondary",
+          "publisher": "Texas Tribune",
+          "rationale": "Independent reporting source used for runoff statement seed capture.",
+          "policy_precheck": {
+            "is_disallowed_for_verification": false,
+            "requires_manual_review": true,
+            "review_note": "Secondary reporting only; upgrade with neutral primary record when available."
+          }
+        },
+        {
+          "batch_key": "round2",
+          "url": "https://www.texastribune.org/2026/04/22/texas-2026-attorney-general-runoff-chip-roy-mayes-middleton-q-and-a/",
+          "source_type": "interview",
+          "source_origin": "verification",
+          "source_class": "secondary",
+          "publisher": "Texas Tribune",
+          "rationale": "Additional specific policy-process statements for coverage-to-3 expansion.",
+          "policy_precheck": {
+            "is_disallowed_for_verification": false,
+            "requires_manual_review": true,
+            "review_note": "Keep as secondary; attach agency-level primary records for each metric claim."
+          }
+        }
+      ],
+      "verification_source_candidates": [
+        {
+          "target_batch_key": "round2",
+          "url": "https://www.sos.state.tx.us/elections/",
+          "source_origin": "verification",
+          "source_class": "primary",
+          "publisher": "Texas Secretary of State",
+          "rationale": "Official election administration records candidate for referral/disposition policy claims.",
+          "review_note": "Verify that the referred dataset directly maps to AG referral/disposition language."
+        },
+        {
+          "target_batch_key": "round2",
+          "url": "https://www.texastribune.org/2026/04/22/texas-2026-attorney-general-runoff-chip-roy-mayes-middleton-q-and-a/",
+          "source_origin": "verification",
+          "source_class": "secondary",
+          "publisher": "Texas Tribune",
+          "rationale": "Independent reporting candidate for contextual corroboration.",
+          "review_note": "Attach only specific non-opinion article URLs that cite neutral record data."
+        }
+      ]
+    }
+  ]
+}

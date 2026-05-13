@@ -80,6 +80,7 @@
             <div class="panel-head"><h3>Candidate Detail</h3></div>
             <form id="candidate-edit-form" class="stack-form" autocomplete="off">
               <label>Candidate ID<input id="candidate-id" type="text" readonly></label>
+              <label>Approval Token<input id="candidate-approval-token" type="text" placeholder="Paste dual-control approval token" required></label>
               <label>Name<input id="candidate-name" type="text"></label>
               <label>Party<input id="candidate-party" type="text"></label>
               <label>Office<input id="candidate-office" type="text"></label>
@@ -110,6 +111,7 @@
         <article class="panel" style="margin-top:1rem;">
           <div class="panel-head"><h3>Create Candidate</h3></div>
           <form id="candidate-create-form" class="stack-form compact">
+            <label>Approval Token<input id="create-approval-token" type="text" placeholder="Paste dual-control approval token" required></label>
             <label>Name<input id="create-name" type="text" required></label>
             <label>Party<input id="create-party" type="text"></label>
             <label>Office<input id="create-office" type="text"></label>
@@ -170,6 +172,7 @@
             <p id="review-preview" class="status-text">Select a claim from the queue to evaluate.</p>
             <form id="review-form" class="stack-form" autocomplete="off">
               <label>Claim ID<input id="review-claim-id" type="text" readonly required></label>
+              <label>Approval Token (overwrite only)<input id="review-approval-token" type="text" placeholder="Paste dual-control approval token"></label>
               <label>Verdict
                 <select id="review-verdict" required>
                   <option value="supported">supported</option>
@@ -234,7 +237,7 @@
           <article class="panel">
             <div class="panel-head"><h3>Bulk Source Attach</h3></div>
             <p class="status-text">
-              Payload must be a JSON array. Each item requires: <code>claim_id</code>, <code>url</code>, <code>source_class</code>,
+              Payload must be a JSON object with <code>approval_token</code> and <code>items</code>. Each item requires: <code>claim_id</code>, <code>url</code>, <code>source_class</code>,
               <code>source_origin</code>, and <code>quality_score</code>.
             </p>
             <div class="action-row" style="margin:0.7rem 0;">
@@ -243,6 +246,7 @@
               <button id="bulk-clear-json" class="ghost-btn" type="button">Clear</button>
             </div>
             <form id="bulk-attach-form" class="stack-form">
+              <label>Approval Token<input id="bulk-approval-token" type="text" placeholder="Paste dual-control approval token" required></label>
               <label>Attach Payload JSON
                 <textarea id="bulk-attach-json" class="json-input" spellcheck="false"></textarea>
               </label>
@@ -307,6 +311,18 @@
           <article class="panel">
             <div class="panel-head"><h3>Proposal Detail</h3></div>
             <p id="proposal-detail-empty" class="status-text">Select a proposal row to inspect payload and route an action.</p>
+            <div id="proposal-power-admin" class="checklist-box" hidden>
+              <h4>Power Admin Review</h4>
+              <p id="proposal-power-admin-status" class="status-text"></p>
+              <ul id="proposal-power-admin-items" class="checklist"></ul>
+              <p id="proposal-power-admin-guidance" class="status-text"></p>
+            </div>
+            <div id="proposal-claim-context" class="checklist-box" hidden>
+              <h4>Claim Context Snapshot</h4>
+              <p id="proposal-claim-context-status" class="status-text"></p>
+              <ul id="proposal-claim-context-evidence" class="checklist"></ul>
+              <ul id="proposal-claim-context-evaluation" class="checklist"></ul>
+            </div>
             <pre id="proposal-detail-json" class="json" hidden></pre>
             <form id="proposal-action-form" class="stack-form" autocomplete="off">
               <label>Proposal ID<input id="proposal-id" type="text" readonly required></label>
@@ -356,7 +372,13 @@
 
           <article class="panel">
             <div class="panel-head"><h3>Publish Detail + Action</h3></div>
+            <p class="status-text">Final signoff is review completion plus publish gate pass. No separate signoff object is used.</p>
             <p id="publish-detail-empty" class="status-text">Select a claim from the publish queue to inspect gate status and publish state.</p>
+            <div id="publish-checklist" class="checklist-box" hidden>
+              <h4>Pre-Publish Checklist</h4>
+              <ul id="publish-checklist-items" class="checklist"></ul>
+              <p id="publish-checklist-status" class="status-text"></p>
+            </div>
             <pre id="publish-detail-json" class="json" hidden></pre>
             <form id="publish-action-form" class="stack-form" autocomplete="off">
               <label>Claim ID<input id="publish-claim-id" type="text" readonly required></label>
@@ -374,6 +396,48 @@
       </section>
 
       <section class="tab-panel" id="tab-jobs" hidden>
+        <article class="panel" style="margin-bottom:1rem;">
+          <div class="panel-head">
+            <h3>Worker Health</h3>
+            <button id="worker-health-refresh" class="ghost-btn" type="button">Refresh</button>
+          </div>
+          <p id="worker-health-status" class="status-text"></p>
+          <div id="worker-health-stats" class="health-stat-grid" hidden>
+            <div class="health-stat">
+              <span class="health-stat-label">Worker</span>
+              <span id="health-worker-alive" class="health-stat-value">—</span>
+            </div>
+            <div class="health-stat">
+              <span class="health-stat-label">Queued</span>
+              <span id="health-queue-depth" class="health-stat-value">—</span>
+            </div>
+            <div class="health-stat">
+              <span class="health-stat-label">Due Now</span>
+              <span id="health-due-depth" class="health-stat-value">—</span>
+            </div>
+            <div class="health-stat">
+              <span class="health-stat-label">Retrying</span>
+              <span id="health-retry-depth" class="health-stat-value">—</span>
+            </div>
+            <div class="health-stat">
+              <span class="health-stat-label">Running</span>
+              <span id="health-running" class="health-stat-value">—</span>
+            </div>
+            <div class="health-stat">
+              <span class="health-stat-label">Oldest Due</span>
+              <span id="health-oldest-due" class="health-stat-value">—</span>
+            </div>
+            <div class="health-stat">
+              <span class="health-stat-label">Terminal Failures</span>
+              <span id="health-terminal-count" class="health-stat-value">—</span>
+            </div>
+          </div>
+          <div id="worker-health-failures" hidden>
+            <p class="status-text" style="margin-top:0.7rem;margin-bottom:0.4rem;">Recent terminal failures (last 10):</p>
+            <div id="worker-health-failures-list" class="list" style="max-height:200px;"></div>
+          </div>
+        </article>
+
         <div class="grid-two">
           <article class="panel">
             <div class="panel-head"><h3>Run Job</h3></div>

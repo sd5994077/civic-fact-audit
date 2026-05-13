@@ -8,7 +8,7 @@ from app.db.database import get_db
 from app.models.enums import ProposalStatus, ProposalType, RaceStage
 from app.schemas.api import (
     AddSourceRequest,
-    BulkSourceAttachItem,
+    BulkSourceAttachRequest,
     BulkSourceAttachResponse,
     ClaimProposalApplyResponse,
     ClaimProposalCreateRequest,
@@ -23,7 +23,7 @@ from app.schemas.api import (
     SourceRead,
 )
 from app.services.auth_dependency_service import require_reviewer_or_admin
-from app.services.auth_service import AuthIdentity
+from app.services.auth_service import AuthIdentity, AuthService
 from app.services.claim_extraction_service import ClaimExtractionService
 from app.services.proposal_service import ProposalService
 from app.services.source_service import SourceService
@@ -31,8 +31,23 @@ from app.services.source_service import SourceService
 router = APIRouter(prefix='/claims')
 
 
-@router.post('/extract', response_model=ExtractClaimsResponse, responses={400: {'model': ErrorResponse}, 404: {'model': ErrorResponse}, 422: {'model': ErrorResponse}})
-def extract_claims(payload: ExtractClaimsRequest, db: Session = Depends(get_db)) -> ExtractClaimsResponse:
+@router.post(
+    '/extract',
+    response_model=ExtractClaimsResponse,
+    responses={
+        400: {'model': ErrorResponse},
+        401: {'model': ErrorResponse},
+        403: {'model': ErrorResponse},
+        404: {'model': ErrorResponse},
+        422: {'model': ErrorResponse},
+    },
+)
+def extract_claims(
+    payload: ExtractClaimsRequest,
+    db: Session = Depends(get_db),
+    identity: AuthIdentity = Depends(require_reviewer_or_admin),
+) -> ExtractClaimsResponse:
+    _ = identity
     claims = ClaimExtractionService.extract_claims(db, payload.statement_id, payload.max_claims)
     return ExtractClaimsResponse(
         statement_id=payload.statement_id,
@@ -43,9 +58,22 @@ def extract_claims(payload: ExtractClaimsRequest, db: Session = Depends(get_db))
 @router.post(
     '/{claim_id}/sources',
     response_model=SourceListResponse,
-    responses={400: {'model': ErrorResponse}, 404: {'model': ErrorResponse}, 409: {'model': ErrorResponse}, 422: {'model': ErrorResponse}},
+    responses={
+        400: {'model': ErrorResponse},
+        401: {'model': ErrorResponse},
+        403: {'model': ErrorResponse},
+        404: {'model': ErrorResponse},
+        409: {'model': ErrorResponse},
+        422: {'model': ErrorResponse},
+    },
 )
-def add_source(claim_id: uuid.UUID, payload: AddSourceRequest, db: Session = Depends(get_db)) -> SourceListResponse:
+def add_source(
+    claim_id: uuid.UUID,
+    payload: AddSourceRequest,
+    db: Session = Depends(get_db),
+    identity: AuthIdentity = Depends(require_reviewer_or_admin),
+) -> SourceListResponse:
+    _ = identity
     sources = SourceService.add_source(db, claim_id, payload)
     return SourceListResponse(
         claim_id=claim_id,
@@ -56,10 +84,34 @@ def add_source(claim_id: uuid.UUID, payload: AddSourceRequest, db: Session = Dep
 @router.post(
     '/sources/bulk',
     response_model=BulkSourceAttachResponse,
-    responses={400: {'model': ErrorResponse}, 404: {'model': ErrorResponse}, 409: {'model': ErrorResponse}, 422: {'model': ErrorResponse}},
+    responses={
+        400: {'model': ErrorResponse},
+        401: {'model': ErrorResponse},
+        403: {'model': ErrorResponse},
+        404: {'model': ErrorResponse},
+        409: {'model': ErrorResponse},
+        422: {'model': ErrorResponse},
+    },
 )
-def add_sources_bulk(payload: list[BulkSourceAttachItem], db: Session = Depends(get_db)) -> BulkSourceAttachResponse:
-    response = SourceService.attach_sources_bulk(db, payload)
+def add_sources_bulk(
+    payload: BulkSourceAttachRequest,
+    db: Session = Depends(get_db),
+    identity: AuthIdentity = Depends(require_reviewer_or_admin),
+) -> BulkSourceAttachResponse:
+    approval_reviewer_id: str | None = None
+    if payload.approval_token is not None:
+        approval_identity = AuthService.identity_from_dual_control_approval_token(
+            db,
+            payload.approval_token,
+            expected_action='bulk_attach_verification_sources',
+        )
+        approval_reviewer_id = approval_identity.reviewer_id
+    response = SourceService.attach_sources_bulk(
+        db,
+        approval_reviewer_id=approval_reviewer_id,
+        applying_reviewer_id=identity.reviewer_id,
+        items=payload.items,
+    )
     return BulkSourceAttachResponse.model_validate(response)
 
 

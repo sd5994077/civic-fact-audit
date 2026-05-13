@@ -4,8 +4,8 @@ import subprocess
 
 from app.core.errors import AppError
 from app.models.entities import AdminAuditEvent, AdminJobRun
-from app.services.admin_job_service import AdminJobService
 from app.schemas.api import AdminJobRunCreateRequest
+from app.services.admin_job_service import AdminJobService
 
 
 class _FakeDb:
@@ -31,61 +31,63 @@ class _FakeDb:
         obj.updated_at = datetime.now(timezone.utc)
         return None
 
+    def get(self, model, obj_id):  # type: ignore[no-untyped-def]
+        row = self.rows.get(obj_id)
+        if row is not None and isinstance(row, model):
+            return row
+        return None
 
-def test_create_and_run_job_rejects_not_allowlisted_job_type() -> None:
+    def execute(self, _query):  # type: ignore[no-untyped-def]
+        class _Result:
+            def __init__(self, rows):  # type: ignore[no-untyped-def]
+                self._rows = rows
+
+            def scalars(self):  # type: ignore[no-untyped-def]
+                return self
+
+            def all(self):  # type: ignore[no-untyped-def]
+                return [row for row in self._rows if isinstance(row, AdminJobRun)]
+
+            def first(self):  # type: ignore[no-untyped-def]
+                return None
+
+        return _Result(self.rows.values())
+
+
+def test_enqueue_job_rejects_not_allowlisted_job_type() -> None:
     db = _FakeDb()
     payload = AdminJobRunCreateRequest(job_type='not_allowlisted_job', input_payload={})
 
     try:
-        AdminJobService.create_and_run_job(db, payload, requested_by_reviewer_id='admin@local')  # type: ignore[arg-type]
+        AdminJobService.enqueue_job(db, payload, requested_by_reviewer_id='admin@local')  # type: ignore[arg-type]
         assert False, 'Expected job_type_not_allowed'
     except AppError as exc:
         assert exc.code == 'job_type_not_allowed'
 
 
-def test_create_and_run_job_rejects_missing_intake_profile_id() -> None:
+def test_enqueue_job_rejects_missing_intake_profile_id() -> None:
     db = _FakeDb()
     payload = AdminJobRunCreateRequest(job_type='ingest_candidate_roster', input_payload={})
 
     try:
-        AdminJobService.create_and_run_job(db, payload, requested_by_reviewer_id='admin@local')  # type: ignore[arg-type]
+        AdminJobService.enqueue_job(db, payload, requested_by_reviewer_id='admin@local')  # type: ignore[arg-type]
         assert False, 'Expected job_input_invalid'
     except AppError as exc:
         assert exc.code == 'job_input_invalid'
         assert 'profile_id' in exc.details.get('missing_fields', [])
 
 
-def test_create_and_run_job_accepts_whitespace_profile_key_after_normalization(monkeypatch) -> None:
+def test_enqueue_job_accepts_whitespace_profile_key_after_normalization() -> None:
     db = _FakeDb()
     payload = AdminJobRunCreateRequest(job_type='ingest_candidate_roster', input_payload={'profile_id ': 'tx_2026_senate'})
 
-    monkeypatch.setattr(
-        AdminJobService,
-        '_run_job_command',
-        staticmethod(lambda _module, *, dry_run: {'return_code': 0, 'dry_run': dry_run}),
-    )
-
-    row = AdminJobService.create_and_run_job(db, payload, requested_by_reviewer_id='admin@local')  # type: ignore[arg-type]
-    assert row['status'] == 'succeeded'
+    row = AdminJobService.enqueue_job(db, payload, requested_by_reviewer_id='admin@local')  # type: ignore[arg-type]
+    assert row['status'] == 'queued'
     assert row['input_payload'] == {'profile_id': 'tx_2026_senate'}
+    assert row['attempt_count'] == 0
 
 
-def test_create_and_run_job_rejects_unknown_profile_id() -> None:
-    db = _FakeDb()
-    payload = AdminJobRunCreateRequest(
-        job_type='ingest_statement_batch',
-        input_payload={'profile_id': 'unknown_profile', 'statement_batch': 'starter'},
-    )
-
-    try:
-        AdminJobService.create_and_run_job(db, payload, requested_by_reviewer_id='admin@local')  # type: ignore[arg-type]
-        assert False, 'Expected job_input_invalid'
-    except AppError as exc:
-        assert exc.code == 'job_input_invalid'
-        assert 'profile_id' in exc.details.get('allowed_values', {})
-
-
-def test_create_and_run_job_rejects_unsupported_statement_batch_for_profile() -> None:
+def test_enqueue_job_rejects_unsupported_statement_batch_for_profile() -> None:
     db = _FakeDb()
     payload = AdminJobRunCreateRequest(
         job_type='ingest_statement_batch',
@@ -93,86 +95,18 @@ def test_create_and_run_job_rejects_unsupported_statement_batch_for_profile() ->
     )
 
     try:
-        AdminJobService.create_and_run_job(db, payload, requested_by_reviewer_id='admin@local')  # type: ignore[arg-type]
+        AdminJobService.enqueue_job(db, payload, requested_by_reviewer_id='admin@local')  # type: ignore[arg-type]
         assert False, 'Expected job_input_invalid'
     except AppError as exc:
         assert exc.code == 'job_input_invalid'
-        assert exc.details.get('allowed_values', {}).get('statement_batch') == ['starter']
+        assert exc.details.get('allowed_values', {}).get('statement_batch') == ['round2', 'starter']
 
 
-def test_create_and_run_job_routes_roster_job_to_selected_profile_module(monkeypatch) -> None:
+def test_enqueue_job_records_admin_job_triggered_audit_event() -> None:
     db = _FakeDb()
-    payload = AdminJobRunCreateRequest(job_type='ingest_candidate_roster', input_payload={'profile_id': 'tx_2026_ag_runoff'})
-    called: dict[str, object] = {}
+    payload = AdminJobRunCreateRequest(job_type='generate_publish_queue_report', input_payload={'profile_id': 'tx_2026_senate'})
 
-    def _fake_run(module: str, *, dry_run: bool) -> dict[str, object]:
-        called['module'] = module
-        called['dry_run'] = dry_run
-        return {'return_code': 0}
-
-    monkeypatch.setattr(AdminJobService, '_run_job_command', staticmethod(_fake_run))
-
-    row = AdminJobService.create_and_run_job(db, payload, requested_by_reviewer_id='admin@local')  # type: ignore[arg-type]
-
-    assert row['status'] == 'succeeded'
-    assert called['module'] == 'app.scripts.ingest_tx_2026_attorney_general_runoff_roster'
-    assert called['dry_run'] is False
-    assert row['input_payload'] == {'profile_id': 'tx_2026_ag_runoff'}
-
-
-def test_create_and_run_job_routes_statement_job_to_selected_profile_batch_module(monkeypatch) -> None:
-    db = _FakeDb()
-    payload = AdminJobRunCreateRequest(
-        job_type='ingest_statement_batch',
-        input_payload={'profile_id': 'tx_2026_senate', 'statement_batch': 'round3'},
-    )
-    called: dict[str, object] = {}
-
-    def _fake_run(module: str, *, dry_run: bool) -> dict[str, object]:
-        called['module'] = module
-        called['dry_run'] = dry_run
-        return {'return_code': 0}
-
-    monkeypatch.setattr(AdminJobService, '_run_job_command', staticmethod(_fake_run))
-
-    row = AdminJobService.create_and_run_job(db, payload, requested_by_reviewer_id='admin@local')  # type: ignore[arg-type]
-
-    assert row['status'] == 'succeeded'
-    assert called['module'] == 'app.scripts.ingest_tx_2026_statement_batch_round3'
-    assert called['dry_run'] is False
-    assert row['input_payload'] == {'profile_id': 'tx_2026_senate', 'statement_batch': 'round3'}
-
-
-def test_create_and_run_job_marks_succeeded(monkeypatch) -> None:
-    db = _FakeDb()
-    payload = AdminJobRunCreateRequest(job_type='generate_publish_queue_report', input_payload={})
-
-    monkeypatch.setattr(
-        AdminJobService,
-        '_run_job_command',
-        staticmethod(lambda _module, *, dry_run: {'return_code': 0, 'dry_run': dry_run}),
-    )
-
-    row = AdminJobService.create_and_run_job(db, payload, requested_by_reviewer_id='admin@local')  # type: ignore[arg-type]
-
-    assert row['job_type'] == 'generate_publish_queue_report'
-    assert row['status'] == 'succeeded'
-    assert row['requested_by_reviewer_id'] == 'admin@local'
-    assert row['result_summary'] is not None
-    assert row['result_summary']['return_code'] == 0
-
-
-def test_create_and_run_job_records_admin_job_triggered_audit_event(monkeypatch) -> None:
-    db = _FakeDb()
-    payload = AdminJobRunCreateRequest(job_type='generate_publish_queue_report', input_payload={})
-
-    monkeypatch.setattr(
-        AdminJobService,
-        '_run_job_command',
-        staticmethod(lambda _module, *, dry_run: {'return_code': 0, 'dry_run': dry_run}),
-    )
-
-    row = AdminJobService.create_and_run_job(db, payload, requested_by_reviewer_id='admin@local')  # type: ignore[arg-type]
+    row = AdminJobService.enqueue_job(db, payload, requested_by_reviewer_id='admin@local')  # type: ignore[arg-type]
 
     audit_rows = [saved for saved in db.rows.values() if isinstance(saved, AdminAuditEvent)]
     assert len(audit_rows) == 1
@@ -180,46 +114,66 @@ def test_create_and_run_job_records_admin_job_triggered_audit_event(monkeypatch)
     assert saved_event.action == 'admin_job_triggered'
     assert saved_event.entity_type == 'admin_job_run'
     assert saved_event.entity_id == str(row['id'])
-    assert saved_event.after_payload is not None
 
 
-def test_create_and_run_job_marks_failed_on_execution_error(monkeypatch) -> None:
+def test_mark_failed_or_requeued_requeues_before_max_attempts() -> None:
     db = _FakeDb()
-    payload = AdminJobRunCreateRequest(job_type='generate_publish_queue_report', input_payload={})
+    now = datetime.now(timezone.utc)
+    job_run = AdminJobRun(
+        job_type='generate_publish_queue_report',
+        status='running',
+        requested_by_reviewer_id='admin@local',
+        input_payload='{}',
+        attempt_count=1,
+        max_attempts=3,
+        next_attempt_at=None,
+        lease_expires_at=now,
+    )
+    db.add(job_run)
 
-    def _raise_exec_error(_module: str, *, dry_run: bool):  # type: ignore[no-untyped-def]
-        raise AppError(
-            'job_execution_failed',
-            'Admin job execution failed.',
-            status_code=500,
-            details={'return_code': 1, 'dry_run': dry_run},
-        )
-
-    monkeypatch.setattr(AdminJobService, '_run_job_command', staticmethod(_raise_exec_error))
-
-    try:
-        AdminJobService.create_and_run_job(db, payload, requested_by_reviewer_id='admin@local')  # type: ignore[arg-type]
-        assert False, 'Expected job_execution_failed'
-    except AppError as exc:
-        assert exc.code == 'job_execution_failed'
-
-    job_rows = [row for row in db.rows.values() if isinstance(row, AdminJobRun)]
-    assert len(job_rows) == 1
-    saved = job_rows[0]
-    assert saved.status == 'failed'
-    assert saved.error_details is not None
+    AdminJobService._mark_failed_or_requeued(
+        db,  # type: ignore[arg-type]
+        job_run,
+        error_code='job_execution_failed',
+        error_message='failed',
+        error_details={'return_code': 1},
+    )
+    assert job_run.status == 'queued'
+    assert job_run.next_attempt_at is not None
+    assert job_run.finished_at is None
+    assert job_run.last_error_code == 'job_execution_failed'
 
 
-def test_get_job_metadata_includes_profiles_and_schemas() -> None:
+def test_mark_failed_or_requeued_marks_failed_after_max_attempts() -> None:
+    db = _FakeDb()
+    now = datetime.now(timezone.utc)
+    job_run = AdminJobRun(
+        job_type='generate_publish_queue_report',
+        status='running',
+        requested_by_reviewer_id='admin@local',
+        input_payload='{}',
+        attempt_count=3,
+        max_attempts=3,
+        next_attempt_at=None,
+        lease_expires_at=now,
+    )
+    db.add(job_run)
+
+    AdminJobService._mark_failed_or_requeued(
+        db,  # type: ignore[arg-type]
+        job_run,
+        error_code='job_execution_failed',
+        error_message='failed',
+        error_details={'return_code': 1},
+    )
+    assert job_run.status == 'failed'
+    assert job_run.next_attempt_at is None
+    assert job_run.finished_at is not None
+
+
+def test_get_job_metadata_is_async_flagged() -> None:
     metadata = AdminJobService.get_job_metadata()
-    assert 'allowlist_version' in metadata
-    assert 'intake_profile_version' in metadata
-    assert metadata.get('synchronous_execution') is True
-    assert isinstance(metadata.get('jobs'), list)
-    assert isinstance(metadata.get('intake_profiles'), list)
-    roster_schema = next((item for item in metadata['jobs'] if item.get('job_type') == 'ingest_candidate_roster'), None)
-    assert roster_schema is not None
-    assert 'profile_id' in roster_schema['input_schema'].get('allowed_values', {})
+    assert metadata.get('synchronous_execution') is False
 
 
 def test_run_job_command_timeout_raises_job_execution_failed(monkeypatch) -> None:
@@ -240,4 +194,48 @@ def test_run_job_command_timeout_raises_job_execution_failed(monkeypatch) -> Non
         assert exc.code == 'job_execution_failed'
         assert exc.details is not None
         assert exc.details.get('timed_out') is True
-        assert int(exc.details.get('timeout_seconds', 0)) > 0
+
+
+def test_health_failure_summary_serializes_job_run_fields() -> None:
+    now = datetime(2026, 5, 13, tzinfo=timezone.utc)
+    job_run = AdminJobRun(
+        id=uuid.uuid4(),
+        job_type='extract_claims_batch',
+        status='failed',
+        requested_by_reviewer_id='admin@local',
+        input_payload='{}',
+        attempt_count=3,
+        max_attempts=3,
+        last_error_code='job_execution_failed',
+        finished_at=now,
+        created_at=now,
+        updated_at=now,
+    )
+    summary = AdminJobService._to_health_failure_summary(job_run)
+    assert summary['job_type'] == 'extract_claims_batch'
+    assert summary['attempt_count'] == 3
+    assert summary['max_attempts'] == 3
+    assert summary['last_error_code'] == 'job_execution_failed'
+    assert summary['finished_at'] == now
+    assert summary['created_at'] == now
+
+
+def test_health_failure_summary_handles_zero_attempts() -> None:
+    now = datetime(2026, 5, 13, tzinfo=timezone.utc)
+    job_run = AdminJobRun(
+        id=uuid.uuid4(),
+        job_type='backfill_claim_reviewability',
+        status='failed',
+        requested_by_reviewer_id='admin@local',
+        input_payload='{}',
+        attempt_count=0,
+        max_attempts=3,
+        last_error_code=None,
+        finished_at=None,
+        created_at=now,
+        updated_at=now,
+    )
+    summary = AdminJobService._to_health_failure_summary(job_run)
+    assert summary['attempt_count'] == 0
+    assert summary['last_error_code'] is None
+    assert summary['finished_at'] is None

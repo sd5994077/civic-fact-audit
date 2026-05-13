@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -10,16 +11,26 @@ from app.api.v1.router import router as v1_router
 from app.core.config import settings
 from app.core.errors import AppError
 from app.db.database import get_engine
+from app.services.admin_job_service import AdminJobService
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     with get_engine().connect() as connection:
         connection.execute(text('SELECT 1'))
+    AdminJobService.start_worker()
     yield
+    AdminJobService.stop_worker()
 
 
 app = FastAPI(title=settings.app_name, version=settings.app_version, lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_allowed_origins,
+    allow_credentials=True,
+    allow_methods=['GET', 'POST', 'PATCH', 'OPTIONS'],
+    allow_headers=['Authorization', 'Content-Type', 'Accept'],
+)
 app.include_router(v1_router)
 
 

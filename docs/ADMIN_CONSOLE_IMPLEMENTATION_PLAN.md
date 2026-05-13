@@ -27,9 +27,9 @@ Current operational constraints to preserve until config-first intake work is co
 2. Job trigger audit linkage:
 - `admin_job_triggered` events are recorded with `entity_type = admin_job_run` and `entity_id = <job_run_id>`.
 
-3. Intake orchestration is config-first and synchronous:
+3. Intake orchestration is config-first and async:
 - profile config selects roster and statement-batch modules per race profile.
-- execution remains synchronous within `POST /v1/admin/jobs` for this step.
+- execution now enqueues within `POST /v1/admin/jobs` and runs via a background worker with retries and status polling.
 
 ## 3) Proposed Data Model Additions
 
@@ -159,3 +159,35 @@ Design rule:
 - [x] Admin endpoint contract approved/implemented.
 - [x] Frontend section priority approved/implemented.
 - [x] Next step: generalize race-specific CLI workflows into config-first admin flows (typed job inputs and per-job validated payload schemas).
+- [x] Power-admin workflow v1 implemented:
+  - source/bundle-first proposal review cues in Proposals tab,
+  - two-person control for verification-source proposal apply,
+  - publish-tab pre-publish checklist gate as final signoff control,
+  - no new signoff state-machine or endpoint family introduced.
+- [x] Power-admin source checklist coverage implemented for both proposal types, including `needs review` mismatch handling for `candidate_source_capture` and `verification_source_suggestion`.
+- [x] Proposal-detail claim context enrichment implemented in `/admin` with current evidence sufficiency snapshot and latest evaluation summary beside proposal payload.
+- [x] Backend/API proposal audit metadata coverage implemented so `proposal_approved` and `proposal_applied` reads persist reviewer-linkage fields (`approval_reviewer_id`, `applying_reviewer_id`, `proposal_type`).
+- [x] Publish checklist hard-block and stale-selection regression coverage implemented for the admin Publish tab.
+- [x] Dual-control v2 first slice implemented:
+  - publish/unpublish endpoints enforce two-person control against latest evaluation approver identity,
+  - `claim_published` / `claim_unpublished` audit events persist reviewer-linkage metadata (`approval_reviewer_id`, `applying_reviewer_id`, `dual_control_enforced`),
+  - `/admin` Publish tab surfaces explicit dual-control denial guidance for deterministic `409 publish_dual_control_required`.
+- [x] Dual-control v2 verification-only expansion implemented:
+  - candidate create/update now enforce reviewer separation (`409 candidate_dual_control_required`) using server-verified dual-control approval tokens,
+  - evaluation overwrite now enforces reviewer separation with first-evaluation exception (`409 evaluation_overwrite_dual_control_required` only when overwriting) using server-verified dual-control approval tokens,
+  - bulk attach now uses object payload (`approval_token` + `items`) and enforces reviewer separation only for verification-origin items (`409 bulk_attach_dual_control_required`),
+  - dual-control reviewer identities are resolved against active reviewer accounts (reviewer/admin roles) before mutation is allowed,
+  - bulk attach emits a deterministic `bulk_operation_id` for traceable batch audit correlation,
+  - candidate/evaluation overwrite/bulk attach audit events persist reviewer-linkage metadata and dual-control flags.
+
+## 10) Worker-Health Observability (Complete)
+
+- [x] Add worker-health observability for queue lag, retry counts, and terminal failure alerting:
+  - `GET /v1/admin/jobs/worker-health` endpoint (admin-only) returns a `WorkerHealthResponse` with `worker_alive`, `queue_depth`, `due_depth`, `retry_queue_depth`, `oldest_queued_age_seconds`, `oldest_due_age_seconds`, `running_count`, `terminal_failure_count`, and `recent_terminal_failures` (last 10),
+  - aggregate query uses `COUNT(*) FILTER (WHERE ...)` and `MIN() FILTER (WHERE ...)` for a single-pass read,
+  - `worker_alive` reflects live thread state via `AdminJobService._worker_thread.is_alive()`,
+  - `recent_terminal_failures` surface `job_type`, `attempt_count`, `max_attempts`, `last_error_code`, and `finished_at` for each exhausted-retry job,
+  - route registered before `/{job_run_id}` to prevent FastAPI UUID coercion conflict,
+  - admin UI Jobs tab shows a Worker Health panel with colour-coded stat tiles (alive/dead, queue depth, due-now, retrying, running, oldest-due lag, terminal failure count) and a recent-failures list,
+  - panel auto-refreshes every 30 seconds while the Jobs tab is active and stops polling on tab switch,
+  - two API tests (`test_get_worker_health_requires_admin_auth`, `test_get_worker_health_success`) and two service unit tests (`test_health_failure_summary_serializes_job_run_fields`, `test_health_failure_summary_handles_zero_attempts`) added.

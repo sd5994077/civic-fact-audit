@@ -97,3 +97,174 @@ def test_get_admin_audit_event_success(monkeypatch) -> None:
     assert response.status_code == 200
     assert response.json()['id'] == str(event_id)
     app.dependency_overrides.clear()
+
+
+def test_admin_audit_proposal_events_expose_reviewer_metadata(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[require_admin] = _override_admin
+    event_id = uuid.uuid4()
+    now = datetime(2026, 5, 12, tzinfo=timezone.utc)
+
+    def _fake_list(_db, **_kwargs):  # type: ignore[no-untyped-def]
+        return [
+            {
+                'id': event_id,
+                'actor_reviewer_id': 'applier@local',
+                'action': 'proposal_applied',
+                'entity_type': 'claim_proposal',
+                'entity_id': 'proposal-1',
+                'before_payload': {'status': 'approved'},
+                'after_payload': {'status': 'applied'},
+                'metadata': {
+                    'proposal_type': 'verification_source_suggestion',
+                    'approval_reviewer_id': 'approver@local',
+                    'applying_reviewer_id': 'applier@local',
+                },
+                'created_at': now,
+                'updated_at': now,
+            }
+        ]
+
+    monkeypatch.setattr('app.api.v1.admin_audit.AdminAuditService.list_events', _fake_list)
+    client = TestClient(app)
+    response = client.get('/v1/admin/audit-events?action=proposal_applied')
+    body = response.json()
+    assert response.status_code == 200
+    assert body[0]['metadata']['proposal_type'] == 'verification_source_suggestion'
+    assert body[0]['metadata']['approval_reviewer_id'] == 'approver@local'
+    assert body[0]['metadata']['applying_reviewer_id'] == 'applier@local'
+    app.dependency_overrides.clear()
+
+
+def test_admin_audit_dual_control_v2_events_expose_reviewer_metadata(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[require_admin] = _override_admin
+    now = datetime(2026, 5, 12, tzinfo=timezone.utc)
+
+    def _fake_list(_db, **_kwargs):  # type: ignore[no-untyped-def]
+        return [
+            {
+                'id': uuid.uuid4(),
+                'actor_reviewer_id': 'applier@local',
+                'action': 'candidate_updated',
+                'entity_type': 'candidate',
+                'entity_id': 'candidate-1',
+                'before_payload': {'party': 'Independent'},
+                'after_payload': {'party': 'Democratic'},
+                'metadata': {
+                    'approval_reviewer_id': 'approver@local',
+                    'applying_reviewer_id': 'applier@local',
+                    'dual_control_enforced': True,
+                },
+                'created_at': now,
+                'updated_at': now,
+            },
+            {
+                'id': uuid.uuid4(),
+                'actor_reviewer_id': 'applier@local',
+                'action': 'claim_evaluation_overwritten',
+                'entity_type': 'claim',
+                'entity_id': 'claim-1',
+                'before_payload': {'verdict': 'unsupported'},
+                'after_payload': {'verdict': 'supported'},
+                'metadata': {
+                    'approval_reviewer_id': 'approver@local',
+                    'applying_reviewer_id': 'applier@local',
+                    'dual_control_enforced': True,
+                },
+                'created_at': now,
+                'updated_at': now,
+            },
+            {
+                'id': uuid.uuid4(),
+                'actor_reviewer_id': 'applier@local',
+                'action': 'bulk_sources_attached',
+                'entity_type': 'bulk_source_attach',
+                'entity_id': 'bulk-op-1',
+                'before_payload': None,
+                'after_payload': None,
+                'metadata': {
+                    'bulk_operation_id': 'bulk-op-1',
+                    'approval_reviewer_id': 'approver@local',
+                    'applying_reviewer_id': 'applier@local',
+                    'dual_control_enforced': True,
+                },
+                'created_at': now,
+                'updated_at': now,
+            },
+        ]
+
+    monkeypatch.setattr('app.api.v1.admin_audit.AdminAuditService.list_events', _fake_list)
+    client = TestClient(app)
+    response = client.get('/v1/admin/audit-events')
+    body = response.json()
+    assert response.status_code == 200
+    assert len(body) == 3
+    assert body[0]['metadata']['approval_reviewer_id'] == 'approver@local'
+    assert body[1]['metadata']['applying_reviewer_id'] == 'applier@local'
+    assert body[2]['metadata']['bulk_operation_id'] == 'bulk-op-1'
+    assert body[2]['metadata']['dual_control_enforced'] is True
+    app.dependency_overrides.clear()
+
+
+def test_get_moderation_risk_requires_admin() -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides.pop(require_admin, None)
+
+    client = TestClient(app)
+    response = client.get('/v1/admin/moderation-risk')
+
+    assert response.status_code == 401
+    app.dependency_overrides.clear()
+
+
+def test_get_moderation_risk_returns_risk_summary(monkeypatch) -> None:
+    from app.services.admin_audit_service import AdminAuditService
+    from datetime import datetime, timezone
+
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[require_admin] = _override_admin
+    now = datetime(2026, 5, 13, 12, 0, tzinfo=timezone.utc)
+
+    monkeypatch.setattr(
+        AdminAuditService,
+        'get_moderation_risk',
+        lambda _db, **_kwargs: [
+            {'reviewer_id': 'reviewer_a@local', 'violation_count': 3, 'last_violation_at': now},
+            {'reviewer_id': 'reviewer_b@local', 'violation_count': 1, 'last_violation_at': now},
+        ],
+    )
+
+    client = TestClient(app)
+    response = client.get('/v1/admin/moderation-risk?window_days=7')
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body['window_days'] == 7
+    assert 'policy_version' in body
+    assert len(body['risks']) == 2
+    assert body['risks'][0]['reviewer_id'] == 'reviewer_a@local'
+    assert body['risks'][0]['violation_count'] == 3
+    app.dependency_overrides.clear()
+
+
+def test_get_moderation_risk_empty_returns_valid_response(monkeypatch) -> None:
+    from app.services.admin_audit_service import AdminAuditService
+
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[require_admin] = _override_admin
+
+    monkeypatch.setattr(
+        AdminAuditService,
+        'get_moderation_risk',
+        lambda _db, **_kwargs: [],
+    )
+
+    client = TestClient(app)
+    response = client.get('/v1/admin/moderation-risk')
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body['risks'] == []
+    assert body['window_days'] == 30
+    app.dependency_overrides.clear()

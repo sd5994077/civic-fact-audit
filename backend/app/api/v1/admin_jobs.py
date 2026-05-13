@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.models.enums import AdminJobStatus
-from app.schemas.api import AdminJobMetadataResponse, AdminJobRunCreateRequest, AdminJobRunRead, ErrorResponse
+from app.schemas.api import AdminJobMetadataResponse, AdminJobRunCreateRequest, AdminJobRunRead, ErrorResponse, WorkerHealthResponse
 from app.services.admin_job_service import AdminJobService
 from app.services.auth_dependency_service import require_admin
 from app.services.auth_service import AuthIdentity
@@ -23,7 +23,7 @@ def create_admin_job(
     db: Session = Depends(get_db),
     identity: AuthIdentity = Depends(require_admin),
 ) -> AdminJobRunRead:
-    job_run = AdminJobService.create_and_run_job(db, payload, requested_by_reviewer_id=identity.reviewer_id)
+    job_run = AdminJobService.enqueue_job(db, payload, requested_by_reviewer_id=identity.reviewer_id)
     return AdminJobRunRead.model_validate(job_run)
 
 
@@ -53,6 +53,20 @@ def list_admin_jobs(
     _ = identity
     rows = AdminJobService.list_job_runs(db, status=status, job_type=job_type, limit=limit)
     return [AdminJobRunRead.model_validate(row) for row in rows]
+
+
+@router.get(
+    '/worker-health',
+    response_model=WorkerHealthResponse,
+    responses={401: {'model': ErrorResponse}, 403: {'model': ErrorResponse}},
+)
+def get_worker_health(
+    db: Session = Depends(get_db),
+    identity: AuthIdentity = Depends(require_admin),
+) -> WorkerHealthResponse:
+    _ = identity
+    result = AdminJobService.get_worker_health(db)
+    return WorkerHealthResponse.model_validate(result)
 
 
 @router.get(

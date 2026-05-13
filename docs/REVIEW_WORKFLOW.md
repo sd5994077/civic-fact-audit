@@ -16,13 +16,31 @@ Moderation/output boundaries are defined in `docs/MODERATION_POLICY.md`.
   - `draft_verdict`: remains draft-only guidance; reviewer must still use `POST /v1/claims/{claim_id}/evaluate`
 - Proposal attribution:
   - `proposed_by` is set server-side from authenticated reviewer/admin identity.
+- Dual-control approval token:
+  - `POST /v1/auth/dual-control-approval-token` mints a short-lived, signed approval token from the approver's authenticated identity.
+  - Request body: `{ "action": "candidate_mutation" | "evaluation_overwrite" | "bulk_attach_verification_sources" }`.
+- Bulk source attach request contract:
+  - `POST /v1/claims/sources/bulk` expects `{ "approval_token": "<signed-token>", "items": [...] }` for verification-origin items.
+  - Client-supplied `approval_reviewer_id` is ignored on this route; reviewer identity is resolved from token subject server-side.
+  - Dual-control is enforced only when a batch contains verification-origin items.
 - Source-admission enforcement:
   - Proposal create/apply can return `422 source_admission_policy_violation`.
   - If blocked, keep proposal for audit trail, update payload to a neutral/record-based verification source, then re-submit/re-approve.
+- Two-person control (verification-source apply):
+  - `verification_source_suggestion` proposals require `approved_by != applying_reviewer`.
+  - Verification-source apply also requires an explicit stored approval reviewer identity on the approved proposal; missing reviewer metadata is blocked as `409 proposal_dual_control_required`.
+  - If the same reviewer attempts apply, API returns `409 proposal_dual_control_required`.
+  - Use a second reviewer/admin account to apply after approval.
+- Power-admin source/bundle-first sequence:
+  - Review source proposal payload with admission fields (`source_origin`, `source_class`, `publisher`, `quality_score`).
+  - Approve/reject proposal.
+  - Apply approved proposal to attach source and sync claim evidence bundle atomically.
+  - Continue to publish queue only after evidence coverage and reviewer evaluation are complete.
 
 ## 2) Inspect publish queue
 - API: `GET /v1/claims/publish-queue`
 - Script: `python -m app.scripts.generate_tx_2026_publish_queue_report`
+- AG runoff script: `python -m app.scripts.generate_tx_2026_attorney_general_runoff_publish_queue_report`
 
 Blocked rows return `publish_gate_failures` codes:
 - `claim_not_fact_checkable`
@@ -42,21 +60,59 @@ Before publish, reviewer/admin should ensure:
 - Verification evidence includes at least:
   - 1 primary source
   - 1 independent secondary source
+- If updating an already-evaluated claim verdict, include `approval_token` minted by a different reviewer/admin than the applying actor.
+- Moderation gate is clean.
+- Publish gate passes for the claim.
+
+Signoff definition:
+- Final human signoff is achieved by reviewer/admin completion plus publish-gate pass.
+- No separate signoff object/state exists in v1.
 
 ## 4) Publish
 - API: `POST /v1/claims/{id}/publish` (admin-only)
+- Unpublish API: `POST /v1/claims/{id}/unpublish` (admin-only)
 - Batch script:
   - Dry run: `python -m app.scripts.publish_tx_2026_claims_batch`
   - Apply: `python -m app.scripts.publish_tx_2026_claims_batch --apply --approver reviewer@local`
+- Admin UI guard:
+  - Publish action is blocked in `/admin` until checklist items pass.
+  - Checklist enforces rationale/citation/evidence/moderation/gate readiness prior to `POST /v1/claims/{id}/publish`.
+- Two-person control (publish/unpublish final mutation):
+  - `publish` and `unpublish` require `approval_reviewer_id != applying_reviewer_id`.
+  - Approval reviewer is resolved from the latest human claim evaluation reviewer identity.
+  - If the same reviewer (or no approval reviewer) is resolved, API returns `409 publish_dual_control_required`.
+  - Retry path: hand off final `publish`/`unpublish` action to a different reviewer/admin account and retry.
+
+## Exception handling notes
+- Evaluation overwrite dual-control blocked (`409 evaluation_overwrite_dual_control_required`):
+  - first evaluation is exempt; overwrites require a different approval reviewer identity resolved from a valid `evaluation_overwrite` approval token.
+  - keep claim state unchanged and re-submit evaluate request with different reviewer separation.
+- Bulk attach dual-control blocked (`409 bulk_attach_dual_control_required`):
+  - conflict applies only when payload contains verification-origin items.
+  - keep batch unchanged, hand off apply action to a different reviewer/admin, then retry same payload.
+- Self-apply blocked (`409 proposal_dual_control_required`):
+  - Keep proposal in `approved`, route apply to a different reviewer/admin.
+- Publish/unpublish dual-control blocked (`409 publish_dual_control_required`):
+  - Keep claim state unchanged, hand off final mutation to a different reviewer/admin, retry same endpoint.
+- Source policy violation (`422 source_admission_policy_violation`):
+  - Keep proposal unchanged, revise source to admissible record-based verification source, re-submit/approve/apply.
+- Apply retry path:
+  - Fix payload issue or role separation issue, then retry `POST /v1/claims/proposals/{proposal_id}/apply`.
 
 ## 5) Track completion progress
 - Script: `python -m app.scripts.generate_tx_2026_publish_progress_report`
+- AG runoff script: `python -m app.scripts.generate_tx_2026_attorney_general_runoff_publish_progress_report`
 
 This prints:
 - total fact-checkable claims
 - published claims and percent
 - ready-but-unpublished claims
 - blocked claims grouped by failure reason
+
+## 6) Enforce coverage gate (current profiles)
+- Script (Senate): `python -m app.scripts.generate_tx_2026_claim_coverage_report`
+- Script (AG runoff): `python -m app.scripts.generate_tx_2026_attorney_general_runoff_claim_coverage_report`
+- Required pass condition for both profiles: each candidate has `published_verified_claims >= 3`.
 
 ## 6) Export public compare rows (CSV/JSON)
 - API: `GET /v1/compare/export`
