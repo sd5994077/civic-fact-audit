@@ -3,6 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.core.rate_limiter import ADMIN_WRITE_LIMIT, ip_rate_limit
 from app.db.database import get_db
 from app.models.enums import AdminJobStatus
 from app.schemas.api import AdminJobMetadataResponse, AdminJobRunCreateRequest, AdminJobRunRead, ErrorResponse, WorkerHealthResponse
@@ -16,12 +17,13 @@ router = APIRouter(prefix='/admin/jobs')
 @router.post(
     '',
     response_model=AdminJobRunRead,
-    responses={401: {'model': ErrorResponse}, 403: {'model': ErrorResponse}, 422: {'model': ErrorResponse}, 500: {'model': ErrorResponse}},
+    responses={401: {'model': ErrorResponse}, 403: {'model': ErrorResponse}, 422: {'model': ErrorResponse}, 429: {'model': ErrorResponse}, 500: {'model': ErrorResponse}},
 )
 def create_admin_job(
     payload: AdminJobRunCreateRequest,
     db: Session = Depends(get_db),
     identity: AuthIdentity = Depends(require_admin),
+    _rl: None = Depends(ip_rate_limit(ADMIN_WRITE_LIMIT, endpoint_key='create_admin_job')),
 ) -> AdminJobRunRead:
     job_run = AdminJobService.enqueue_job(db, payload, requested_by_reviewer_id=identity.reviewer_id)
     return AdminJobRunRead.model_validate(job_run)

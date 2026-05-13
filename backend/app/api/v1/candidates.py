@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
+from app.core.rate_limiter import ADMIN_WRITE_LIMIT, ip_rate_limit
 from app.db.database import get_db
 from app.models.enums import RaceStage
 from app.schemas.api import CandidateCreate, CandidatePublicRead, CandidateRead, CandidateUpdate, ErrorResponse
@@ -23,12 +24,14 @@ router = APIRouter(prefix='/candidates')
         403: {'model': ErrorResponse},
         404: {'model': ErrorResponse},
         409: {'model': ErrorResponse},
+        429: {'model': ErrorResponse},
     },
 )
 def create_candidate(
     payload: CandidateCreate,
     db: Session = Depends(get_db),
     identity: AuthIdentity = Depends(require_admin),
+    _rl: None = Depends(ip_rate_limit(ADMIN_WRITE_LIMIT, endpoint_key='create_candidate')),
 ) -> CandidateRead:
     approval_reviewer_id: str | None = None
     if payload.approval_token is not None:
@@ -94,6 +97,7 @@ def get_candidate(
         404: {'model': ErrorResponse},
         409: {'model': ErrorResponse},
         422: {'model': ErrorResponse},
+        429: {'model': ErrorResponse},
     },
 )
 def update_candidate(
@@ -101,6 +105,7 @@ def update_candidate(
     payload: CandidateUpdate,
     db: Session = Depends(get_db),
     identity: AuthIdentity = Depends(require_admin),
+    _rl: None = Depends(ip_rate_limit(ADMIN_WRITE_LIMIT, endpoint_key='update_candidate')),
 ) -> CandidateRead:
     mutable_fields = set(payload.model_fields_set).difference({'approval_token'})
     if not mutable_fields:

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
-from app.core.rate_limiter import ADMIN_WRITE_LIMIT, WRITE_STANDARD_LIMIT, ip_rate_limit
+from app.core.rate_limiter import ADMIN_WRITE_LIMIT, EXTRACT_LIMIT, WRITE_STANDARD_LIMIT, ip_rate_limit
 from app.db.database import get_db
 from app.models.enums import ProposalStatus, ProposalType, RaceStage
 from app.schemas.api import (
@@ -41,12 +41,14 @@ router = APIRouter(prefix='/claims')
         403: {'model': ErrorResponse},
         404: {'model': ErrorResponse},
         422: {'model': ErrorResponse},
+        429: {'model': ErrorResponse},
     },
 )
 def extract_claims(
     payload: ExtractClaimsRequest,
     db: Session = Depends(get_db),
     identity: AuthIdentity = Depends(require_reviewer_or_admin),
+    _rl: None = Depends(ip_rate_limit(EXTRACT_LIMIT, endpoint_key='extract_claims')),
 ) -> ExtractClaimsResponse:
     _ = identity
     claims = ClaimExtractionService.extract_claims(db, payload.statement_id, payload.max_claims)
@@ -66,6 +68,7 @@ def extract_claims(
         404: {'model': ErrorResponse},
         409: {'model': ErrorResponse},
         422: {'model': ErrorResponse},
+        429: {'model': ErrorResponse},
     },
 )
 def add_source(
@@ -73,6 +76,7 @@ def add_source(
     payload: AddSourceRequest,
     db: Session = Depends(get_db),
     identity: AuthIdentity = Depends(require_reviewer_or_admin),
+    _rl: None = Depends(ip_rate_limit(ADMIN_WRITE_LIMIT, endpoint_key='add_source')),
 ) -> SourceListResponse:
     _ = identity
     sources = SourceService.add_source(db, claim_id, payload)

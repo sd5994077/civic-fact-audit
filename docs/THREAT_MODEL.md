@@ -59,14 +59,20 @@ All mutating write endpoints enforce per-IP sliding-window rate limits via `app/
 |---|---|---|
 | `POST /auth/login` | 10 req | 60 s |
 | `POST /auth/dual-control-approval-token` | 30 req | 60 s |
+| `POST /statements` | 60 req | 60 s |
+| `POST /candidates` | 60 req | 60 s |
+| `PATCH /candidates/{id}` | 60 req | 60 s |
+| `POST /claims/extract` | 30 req | 60 s |
+| `POST /claims/{id}/sources` | 60 req | 60 s |
+| `POST /claims/sources/bulk` | 60 req | 60 s |
 | `POST /claims/{id}/evaluate` | 120 req | 60 s |
 | `POST /claims/{id}/publish` | 60 req | 60 s |
 | `POST /claims/{id}/unpublish` | 60 req | 60 s |
-| `POST /claims/sources/bulk` | 60 req | 60 s |
 | `POST /claims/{id}/proposals` | 120 req | 60 s |
 | `POST /claims/proposals/{id}/approve` | 60 req | 60 s |
 | `POST /claims/proposals/{id}/reject` | 60 req | 60 s |
 | `POST /claims/proposals/{id}/apply` | 60 req | 60 s |
+| `POST /admin/jobs` | 60 req | 60 s |
 
 **Response:** HTTP 429 with `Retry-After: N` header and body `{"error": {"code": "rate_limit_exceeded", "details": {"retry_after_seconds": N}}}`.
 
