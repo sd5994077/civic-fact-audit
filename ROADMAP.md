@@ -71,7 +71,7 @@
 - [x] Add dedicated admin frontend workspace (`/admin/`) for candidate management, review queue adjudication, proposal triage, publish controls, job execution/status, and audit visibility.
 - [x] Separate public compare/dashboard browsing from staff-only admin/reviewer workflows in the UI information architecture.
 - [x] Add admin audit visibility for who triggered jobs, changed candidate records, applied proposals, and published/unpublished claims.
-- [x] Track and implement remaining dual-control v2 expansion scope for additional high-risk mutation paths (candidate updates, evaluation overwrite paths, bulk attach) with explicit approval reviewer fields, first-evaluation overwrite exception, and verification-only bulk enforcement; see `docs/DUAL_CONTROL_V2_DISCOVERY_MEMO.md`.
+- [x] Track and implement remaining dual-control v2 expansion scope for additional high-risk mutation paths (candidate updates, evaluation overwrite paths, bulk attach) with explicit approval reviewer fields, first-evaluation overwrite exception, verification-only bulk enforcement, and deterministic bulk-operation audit correlation; see `docs/DUAL_CONTROL_V2_DISCOVERY_MEMO.md`.
 - [x] Implement dual-control v2 first slice for `POST /v1/claims/{id}/publish` and `POST /v1/claims/{id}/unpublish` with reviewer-linkage audit metadata and admin Publish-tab operator guidance.
 - [x] Generalize current race-specific CLI workflows into config-first admin flows for profile-scoped extraction/reviewability/report jobs, preserving reproducibility and source traceability.
 - [x] Add config-first preset intake profiles for synchronous admin roster/statement ingestion (`profile_id` + `statement_batch` typed payload validation/routing).

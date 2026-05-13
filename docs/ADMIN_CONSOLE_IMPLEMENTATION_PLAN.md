@@ -176,6 +176,7 @@ Design rule:
   - candidate create/update now require explicit `approval_reviewer_id` and enforce reviewer separation (`409 candidate_dual_control_required`),
   - evaluation overwrite now requires explicit `approval_reviewer_id` with first-evaluation exception (`409 evaluation_overwrite_dual_control_required` only when overwriting),
   - bulk attach now uses object payload (`approval_reviewer_id` + `items`) and enforces reviewer separation only for verification-origin items (`409 bulk_attach_dual_control_required`),
+  - bulk attach emits a deterministic `bulk_operation_id` for traceable batch audit correlation,
   - candidate/evaluation overwrite/bulk attach audit events persist reviewer-linkage metadata and dual-control flags.
 
 ## 10) Next Up (Pending)
