@@ -573,3 +573,39 @@ def test_attach_sources_bulk_operation_id_is_deterministic(monkeypatch) -> None:
         items=items,
     )
     assert first['bulk_operation_id'] == second['bulk_operation_id']
+
+
+def test_attach_sources_bulk_operation_id_ignores_item_order(monkeypatch) -> None:
+    claim_id = uuid.uuid4()
+    db = _FakeDbForAddSource(claim_id=claim_id)
+    monkeypatch.setattr(
+        'app.services.source_service.SourceService.add_source',
+        lambda *_args, **_kwargs: [],
+    )
+    item_a = BulkSourceAttachItem(
+        claim_id=claim_id,
+        url='https://example.gov/record-a',
+        source_class=SourceClass.primary,
+        source_origin=SourceOrigin.verification,
+        quality_score=0.9,
+    )
+    item_b = BulkSourceAttachItem(
+        claim_id=claim_id,
+        url='https://example.gov/record-b',
+        source_class=SourceClass.secondary,
+        source_origin=SourceOrigin.verification,
+        quality_score=0.8,
+    )
+    first = SourceService.attach_sources_bulk(
+        db,  # type: ignore[arg-type]
+        approval_reviewer_id='approver@local',
+        applying_reviewer_id='applier@local',
+        items=[item_a, item_b],
+    )
+    second = SourceService.attach_sources_bulk(
+        db,  # type: ignore[arg-type]
+        approval_reviewer_id='approver@local',
+        applying_reviewer_id='applier@local',
+        items=[item_b, item_a],
+    )
+    assert first['bulk_operation_id'] == second['bulk_operation_id']

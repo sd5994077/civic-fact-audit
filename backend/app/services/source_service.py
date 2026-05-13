@@ -37,10 +37,8 @@ class SourceService:
         applying_reviewer_id: str | None,
         items: list[BulkSourceAttachItem],
     ) -> str:
-        payload = {
-            'approval_reviewer_id': SourceService._normalize_reviewer_id(approval_reviewer_id),
-            'applying_reviewer_id': SourceService._normalize_reviewer_id(applying_reviewer_id),
-            'items': [
+        canonical_items = sorted(
+            (
                 {
                     'claim_id': str(item.claim_id),
                     'url': str(item.url),
@@ -51,7 +49,21 @@ class SourceService:
                     'is_direct_candidate_quote': item.is_direct_candidate_quote,
                 }
                 for item in items
-            ],
+            ),
+            key=lambda entry: (
+                entry['claim_id'],
+                entry['url'],
+                entry['source_class'],
+                entry['source_origin'],
+                entry['publisher'] or '',
+                str(entry['quality_score']),
+                str(entry['is_direct_candidate_quote']),
+            ),
+        )
+        payload = {
+            'approval_reviewer_id': SourceService._normalize_reviewer_id(approval_reviewer_id),
+            'applying_reviewer_id': SourceService._normalize_reviewer_id(applying_reviewer_id),
+            'items': canonical_items,
         }
         canonical = json.dumps(payload, separators=(',', ':'), sort_keys=True)
         return str(uuid.uuid5(uuid.NAMESPACE_URL, canonical))
