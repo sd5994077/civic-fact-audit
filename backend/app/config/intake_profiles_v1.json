@@ -1,5 +1,5 @@
 {
-  "version": "intake_profiles_v3_2026_05_12",
+  "version": "intake_profiles_v4_2026_05_13",
   "profiles": [
     {
       "profile_id": "tx_2026_senate",
@@ -42,6 +42,32 @@
         "generate_publish_progress_report": "app.scripts.generate_tx_2026_attorney_general_runoff_publish_progress_report",
         "generate_profile_claim_coverage_report": "app.scripts.generate_tx_2026_attorney_general_runoff_claim_coverage_report"
       }
+    },
+    {
+      "profile_id": "tx_2026_governor",
+      "label": "Texas 2026 Governor",
+      "state": "TX",
+      "office": "Governor",
+      "election_cycle": 2026,
+      "race_stage": "general",
+      "roster_seed_module": "app.scripts.ingest_tx_2026_governor_roster",
+      "statement_batch_modules": {
+        "starter": "app.scripts.ingest_tx_2026_governor_statement_batch"
+      },
+      "admin_job_modules": {}
+    },
+    {
+      "profile_id": "tx_2026_senate_general",
+      "label": "Texas 2026 U.S. Senate General",
+      "state": "TX",
+      "office": "US Senate",
+      "election_cycle": 2026,
+      "race_stage": "general",
+      "roster_seed_module": "app.scripts.ingest_tx_2026_senate_general_roster",
+      "statement_batch_modules": {
+        "starter": "app.scripts.ingest_tx_2026_senate_general_statement_batch"
+      },
+      "admin_job_modules": {}
     }
   ]
 }

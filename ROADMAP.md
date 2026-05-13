@@ -58,7 +58,7 @@
 - [x] Generalize the Texas Senate workflow into a reusable multi-race intake pipeline.
 - [x] Add a runoff onboarding playbook and templated script generator (`generate_race_stubs.py`, `run_generic_pipeline.py`, `pipeline_helpers.py`, `docs/ONBOARDING_PLAYBOOK.md`) — new races require only a profile config entry + editorial roster/statement data; extraction, backfill, and KPI run generically.
 - [x] Harden source-admission enforcement with config-backed partisan/domain rules, proposal-path validation parity, and non-destructive legacy verification-source exclusion flags.
-- [ ] Define a priority-race list for 2026 so additional Senate, House, gubernatorial, and other high-impact campaigns can be onboarded deliberately.
+- [x] Define a priority-race list for 2026 so additional Senate, House, gubernatorial, and other high-impact campaigns can be onboarded deliberately (`docs/PRIORITY_RACES_2026.md`, Tier 1 profiles `tx_2026_governor` + `tx_2026_senate_general` registered in config, Tier 2/3 races documented with promotion checklist).
 
 ## Phase 6 - Admin Operations Console (Post-Model Revision)
 - Reference implementation spec: `docs/ADMIN_CONSOLE_IMPLEMENTATION_PLAN.md`
