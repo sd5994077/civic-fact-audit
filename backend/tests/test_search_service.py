@@ -76,6 +76,27 @@ class TestSearchServiceQueryBuilding:
         assert sql.upper().count('WHERE') == 1
 
 
+class TestSearchServiceEscaping:
+    def _like_patterns(self, q: str) -> list[str]:
+        _, params = TestSearchServiceQueryBuilding()._compile(q=q)
+        return [v for v in params.values() if isinstance(v, str) and v.startswith('%')]
+
+    def test_percent_in_query_is_escaped(self) -> None:
+        patterns = self._like_patterns('50%')
+        assert patterns, 'no ILIKE pattern params found'
+        assert all(r'\%' in p for p in patterns)
+
+    def test_underscore_in_query_is_escaped(self) -> None:
+        patterns = self._like_patterns('te_t')
+        assert patterns, 'no ILIKE pattern params found'
+        assert all(r'\_' in p for p in patterns)
+
+    def test_plain_query_unchanged_in_pattern(self) -> None:
+        patterns = self._like_patterns('immigration')
+        assert patterns, 'no ILIKE pattern params found'
+        assert any('immigration' in p for p in patterns)
+
+
 class TestSearchServiceResults:
     def test_returns_mapped_dicts(self) -> None:
         cid = uuid.uuid4()

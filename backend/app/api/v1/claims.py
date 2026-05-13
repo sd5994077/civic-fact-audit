@@ -153,7 +153,7 @@ def evidence_queue(
 @router.get(
     '/search',
     response_model=list[ClaimSearchResult],
-    responses={400: {'model': ErrorResponse}, 401: {'model': ErrorResponse}, 403: {'model': ErrorResponse}},
+    responses={400: {'model': ErrorResponse}, 401: {'model': ErrorResponse}, 403: {'model': ErrorResponse}, 429: {'model': ErrorResponse}},
 )
 def search_claims(
     q: str = Query(min_length=2, max_length=256),
@@ -166,6 +166,7 @@ def search_claims(
     limit: int = Query(default=50, ge=1, le=200),
     db: Session = Depends(get_db),
     identity: AuthIdentity = Depends(require_reviewer_or_admin),
+    _rl: None = Depends(ip_rate_limit(WRITE_STANDARD_LIMIT, endpoint_key='search_claims')),
 ) -> list[ClaimSearchResult]:
     _ = identity
     rows = SearchService.search_claims(

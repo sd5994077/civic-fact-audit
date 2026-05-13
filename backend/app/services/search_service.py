@@ -29,6 +29,9 @@ class SearchService:
         if not q:
             return []
 
+        q_escaped = q.replace('\\', '\\\\').replace('%', r'\%').replace('_', r'\_')
+        like_pattern = f'%{q_escaped}%'
+
         ts_query = func.plainto_tsquery('english', q)
         ts_rank = func.ts_rank(func.to_tsvector('english', Claim.claim_text), ts_query)
 
@@ -55,8 +58,8 @@ class SearchService:
             .where(
                 or_(
                     func.to_tsvector('english', Claim.claim_text).op('@@')(ts_query),
-                    func.coalesce(Claim.issue_tag, '').ilike(f'%{q}%'),
-                    Candidate.name.ilike(f'%{q}%'),
+                    func.coalesce(Claim.issue_tag, '').ilike(like_pattern, escape='\\'),
+                    Candidate.name.ilike(like_pattern, escape='\\'),
                 )
             )
             .order_by(ts_rank.desc(), Claim.created_at.desc())
