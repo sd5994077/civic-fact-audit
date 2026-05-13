@@ -42,20 +42,22 @@ class ClaimExtractionService:
         if statement is None:
             raise AppError('statement_not_found', 'Statement does not exist.', status_code=404)
 
-        injection = find_moderation_violation(statement.statement_text)
-        if injection and injection.violation_type == 'prompt_injection_attempt':
+        # Only block prompt injection attempts — other violation types (violence, defamation)
+        # may appear in legitimate quoted candidate text being fact-checked.
+        moderation_hit = find_moderation_violation(statement.statement_text)
+        if moderation_hit and moderation_hit.violation_type == 'prompt_injection_attempt':
             AdminAuditService.record_moderation_violation(
                 db,
                 reviewer_id=_EXTRACTION_PIPELINE_ACTOR,
                 text_preview=statement.statement_text,
                 rejection_field='statement.statement_text',
-                violation=injection,
+                violation=moderation_hit,
             )
             raise AppError(
                 'statement_text_rejected',
                 'Statement text contains adversarial content and cannot be processed.',
                 status_code=422,
-                details=injection.to_details(rejection_field='statement.statement_text'),
+                details=moderation_hit.to_details(rejection_field='statement.statement_text'),
             )
 
         proposed_claims = cls._heuristic_extract(statement.statement_text, max_claims)

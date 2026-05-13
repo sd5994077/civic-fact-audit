@@ -57,6 +57,26 @@ def test_violence_threat_detected() -> None:
     assert violation.rule_id == 'violence_threats'
 
 
+def test_violence_threat_person_subject_detected() -> None:
+    violation = find_moderation_violation('The candidate should be killed for saying that.')
+    assert violation is not None
+    assert violation.violation_type == 'violence_or_threat'
+
+
+def test_legislative_kill_bill_does_not_false_positive() -> None:
+    violation = find_moderation_violation(
+        'The committee voted to kill the bill, which would have cut funding for rural schools.'
+    )
+    assert violation is None
+
+
+def test_legislative_should_be_killed_does_not_false_positive() -> None:
+    violation = find_moderation_violation(
+        'The proposal should be killed before it reaches the floor vote.'
+    )
+    assert violation is None
+
+
 def test_harassment_doxxing_detected() -> None:
     violation = find_moderation_violation('Their social security number is linked to the fraud.')
     assert violation is not None
@@ -90,6 +110,32 @@ def test_neutral_fact_audit_rationale_passes_all_rules() -> None:
     )
     violation = find_moderation_violation(text)
     assert violation is None
+
+
+def test_invalid_regex_pattern_raises_at_load_time() -> None:
+    policy_data = {
+        'version': 'test_bad_regex_v1',
+        'matching': {'mode': 'regex'},
+        'rules': [{
+            'rule_id': 'bad_rule',
+            'violation_type': 'test_type',
+            'patterns': ['\\bkill\\s+(him|her'],
+        }],
+    }
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        json.dump(policy_data, f)
+        tmp_path = f.name
+    get_moderation_policy.cache_clear()
+    try:
+        raised = False
+        try:
+            get_moderation_policy(tmp_path)
+        except ValueError:
+            raised = True
+        assert raised, 'Expected ValueError for malformed regex pattern'
+    finally:
+        get_moderation_policy.cache_clear()
+        Path(tmp_path).unlink(missing_ok=True)
 
 
 def test_custom_path_contains_mode_still_works() -> None:

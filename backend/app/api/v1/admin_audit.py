@@ -3,9 +3,9 @@ import uuid
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.core.moderation_policy import get_moderation_policy
 from app.db.database import get_db
 from app.schemas.api import AdminAuditEventRead, ErrorResponse, ModerationRiskItem, ModerationRiskResponse
-from app.core.moderation_policy import get_moderation_policy
 from app.services.admin_audit_service import AdminAuditService
 from app.services.auth_dependency_service import require_admin
 from app.services.auth_service import AuthIdentity

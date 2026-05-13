@@ -70,6 +70,14 @@ def get_moderation_policy(path: str | None = None) -> ModerationPolicy:
         normalized_patterns = tuple(str(pattern).strip().lower() for pattern in patterns if str(pattern).strip())
         if not normalized_patterns:
             continue
+        if mode == 'regex':
+            for pat in normalized_patterns:
+                try:
+                    re.compile(pat)
+                except re.error as exc:
+                    raise ValueError(
+                        f'Rule "{rule_id}" contains invalid regex pattern "{pat}": {exc}'
+                    ) from exc
         rules.append(ModerationRule(rule_id=rule_id, violation_type=violation_type, patterns=normalized_patterns))
 
     return ModerationPolicy(version=version, mode=mode, rules=tuple(rules))
