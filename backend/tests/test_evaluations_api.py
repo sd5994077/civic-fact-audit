@@ -58,6 +58,94 @@ def test_evaluate_claim_returns_422_for_moderation_violation(monkeypatch) -> Non
     app.dependency_overrides.clear()
 
 
+def test_evaluate_claim_returns_409_for_overwrite_dual_control_conflict(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[require_reviewer_or_admin] = _override_reviewer
+    claim_id = uuid.uuid4()
+
+    def _fake_evaluate(_db, _claim_id, _payload, *, reviewer_id):  # type: ignore[no-untyped-def]
+        assert reviewer_id == 'reviewer@local'
+        assert _claim_id == claim_id
+        raise AppError(
+            'evaluation_overwrite_dual_control_required',
+            'Evaluation overwrites require different reviewers for approval and final mutation.',
+            status_code=409,
+            details={
+                'claim_id': str(claim_id),
+                'approval_reviewer_id': 'reviewer@local',
+                'applying_reviewer_id': 'reviewer@local',
+                'action': 'evaluate_overwrite',
+            },
+        )
+
+    monkeypatch.setattr('app.api.v1.evaluations.EvaluationService.evaluate_claim', _fake_evaluate)
+
+    client = TestClient(app)
+    response = client.post(
+        f'/v1/claims/{claim_id}/evaluate',
+        json={
+            'verdict': 'supported',
+            'confidence': 0.8,
+            'rationale': 'Neutral rationale with enough detail.',
+            'citation_notes': 'Source packet A',
+            'approval_reviewer_id': 'reviewer@local',
+        },
+    )
+    body = response.json()
+    assert response.status_code == 409
+    assert body['error']['code'] == 'evaluation_overwrite_dual_control_required'
+    assert body['error']['details']['claim_id'] == str(claim_id)
+    assert body['error']['details']['approval_reviewer_id'] == 'reviewer@local'
+    assert body['error']['details']['applying_reviewer_id'] == 'reviewer@local'
+    assert body['error']['details']['action'] == 'evaluate_overwrite'
+    app.dependency_overrides.clear()
+
+
+def test_evaluate_claim_first_write_allows_blank_approval_reviewer(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[require_reviewer_or_admin] = _override_reviewer
+    claim_id = uuid.uuid4()
+    captured = {}
+
+    class _Eval:
+        def __init__(self) -> None:
+            from datetime import datetime, timezone
+
+            self.id = uuid.uuid4()
+            self.claim_id = claim_id
+            self.verdict = 'supported'
+            self.confidence = 0.8
+            self.rationale = 'Neutral rationale with enough detail.'
+            self.citation_notes = 'Source packet A'
+            self.reviewer_id = 'reviewer@local'
+            self.created_at = datetime(2026, 5, 12, tzinfo=timezone.utc)
+
+    def _fake_evaluate(_db, _claim_id, payload, *, reviewer_id):  # type: ignore[no-untyped-def]
+        assert _claim_id == claim_id
+        assert reviewer_id == 'reviewer@local'
+        captured['approval_reviewer_id'] = payload.approval_reviewer_id
+        return _Eval()
+
+    monkeypatch.setattr('app.api.v1.evaluations.EvaluationService.evaluate_claim', _fake_evaluate)
+
+    client = TestClient(app)
+    response = client.post(
+        f'/v1/claims/{claim_id}/evaluate',
+        json={
+            'verdict': 'supported',
+            'confidence': 0.8,
+            'rationale': 'Neutral rationale with enough detail.',
+            'citation_notes': 'Source packet A',
+        },
+    )
+    body = response.json()
+    assert response.status_code == 200
+    assert captured['approval_reviewer_id'] is None
+    assert body['claim_id'] == str(claim_id)
+    assert body['reviewer_id'] == 'reviewer@local'
+    app.dependency_overrides.clear()
+
+
 def test_publish_claim_returns_422_for_moderation_gate_failure(monkeypatch) -> None:
     app.dependency_overrides[get_db] = _override_db
     app.dependency_overrides[require_admin] = _override_admin

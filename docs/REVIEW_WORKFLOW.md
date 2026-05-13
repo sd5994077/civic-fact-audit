@@ -16,6 +16,9 @@ Moderation/output boundaries are defined in `docs/MODERATION_POLICY.md`.
   - `draft_verdict`: remains draft-only guidance; reviewer must still use `POST /v1/claims/{claim_id}/evaluate`
 - Proposal attribution:
   - `proposed_by` is set server-side from authenticated reviewer/admin identity.
+- Bulk source attach request contract:
+  - `POST /v1/claims/sources/bulk` expects `{ "approval_reviewer_id": "<id>", "items": [...] }`.
+  - Dual-control is enforced only when a batch contains verification-origin items.
 - Source-admission enforcement:
   - Proposal create/apply can return `422 source_admission_policy_violation`.
   - If blocked, keep proposal for audit trail, update payload to a neutral/record-based verification source, then re-submit/re-approve.
@@ -52,6 +55,7 @@ Before publish, reviewer/admin should ensure:
 - Verification evidence includes at least:
   - 1 primary source
   - 1 independent secondary source
+- If updating an already-evaluated claim verdict, provide `approval_reviewer_id` from a different reviewer/admin than the applying actor.
 - Moderation gate is clean.
 - Publish gate passes for the claim.
 
@@ -75,6 +79,12 @@ Signoff definition:
   - Retry path: hand off final `publish`/`unpublish` action to a different reviewer/admin account and retry.
 
 ## Exception handling notes
+- Evaluation overwrite dual-control blocked (`409 evaluation_overwrite_dual_control_required`):
+  - first evaluation is exempt; overwrites require a different approval reviewer identity.
+  - keep claim state unchanged and re-submit evaluate request with different reviewer separation.
+- Bulk attach dual-control blocked (`409 bulk_attach_dual_control_required`):
+  - conflict applies only when payload contains verification-origin items.
+  - keep batch unchanged, hand off apply action to a different reviewer/admin, then retry same payload.
 - Self-apply blocked (`409 proposal_dual_control_required`):
   - Keep proposal in `approved`, route apply to a different reviewer/admin.
 - Publish/unpublish dual-control blocked (`409 publish_dual_control_required`):

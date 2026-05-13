@@ -80,6 +80,7 @@
             <div class="panel-head"><h3>Candidate Detail</h3></div>
             <form id="candidate-edit-form" class="stack-form" autocomplete="off">
               <label>Candidate ID<input id="candidate-id" type="text" readonly></label>
+              <label>Approval Reviewer ID<input id="candidate-approval-reviewer-id" type="text" placeholder="reviewer2@local" required></label>
               <label>Name<input id="candidate-name" type="text"></label>
               <label>Party<input id="candidate-party" type="text"></label>
               <label>Office<input id="candidate-office" type="text"></label>
@@ -110,6 +111,7 @@
         <article class="panel" style="margin-top:1rem;">
           <div class="panel-head"><h3>Create Candidate</h3></div>
           <form id="candidate-create-form" class="stack-form compact">
+            <label>Approval Reviewer ID<input id="create-approval-reviewer-id" type="text" placeholder="reviewer2@local" required></label>
             <label>Name<input id="create-name" type="text" required></label>
             <label>Party<input id="create-party" type="text"></label>
             <label>Office<input id="create-office" type="text"></label>
@@ -170,6 +172,7 @@
             <p id="review-preview" class="status-text">Select a claim from the queue to evaluate.</p>
             <form id="review-form" class="stack-form" autocomplete="off">
               <label>Claim ID<input id="review-claim-id" type="text" readonly required></label>
+              <label>Approval Reviewer ID (overwrite only)<input id="review-approval-reviewer-id" type="text" placeholder="reviewer2@local"></label>
               <label>Verdict
                 <select id="review-verdict" required>
                   <option value="supported">supported</option>
@@ -234,7 +237,7 @@
           <article class="panel">
             <div class="panel-head"><h3>Bulk Source Attach</h3></div>
             <p class="status-text">
-              Payload must be a JSON array. Each item requires: <code>claim_id</code>, <code>url</code>, <code>source_class</code>,
+              Payload must be a JSON object with <code>approval_reviewer_id</code> and <code>items</code>. Each item requires: <code>claim_id</code>, <code>url</code>, <code>source_class</code>,
               <code>source_origin</code>, and <code>quality_score</code>.
             </p>
             <div class="action-row" style="margin:0.7rem 0;">
@@ -243,6 +246,7 @@
               <button id="bulk-clear-json" class="ghost-btn" type="button">Clear</button>
             </div>
             <form id="bulk-attach-form" class="stack-form">
+              <label>Approval Reviewer ID<input id="bulk-approval-reviewer-id" type="text" placeholder="reviewer2@local" required></label>
               <label>Attach Payload JSON
                 <textarea id="bulk-attach-json" class="json-input" spellcheck="false"></textarea>
               </label>

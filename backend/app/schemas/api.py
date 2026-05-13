@@ -30,6 +30,7 @@ class ErrorResponse(BaseModel):
 
 class CandidateCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
+    approval_reviewer_id: str = Field(min_length=1, max_length=255)
     party: str | None = Field(default=None, max_length=128)
     office: str | None = Field(default=None, max_length=255)
     state: str | None = Field(default=None, max_length=32)
@@ -43,6 +44,7 @@ class CandidateCreate(BaseModel):
 
 
 class CandidateUpdate(BaseModel):
+    approval_reviewer_id: str = Field(min_length=1, max_length=255)
     name: str | None = Field(default=None, min_length=1, max_length=255)
     party: str | None = Field(default=None, max_length=128)
     office: str | None = Field(default=None, max_length=255)
@@ -137,6 +139,7 @@ class EvaluateClaimRequest(BaseModel):
     confidence: float = Field(ge=0, le=1)
     rationale: str = Field(min_length=10)
     citation_notes: str | None = None
+    approval_reviewer_id: str | None = Field(default=None, min_length=1, max_length=255)
 
 
 class AuthLoginRequest(BaseModel):
@@ -239,6 +242,11 @@ class BulkSourceAttachItem(BaseModel):
     is_direct_candidate_quote: bool = False
 
 
+class BulkSourceAttachRequest(BaseModel):
+    approval_reviewer_id: str = Field(min_length=1, max_length=255)
+    items: list[BulkSourceAttachItem] = Field(default_factory=list)
+
+
 class BulkSourceAttachResultItem(BaseModel):
     claim_id: uuid.UUID
     url: str
@@ -249,6 +257,7 @@ class BulkSourceAttachResultItem(BaseModel):
 
 
 class BulkSourceAttachResponse(BaseModel):
+    bulk_operation_id: str
     total: int
     attached: int
     failed: int

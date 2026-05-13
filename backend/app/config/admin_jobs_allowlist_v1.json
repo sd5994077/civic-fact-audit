@@ -1,9 +1,13 @@
 {
-  "version": "admin_jobs_allowlist_v4_2026_05_12",
+  "version": "admin_jobs_allowlist_v5_2026_05_12",
   "job_types": [
     {
       "job_type": "ingest_candidate_roster",
       "module": "app.scripts.ingest_tx_2026_senate_roster",
+      "allowed_modules": [
+        "app.scripts.ingest_tx_2026_senate_roster",
+        "app.scripts.ingest_tx_2026_attorney_general_runoff_roster"
+      ],
       "supports_dry_run": false,
       "description": "Upsert candidate roster metadata for the selected intake profile.",
       "input_schema": {
@@ -17,6 +21,14 @@
     {
       "job_type": "ingest_statement_batch",
       "module": "app.scripts.ingest_tx_2026_statement_batch",
+      "allowed_modules": [
+        "app.scripts.ingest_tx_2026_statement_batch",
+        "app.scripts.ingest_tx_2026_statement_batch_round2",
+        "app.scripts.ingest_tx_2026_statement_batch_round3",
+        "app.scripts.ingest_tx_2026_statement_batch_round4",
+        "app.scripts.ingest_tx_2026_attorney_general_runoff_statement_batch",
+        "app.scripts.ingest_tx_2026_attorney_general_runoff_statement_batch_round2"
+      ],
       "supports_dry_run": false,
       "description": "Ingest statement batch for the selected intake profile and batch key.",
       "input_schema": {
@@ -31,6 +43,10 @@
     {
       "job_type": "extract_claims_batch",
       "module": "app.scripts.extract_tx_2026_claims_batch",
+      "allowed_modules": [
+        "app.scripts.extract_tx_2026_claims_batch",
+        "app.scripts.extract_tx_2026_attorney_general_runoff_claims_batch"
+      ],
       "supports_dry_run": false,
       "description": "Extract claim candidates from statements.",
       "input_schema": {
@@ -44,6 +60,10 @@
     {
       "job_type": "backfill_claim_reviewability",
       "module": "app.scripts.backfill_tx_2026_claim_reviewability",
+      "allowed_modules": [
+        "app.scripts.backfill_tx_2026_claim_reviewability",
+        "app.scripts.backfill_tx_2026_attorney_general_runoff_claim_reviewability"
+      ],
       "supports_dry_run": false,
       "description": "Apply reviewability heuristics to claims.",
       "input_schema": {
@@ -57,6 +77,9 @@
     {
       "job_type": "map_issue_frames",
       "module": "app.scripts.map_tx_2026_claim_issue_frames",
+      "allowed_modules": [
+        "app.scripts.map_tx_2026_claim_issue_frames"
+      ],
       "supports_dry_run": false,
       "description": "Map claims into shared issue frames.",
       "input_schema": {}
@@ -64,6 +87,10 @@
     {
       "job_type": "generate_publish_queue_report",
       "module": "app.scripts.generate_tx_2026_publish_queue_report",
+      "allowed_modules": [
+        "app.scripts.generate_tx_2026_publish_queue_report",
+        "app.scripts.generate_tx_2026_attorney_general_runoff_publish_queue_report"
+      ],
       "supports_dry_run": false,
       "description": "Generate publish-queue diagnostics.",
       "input_schema": {
@@ -77,6 +104,10 @@
     {
       "job_type": "generate_publish_progress_report",
       "module": "app.scripts.generate_tx_2026_publish_progress_report",
+      "allowed_modules": [
+        "app.scripts.generate_tx_2026_publish_progress_report",
+        "app.scripts.generate_tx_2026_attorney_general_runoff_publish_progress_report"
+      ],
       "supports_dry_run": false,
       "description": "Generate publish progress summary.",
       "input_schema": {
@@ -90,6 +121,10 @@
     {
       "job_type": "generate_profile_claim_coverage_report",
       "module": "app.scripts.generate_tx_2026_claim_coverage_report",
+      "allowed_modules": [
+        "app.scripts.generate_tx_2026_claim_coverage_report",
+        "app.scripts.generate_tx_2026_attorney_general_runoff_claim_coverage_report"
+      ],
       "supports_dry_run": false,
       "description": "Generate per-candidate published-verified claim coverage and enforce the minimum coverage threshold.",
       "input_schema": {

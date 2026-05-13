@@ -6,6 +6,11 @@ Inventory additional high-risk mutation paths that should be considered for dual
 ## Current Implemented Behavior
 - `proposal_dual_control_required` currently blocks same-reviewer approve/apply for verification-source proposal apply actions.
 - Coverage includes `verification_source_suggestion` and `candidate_source_capture` when payload `source_origin=verification`.
+- Publish/unpublish first slice is implemented: `POST /v1/claims/{id}/publish` and `POST /v1/claims/{id}/unpublish` enforce `approval_reviewer_id != applying_reviewer_id` and persist reviewer-linkage audit metadata.
+- Remaining v2 expansion paths from discovery are now implemented for this phase with explicit approval fields and deterministic `409` dual-control conflicts:
+  - candidate create/update mutations (`candidate_dual_control_required`)
+  - claim evaluation overwrite path (`evaluation_overwrite_dual_control_required`)
+  - bulk source attach for verification-origin items (`bulk_attach_dual_control_required`)
 
 ## Recommended v2 Expansion
 - Candidate lifecycle mutations:
@@ -28,6 +33,9 @@ Inventory additional high-risk mutation paths that should be considered for dual
   - defer because proposal creation is non-mutating to published truth state.
 
 ## Decision Status
-- Status: pending product + operations decision.
-- Implementation: not yet started for v2 expansion paths above.
-- Planning intent: preserve current additive policy, then phase in per-endpoint dual-control with auditable reviewer linkage metadata.
+- Status: dual-control v2 verification-only expansion for candidate mutation, evaluation overwrite, and bulk attach is implemented.
+- Implementation details:
+  - candidate create/update require request `approval_reviewer_id` and enforce reviewer separation against the applying actor.
+  - evaluation overwrite enforces reviewer separation only when a prior evaluation exists (first evaluation remains single-step and does not require approval reviewer).
+  - bulk attach enforces reviewer separation only when any batch item has `source_origin=verification`; candidate-origin-only batches are unaffected in this slice.
+  - audit metadata now includes `approval_reviewer_id`, `applying_reviewer_id`, and `dual_control_enforced` on these mutation paths.

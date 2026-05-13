@@ -51,6 +51,43 @@ class CandidateService:
         return CandidateService._normalize_optional_text(str(value))
 
     @staticmethod
+    def _normalize_reviewer_id(reviewer_id: str | None) -> str | None:
+        if reviewer_id is None:
+            return None
+        normalized = reviewer_id.strip().lower()
+        if not normalized:
+            return None
+        return normalized
+
+    @staticmethod
+    def _enforce_candidate_dual_control(
+        *,
+        candidate_id: uuid.UUID | None,
+        approval_reviewer_id: str | None,
+        applying_reviewer_id: str | None,
+        action: str,
+    ) -> tuple[str, str]:
+        normalized_approval_reviewer_id = CandidateService._normalize_reviewer_id(approval_reviewer_id)
+        normalized_applying_reviewer_id = CandidateService._normalize_reviewer_id(applying_reviewer_id)
+        if (
+            normalized_approval_reviewer_id is None
+            or normalized_applying_reviewer_id is None
+            or normalized_approval_reviewer_id == normalized_applying_reviewer_id
+        ):
+            raise AppError(
+                'candidate_dual_control_required',
+                'Candidate mutations require different reviewers for approval and final mutation.',
+                status_code=409,
+                details={
+                    'candidate_id': str(candidate_id) if candidate_id is not None else None,
+                    'approval_reviewer_id': normalized_approval_reviewer_id,
+                    'applying_reviewer_id': normalized_applying_reviewer_id,
+                    'action': action,
+                },
+            )
+        return normalized_approval_reviewer_id, normalized_applying_reviewer_id
+
+    @staticmethod
     def _candidate_audit_payload(candidate: Candidate) -> dict[str, object]:
         race_stage = getattr(candidate, 'race_stage', None)
         race_stage_value = race_stage.value if hasattr(race_stage, 'value') else (str(race_stage) if race_stage else None)
@@ -94,6 +131,8 @@ class CandidateService:
 
     @staticmethod
     def create_candidate(db: Session, payload: CandidateCreate, *, actor_reviewer_id: str | None = None) -> Candidate:
+        approval_reviewer_id = payload.approval_reviewer_id
+        applying_reviewer_id = actor_reviewer_id
         candidate = Candidate(
             name=CandidateService._normalize_required_name(payload.name),
             party=CandidateService._normalize_optional_text(payload.party),
@@ -107,19 +146,33 @@ class CandidateService:
             roster_checked_at=payload.roster_checked_at,
             roster_notes=CandidateService._normalize_optional_text(payload.roster_notes),
         )
+        normalized_approval_reviewer_id: str | None = None
+        normalized_applying_reviewer_id: str | None = None
+        if applying_reviewer_id is not None:
+            normalized_approval_reviewer_id, normalized_applying_reviewer_id = CandidateService._enforce_candidate_dual_control(
+                candidate_id=None,
+                approval_reviewer_id=approval_reviewer_id,
+                applying_reviewer_id=applying_reviewer_id,
+                action='candidate_create',
+            )
         db.add(candidate)
-        if actor_reviewer_id is not None:
+        if actor_reviewer_id is not None and normalized_applying_reviewer_id is not None:
             # Ensure DB defaults (including candidate id) are populated before audit write.
             db.flush()
             AdminAuditService.record_event(
                 db,
-                actor_reviewer_id=actor_reviewer_id,
+                actor_reviewer_id=normalized_applying_reviewer_id,
                 action='candidate_created',
                 entity_type='candidate',
                 entity_id=str(candidate.id),
                 before_payload=None,
                 after_payload=CandidateService._candidate_audit_payload(candidate),
-                metadata={'source': 'api'},
+                metadata={
+                    'source': 'api',
+                    'approval_reviewer_id': normalized_approval_reviewer_id,
+                    'applying_reviewer_id': normalized_applying_reviewer_id,
+                    'dual_control_enforced': True,
+                },
                 commit=False,
             )
         db.commit()
@@ -218,19 +271,35 @@ class CandidateService:
                 },
             )
 
+        normalized_approval_reviewer_id: str | None = None
+        normalized_applying_reviewer_id: str | None = None
+        if actor_reviewer_id is not None:
+            normalized_approval_reviewer_id, normalized_applying_reviewer_id = CandidateService._enforce_candidate_dual_control(
+                candidate_id=candidate.id,
+                approval_reviewer_id=payload.approval_reviewer_id,
+                applying_reviewer_id=actor_reviewer_id,
+                action='candidate_update',
+            )
+
         for field_name, value in updates.items():
             setattr(candidate, field_name, value)
 
-        if actor_reviewer_id is not None and updates:
+        if normalized_applying_reviewer_id is not None and updates:
             AdminAuditService.record_event(
                 db,
-                actor_reviewer_id=actor_reviewer_id,
+                actor_reviewer_id=normalized_applying_reviewer_id,
                 action='candidate_updated',
                 entity_type='candidate',
                 entity_id=str(candidate.id),
                 before_payload=before_payload,
                 after_payload=CandidateService._candidate_audit_payload(candidate),
-                metadata={'source': 'api', 'changed_fields': sorted(changed_fields)},
+                metadata={
+                    'source': 'api',
+                    'changed_fields': sorted(changed_fields),
+                    'approval_reviewer_id': normalized_approval_reviewer_id,
+                    'applying_reviewer_id': normalized_applying_reviewer_id,
+                    'dual_control_enforced': True,
+                },
                 commit=False,
             )
 

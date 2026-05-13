@@ -74,6 +74,52 @@ def test_status_transition_guards() -> None:
         assert exc.code == 'invalid_proposal_transition'
 
 
+def test_apply_proposal_checks_locked_status_snapshot_when_available() -> None:
+    proposal_id = uuid.uuid4()
+
+    class _FakeProposal:
+        def __init__(self, status: ProposalStatus) -> None:
+            self.id = proposal_id
+            self.claim_id = uuid.uuid4()
+            self.proposal_type = ProposalType.draft_verdict
+            self.status = status
+            self.proposal_payload = '{"verdict":"supported","confidence":0.81,"rationale":"draft text","citation_notes":"notes"}'
+            self.reviewed_by = None
+            self.reviewed_at = None
+            self.review_notes = None
+
+    class _FakeResult:
+        def __init__(self, proposal: _FakeProposal) -> None:
+            self._proposal = proposal
+
+        def scalars(self):  # type: ignore[no-untyped-def]
+            return self
+
+        def first(self):  # type: ignore[no-untyped-def]
+            return self._proposal
+
+    class _FakeDb:
+        def __init__(self) -> None:
+            self.proposal_via_get = _FakeProposal(ProposalStatus.approved)
+            self.proposal_via_lock = _FakeProposal(ProposalStatus.rejected)
+            self.execute_calls = 0
+
+        def get(self, _model, _id):  # type: ignore[no-untyped-def]
+            return self.proposal_via_get
+
+        def execute(self, _stmt):  # type: ignore[no-untyped-def]
+            self.execute_calls += 1
+            return _FakeResult(self.proposal_via_lock)
+
+    db = _FakeDb()
+    try:
+        ProposalService.apply_proposal(db, proposal_id, reviewer_id='reviewer@local')  # type: ignore[arg-type]
+        assert False, 'Expected invalid_proposal_transition'
+    except AppError as exc:
+        assert exc.code == 'invalid_proposal_transition'
+    assert db.execute_calls == 1
+
+
 def test_apply_draft_verdict_has_no_official_evaluation_effect(monkeypatch) -> None:
     proposal_id = uuid.uuid4()
     claim_id = uuid.uuid4()

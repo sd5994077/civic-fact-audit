@@ -84,17 +84,20 @@ const RACE_STAGE_VALUES = new Set(["primary", "primary_runoff", "general", "spec
 const SOURCE_CLASS_VALUES = new Set(["primary", "secondary"]);
 const SOURCE_ORIGIN_VALUES = new Set(["candidate", "verification"]);
 const SOURCE_PROPOSAL_TYPES = new Set(["candidate_source_capture", "verification_source_suggestion"]);
-const BULK_ATTACH_EXAMPLE = [
-  {
-    claim_id: "00000000-0000-0000-0000-000000000000",
-    url: "https://example.gov/report",
-    source_class: "primary",
-    source_origin: "verification",
-    publisher: "Example Government Office",
-    quality_score: 0.9,
-    is_direct_candidate_quote: false,
-  },
-];
+const BULK_ATTACH_EXAMPLE = {
+  approval_reviewer_id: "reviewer2@local",
+  items: [
+    {
+      claim_id: "00000000-0000-0000-0000-000000000000",
+      url: "https://example.gov/report",
+      source_class: "primary",
+      source_origin: "verification",
+      publisher: "Example Government Office",
+      quality_score: 0.9,
+      is_direct_candidate_quote: false,
+    },
+  ],
+};
 
 function shortId(id) {
   const text = String(id || "");
@@ -117,16 +120,42 @@ function parseApiError(err, fallback) {
   return err.message || fallback;
 }
 
-function parsePublishDualControlError(err, action) {
+function parseDualControlError(err, expectedCode, defaultAction, defaultMessage) {
   const code = err?.payload?.error?.code;
-  if (code !== "publish_dual_control_required") return null;
+  if (code !== expectedCode) return null;
   const details = err?.payload?.error?.details || {};
   const approvalReviewerId = details.approval_reviewer_id;
   const applyingReviewerId = details.applying_reviewer_id;
-  const dualControlAction = details.action || action || "publish";
+  const dualControlAction = details.action || defaultAction || "mutation";
   const approvalLabel = approvalReviewerId ? `latest approval reviewer is ${approvalReviewerId}` : "approval reviewer could not be resolved";
   const applyingLabel = applyingReviewerId ? `current actor is ${applyingReviewerId}` : "current actor is unknown";
-  return `Dual-control blocked for ${dualControlAction}: ${approvalLabel}; ${applyingLabel}. Hand off to a different reviewer/admin and retry.`;
+  return `${defaultMessage} for ${dualControlAction}: ${approvalLabel}; ${applyingLabel}. Hand off to a different reviewer/admin and retry.`;
+}
+
+function parsePublishDualControlError(err, action) {
+  return parseDualControlError(err, "publish_dual_control_required", action || "publish", "Dual-control blocked");
+}
+
+function parseCandidateDualControlError(err, action) {
+  return parseDualControlError(err, "candidate_dual_control_required", action || "candidate_update", "Dual-control blocked");
+}
+
+function parseEvaluationDualControlError(err) {
+  return parseDualControlError(
+    err,
+    "evaluation_overwrite_dual_control_required",
+    "evaluate_overwrite",
+    "Dual-control blocked"
+  );
+}
+
+function parseBulkAttachDualControlError(err) {
+  return parseDualControlError(
+    err,
+    "bulk_attach_dual_control_required",
+    "bulk_attach_verification_sources",
+    "Dual-control blocked"
+  );
 }
 
 function isUuid(value) {
@@ -280,6 +309,7 @@ function renderCandidateList(rows) {
 
 function populateCandidateForm(candidate) {
   $("candidate-id").value = candidate.id || "";
+  $("candidate-approval-reviewer-id").value = "";
   $("candidate-name").value = candidate.name || "";
   $("candidate-party").value = candidate.party || "";
   $("candidate-office").value = candidate.office || "";
@@ -320,6 +350,7 @@ async function loadCandidateDetail(candidateId) {
 
 function buildCandidatePayload(prefix) {
   return {
+    approval_reviewer_id: normalizeOptionalText($(`${prefix}-approval-reviewer-id`).value) || "",
     name: normalizeOptionalText($(`${prefix}-name`).value) || "",
     party: normalizeOptionalText($(`${prefix}-party`).value),
     office: normalizeOptionalText($(`${prefix}-office`).value),
@@ -343,6 +374,10 @@ async function saveCandidate(event) {
 
   try {
     const payload = buildCandidatePayload("candidate");
+    if (!payload.approval_reviewer_id) {
+      setStatus("candidate-edit-status", "Approval reviewer ID is required.", "bad");
+      return;
+    }
     setStatus("candidate-edit-status", "Saving candidate...");
     const row = await apiRequest(`${API_CANDIDATES_URL}/${encodeURIComponent(selectedCandidateId)}`, {
       method: "PATCH",
@@ -353,7 +388,8 @@ async function saveCandidate(event) {
     setStatus("candidate-edit-status", "Candidate saved.", "ok");
     await loadCandidateList();
   } catch (err) {
-    setStatus("candidate-edit-status", parseApiError(err, "Failed to save candidate."), "bad");
+    const dualControlMessage = parseCandidateDualControlError(err, "candidate_update");
+    setStatus("candidate-edit-status", dualControlMessage || parseApiError(err, "Failed to save candidate."), "bad");
   }
 }
 
@@ -361,6 +397,10 @@ async function createCandidate(event) {
   event.preventDefault();
   try {
     const payload = buildCandidatePayload("create");
+    if (!payload.approval_reviewer_id) {
+      setStatus("candidate-create-status", "Approval reviewer ID is required.", "bad");
+      return;
+    }
     setStatus("candidate-create-status", "Creating candidate...");
     const row = await apiRequest(API_CANDIDATES_URL, {
       method: "POST",
@@ -373,7 +413,8 @@ async function createCandidate(event) {
     await loadCandidateList();
     await loadCandidateDetail(row.id);
   } catch (err) {
-    setStatus("candidate-create-status", parseApiError(err, "Failed to create candidate."), "bad");
+    const dualControlMessage = parseCandidateDualControlError(err, "candidate_create");
+    setStatus("candidate-create-status", dualControlMessage || parseApiError(err, "Failed to create candidate."), "bad");
   }
 }
 
@@ -863,6 +904,7 @@ async function submitReview(event) {
   const confidenceRaw = $("review-confidence")?.value;
   const rationale = $("review-rationale")?.value?.trim();
   const citationNotes = $("review-citation-notes")?.value?.trim();
+  const approvalReviewerId = $("review-approval-reviewer-id")?.value?.trim();
 
   if (!claimId || !verdict || !confidenceRaw || !rationale) {
     setStatus("review-submit-status", "Claim, verdict, confidence, and rationale are required.", "bad");
@@ -884,12 +926,14 @@ async function submitReview(event) {
         confidence,
         rationale,
         citation_notes: citationNotes || null,
+        approval_reviewer_id: approvalReviewerId || null,
       },
     });
     setStatus("review-submit-status", "Evaluation saved.", "ok");
     await Promise.all([loadReviewQueue(), loadPublishQueue()]);
   } catch (err) {
-    setStatus("review-submit-status", parseApiError(err, "Review submission failed."), "bad");
+    const dualControlMessage = parseEvaluationDualControlError(err);
+    setStatus("review-submit-status", dualControlMessage || parseApiError(err, "Review submission failed."), "bad");
   }
 }
 
@@ -999,14 +1043,14 @@ function parseJsonTextarea(text, fieldName) {
   }
 }
 
-function validateBulkSourceAttachItems(payload) {
+function validateBulkSourceAttachItems(items) {
   const errors = [];
-  if (!Array.isArray(payload)) {
-    errors.push("Payload must be a JSON array.");
+  if (!Array.isArray(items)) {
+    errors.push("Payload.items must be a JSON array.");
     return errors;
   }
 
-  payload.forEach((item, index) => {
+  items.forEach((item, index) => {
     const prefix = `Item ${index + 1}`;
     if (!item || typeof item !== "object" || Array.isArray(item)) {
       errors.push(`${prefix}: must be an object.`);
@@ -1076,17 +1120,40 @@ function renderBulkAttachResults(response) {
 
 function validateBulkAttachTextarea() {
   const raw = $("bulk-attach-json")?.value || "";
+  const approvalReviewerId = normalizeOptionalText($("bulk-approval-reviewer-id")?.value);
+  if (!approvalReviewerId) {
+    setStatus("bulk-attach-status", "Approval reviewer ID is required.", "bad");
+    return null;
+  }
   const parsed = parseJsonTextarea(raw, "Attach payload");
   if (parsed.error) {
     setStatus("bulk-attach-status", parsed.error, "bad");
     return null;
   }
-  const errors = validateBulkSourceAttachItems(parsed.value);
+  if (!parsed.value || typeof parsed.value !== "object" || Array.isArray(parsed.value)) {
+    setStatus("bulk-attach-status", "Validation failed: Payload must be an object with approval_reviewer_id and items.", "bad");
+    return null;
+  }
+  const approvalInPayload = normalizeOptionalText(parsed.value.approval_reviewer_id);
+  const items = parsed.value.items;
+  if (!approvalInPayload) {
+    setStatus("bulk-attach-status", "Validation failed: approval_reviewer_id is required in payload.", "bad");
+    return null;
+  }
+  const errors = validateBulkSourceAttachItems(items);
   if (errors.length) {
     setStatus("bulk-attach-status", `Validation failed: ${errors[0]}`, "bad");
     return null;
   }
-  setStatus("bulk-attach-status", `Validation passed for ${parsed.value.length} item(s).`, "ok");
+  if (approvalInPayload !== approvalReviewerId) {
+    setStatus(
+      "bulk-attach-status",
+      "Validation failed: form Approval Reviewer ID must match payload approval_reviewer_id.",
+      "bad"
+    );
+    return null;
+  }
+  setStatus("bulk-attach-status", `Validation passed for ${items.length} item(s).`, "ok");
   return parsed.value;
 }
 
@@ -1107,7 +1174,8 @@ async function submitBulkAttach(event) {
     await Promise.all([loadEvidenceQueue(), loadAuditList()]);
   } catch (err) {
     renderBulkAttachResults(null);
-    setStatus("bulk-attach-status", parseApiError(err, "Bulk attach request failed."), "bad");
+    const dualControlMessage = parseBulkAttachDualControlError(err);
+    setStatus("bulk-attach-status", dualControlMessage || parseApiError(err, "Bulk attach request failed."), "bad");
   }
 }
 

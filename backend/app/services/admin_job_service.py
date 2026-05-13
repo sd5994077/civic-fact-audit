@@ -28,6 +28,19 @@ _JOB_EXECUTION_TIMEOUT_SECONDS = 300
 
 class AdminJobService:
     @staticmethod
+    def _allowlisted_modules_for_job(job: AdminJobDefinition) -> list[str]:
+        modules = [job.module, *job.allowed_modules]
+        deduped: list[str] = []
+        seen: set[str] = set()
+        for module in modules:
+            normalized = str(module).strip()
+            if not normalized or normalized in seen:
+                continue
+            seen.add(normalized)
+            deduped.append(normalized)
+        return deduped
+
+    @staticmethod
     def _get_job_schema_fields(job: AdminJobDefinition) -> tuple[list[str], list[str]]:
         raw_schema = job.input_schema if isinstance(job.input_schema, dict) else {}
         required_fields = sorted({str(item).strip() for item in raw_schema.get('required_fields', []) if str(item).strip()})
@@ -393,6 +406,30 @@ class AdminJobService:
         return job.module, {}
 
     @staticmethod
+    def _assert_resolved_module_allowlisted(
+        job: AdminJobDefinition,
+        *,
+        resolved_module: str,
+        allowlist_version: str,
+        module_metadata: dict[str, Any],
+    ) -> list[str]:
+        allowlisted_modules = AdminJobService._allowlisted_modules_for_job(job)
+        if resolved_module not in allowlisted_modules:
+            raise AppError(
+                'job_module_not_allowlisted',
+                'Resolved module is not allowlisted for admin execution.',
+                status_code=409,
+                details={
+                    'job_type': job.job_type,
+                    'resolved_module': resolved_module,
+                    'allowlisted_modules': allowlisted_modules,
+                    'allowlist_version': allowlist_version,
+                    **module_metadata,
+                },
+            )
+        return allowlisted_modules
+
+    @staticmethod
     def _mark_running(db: Session, job_run: AdminJobRun) -> None:
         job_run.status = AdminJobStatus.running.value
         job_run.started_at = AdminJobService._utcnow()
@@ -492,6 +529,12 @@ class AdminJobService:
         job, allowlist_version = AdminJobService._get_job_definition(payload.job_type)
         normalized_payload = AdminJobService._normalize_input_payload(payload.input_payload, job)
         resolved_module, module_metadata = AdminJobService._resolve_job_module(job, normalized_payload)
+        allowlisted_modules = AdminJobService._assert_resolved_module_allowlisted(
+            job,
+            resolved_module=resolved_module,
+            allowlist_version=allowlist_version,
+            module_metadata=module_metadata,
+        )
         job_run = AdminJobRun(
             job_type=job.job_type,
             status=AdminJobStatus.queued.value,
@@ -513,7 +556,13 @@ class AdminJobService:
                 'status': job_run.status,
                 'input_payload': normalized_payload,
             },
-            metadata={'allowlist_version': allowlist_version, **module_metadata, 'resolved_module': resolved_module},
+            metadata={
+                'allowlist_version': allowlist_version,
+                **module_metadata,
+                'resolved_module': resolved_module,
+                'allowlisted_modules': allowlisted_modules,
+                'module_allowlist_enforced': True,
+            },
             commit=False,
         )
         db.commit()

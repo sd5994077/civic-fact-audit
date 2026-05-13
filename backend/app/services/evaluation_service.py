@@ -234,6 +234,7 @@ class EvaluationService:
         claim = db.get(Claim, claim_id)
         if claim is None:
             raise AppError('claim_not_found', 'Claim does not exist.', status_code=404)
+        latest_evaluation = EvaluationService._latest_evaluation(db, claim_id)
         rationale_text = payload.rationale.strip()
         rationale_violation = find_moderation_violation(rationale_text)
         if rationale_violation is not None:
@@ -262,6 +263,26 @@ class EvaluationService:
                     status_code=422,
                 )
 
+        normalized_applying_reviewer_id = EvaluationService._normalize_reviewer_id(reviewer_id)
+        normalized_approval_reviewer_id = EvaluationService._normalize_reviewer_id(payload.approval_reviewer_id)
+        if latest_evaluation is not None:
+            if (
+                normalized_approval_reviewer_id is None
+                or normalized_applying_reviewer_id is None
+                or normalized_approval_reviewer_id == normalized_applying_reviewer_id
+            ):
+                raise AppError(
+                    'evaluation_overwrite_dual_control_required',
+                    'Evaluation overwrites require different reviewers for approval and final mutation.',
+                    status_code=409,
+                    details={
+                        'claim_id': str(claim_id),
+                        'approval_reviewer_id': normalized_approval_reviewer_id,
+                        'applying_reviewer_id': normalized_applying_reviewer_id,
+                        'action': 'evaluate_overwrite',
+                    },
+                )
+
         evaluation = ClaimEvaluation(
             claim_id=claim.id,
             verdict=payload.verdict,
@@ -273,22 +294,65 @@ class EvaluationService:
 
         claim.status = ClaimStatus.reviewed
         db.add(evaluation)
+        if latest_evaluation is not None and normalized_applying_reviewer_id is not None:
+            before_payload = {
+                'id': str(latest_evaluation.id),
+                'claim_id': str(latest_evaluation.claim_id),
+                'verdict': latest_evaluation.verdict.value,
+                'confidence': latest_evaluation.confidence,
+                'rationale': latest_evaluation.rationale,
+                'citation_notes': latest_evaluation.citation_notes,
+                'reviewer_id': latest_evaluation.reviewer_id,
+                'created_at': latest_evaluation.created_at.isoformat(),
+            }
+            after_payload = {
+                'claim_id': str(claim.id),
+                'verdict': payload.verdict.value,
+                'confidence': payload.confidence,
+                'rationale': rationale_text,
+                'citation_notes': payload.citation_notes,
+                'reviewer_id': reviewer_id,
+            }
+            AdminAuditService.record_event(
+                db,
+                actor_reviewer_id=normalized_applying_reviewer_id,
+                action='claim_evaluation_overwritten',
+                entity_type='claim',
+                entity_id=str(claim.id),
+                before_payload=before_payload,
+                after_payload=after_payload,
+                metadata={
+                    'approval_reviewer_id': normalized_approval_reviewer_id,
+                    'applying_reviewer_id': normalized_applying_reviewer_id,
+                    'dual_control_enforced': True,
+                },
+                commit=False,
+            )
         db.commit()
         db.refresh(evaluation)
         return evaluation
 
     @staticmethod
     def _latest_evaluation(db: Session, claim_id: uuid.UUID) -> ClaimEvaluation | None:
-        return (
-            db.execute(
-                select(ClaimEvaluation)
-                .where(ClaimEvaluation.claim_id == claim_id)
-                .order_by(ClaimEvaluation.created_at.desc())
-                .limit(1)
-            )
-            .scalars()
-            .first()
+        return EvaluationService._latest_evaluation_for_publish(db, claim_id, lock=False)
+
+    @staticmethod
+    def _latest_evaluation_for_publish(db: Session, claim_id: uuid.UUID, *, lock: bool) -> ClaimEvaluation | None:
+        query = (
+            select(ClaimEvaluation)
+            .where(ClaimEvaluation.claim_id == claim_id)
+            .order_by(ClaimEvaluation.created_at.desc(), ClaimEvaluation.id.desc())
+            .limit(1)
         )
+        if lock:
+            query = query.with_for_update()
+        return db.execute(query).scalars().first()
+
+    @staticmethod
+    def _get_claim_for_publish_mutation(db: Session, claim_id: uuid.UUID) -> Claim | None:
+        if hasattr(db, 'execute'):
+            return db.execute(select(Claim).where(Claim.id == claim_id).with_for_update()).scalars().first()
+        return db.get(Claim, claim_id)
 
     @staticmethod
     def _publish_gate_failures(db: Session, claim: Claim, latest_eval: ClaimEvaluation | None) -> list[str]:
@@ -358,11 +422,11 @@ class EvaluationService:
         claim_id: uuid.UUID,
         *,
         latest_eval: ClaimEvaluation | None = None,
+        fallback_reviewer_id: str | None = None,
     ) -> str | None:
         evaluation = latest_eval if latest_eval is not None else EvaluationService._latest_evaluation(db, claim_id)
-        if evaluation is None:
-            return None
-        return EvaluationService._normalize_reviewer_id(getattr(evaluation, 'reviewer_id', None))
+        reviewer_id = getattr(evaluation, 'reviewer_id', None) if evaluation is not None else fallback_reviewer_id
+        return EvaluationService._normalize_reviewer_id(reviewer_id)
 
     @staticmethod
     def _enforce_publish_dual_control(
@@ -372,10 +436,14 @@ class EvaluationService:
         applying_reviewer_id: str,
         action: str,
         latest_eval: ClaimEvaluation | None = None,
+        fallback_approval_reviewer_id: str | None = None,
     ) -> tuple[str, str]:
         normalized_applying_reviewer_id = EvaluationService._normalize_reviewer_id(applying_reviewer_id)
         approval_reviewer_id = EvaluationService._resolve_publish_approval_reviewer_id(
-            db, claim_id, latest_eval=latest_eval
+            db,
+            claim_id,
+            latest_eval=latest_eval,
+            fallback_reviewer_id=fallback_approval_reviewer_id,
         )
         if (
             normalized_applying_reviewer_id is None
@@ -457,10 +525,10 @@ class EvaluationService:
 
     @staticmethod
     def publish_claim(db: Session, claim_id: uuid.UUID, *, approver_id: str) -> Claim:
-        claim = db.get(Claim, claim_id)
+        claim = EvaluationService._get_claim_for_publish_mutation(db, claim_id)
         if claim is None:
             raise AppError('claim_not_found', 'Claim does not exist.', status_code=404)
-        latest_eval = EvaluationService._latest_evaluation(db, claim_id)
+        latest_eval = EvaluationService._latest_evaluation_for_publish(db, claim_id, lock=True)
         failures = EvaluationService._publish_gate_failures(db, claim, latest_eval)
         if failures:
             error_code = 'publish_gate_failed'
@@ -511,16 +579,17 @@ class EvaluationService:
 
     @staticmethod
     def unpublish_claim(db: Session, claim_id: uuid.UUID, *, approver_id: str) -> Claim:
-        claim = db.get(Claim, claim_id)
+        claim = EvaluationService._get_claim_for_publish_mutation(db, claim_id)
         if claim is None:
             raise AppError('claim_not_found', 'Claim does not exist.', status_code=404)
-        latest_eval = EvaluationService._latest_evaluation(db, claim_id)
+        latest_eval = EvaluationService._latest_evaluation_for_publish(db, claim_id, lock=True)
         approval_reviewer_id, applying_reviewer_id = EvaluationService._enforce_publish_dual_control(
             db,
             claim_id=claim_id,
             applying_reviewer_id=approver_id,
             action='unpublish',
             latest_eval=latest_eval,
+            fallback_approval_reviewer_id=claim.published_by_reviewer_id,
         )
         before_payload = EvaluationService._claim_publish_state_payload(claim)
         claim.is_published = False

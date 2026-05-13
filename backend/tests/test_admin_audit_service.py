@@ -89,3 +89,30 @@ def test_record_event_metadata_roundtrip_for_proposal_dual_control_fields() -> N
     assert row['metadata']['proposal_type'] == 'verification_source_suggestion'
     assert row['metadata']['approval_reviewer_id'] == 'approver@local'
     assert row['metadata']['applying_reviewer_id'] == 'applier@local'
+
+
+def test_record_event_metadata_roundtrip_for_dual_control_v2_events() -> None:
+    db = _FakeDb()
+    for action, entity_type, entity_id in [
+        ('candidate_created', 'candidate', 'candidate-1'),
+        ('candidate_updated', 'candidate', 'candidate-2'),
+        ('claim_evaluation_overwritten', 'claim', 'claim-1'),
+        ('bulk_sources_attached', 'bulk_source_attach', 'bulk-op-1'),
+    ]:
+        event = AdminAuditService.record_event(
+            db,
+            actor_reviewer_id='applier@local',
+            action=action,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            metadata={
+                'approval_reviewer_id': 'approver@local',
+                'applying_reviewer_id': 'applier@local',
+                'dual_control_enforced': True,
+            },
+        )
+        row = AdminAuditService.get_event(db, event.id)  # type: ignore[arg-type]
+        assert row['action'] == action
+        assert row['metadata']['approval_reviewer_id'] == 'approver@local'
+        assert row['metadata']['applying_reviewer_id'] == 'applier@local'
+        assert row['metadata']['dual_control_enforced'] is True

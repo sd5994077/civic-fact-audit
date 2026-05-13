@@ -344,6 +344,24 @@ class ProposalService:
         return proposal
 
     @staticmethod
+    def _get_proposal_for_apply(db: Session, proposal_id: uuid.UUID) -> ClaimProposal:
+        execute = getattr(db, 'execute', None)
+        if callable(execute):
+            proposal = (
+                db.execute(
+                    select(ClaimProposal)
+                    .where(ClaimProposal.id == proposal_id)
+                    .with_for_update()
+                )
+                .scalars()
+                .first()
+            )
+            if proposal is None:
+                raise AppError('proposal_not_found', 'Proposal does not exist.', status_code=404)
+            return proposal
+        return ProposalService._get_proposal(db, proposal_id)
+
+    @staticmethod
     def approve_proposal(db: Session, proposal_id: uuid.UUID, *, reviewer_id: str, review_notes: str | None = None) -> ClaimProposal:
         proposal = ProposalService._get_proposal(db, proposal_id)
         if proposal.status != ProposalStatus.proposed:
@@ -435,7 +453,7 @@ class ProposalService:
 
     @staticmethod
     def apply_proposal(db: Session, proposal_id: uuid.UUID, *, reviewer_id: str, review_notes: str | None = None) -> dict[str, Any]:
-        proposal = ProposalService._get_proposal(db, proposal_id)
+        proposal = ProposalService._get_proposal_for_apply(db, proposal_id)
         if proposal.status != ProposalStatus.approved:
             raise AppError('invalid_proposal_transition', 'Only approved proposals can be applied.', status_code=409)
         normalized_reviewer_id = ProposalService._normalize_reviewer_id(reviewer_id)

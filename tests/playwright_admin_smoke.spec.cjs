@@ -63,6 +63,7 @@ test("admin workspace smoke", async ({ page }) => {
   const auditId = "44444444-4444-4444-4444-444444444444";
   const claimId = "55555555-5555-5555-5555-555555555555";
   const proposalId = "66666666-6666-6666-6666-666666666666";
+  const candidateProposalId = "77777777-7777-7777-7777-777777777777";
 
   let bulkAttachPostCalls = 0;
   let lastBulkAttachPayload = null;
@@ -229,8 +230,9 @@ test("admin workspace smoke", async ({ page }) => {
 
     if (path === "/api/v1/claims/sources/bulk" && method === "POST") {
       bulkAttachPostCalls += 1;
-      lastBulkAttachPayload = JSON.parse(req.postData() || "[]");
+      lastBulkAttachPayload = JSON.parse(req.postData() || "{}");
       return json({
+        bulk_operation_id: "bulk-op-1",
         total: 2,
         attached: 1,
         failed: 1,
@@ -262,7 +264,7 @@ test("admin workspace smoke", async ({ page }) => {
     if (path === `/api/v1/claims/${claimId}/evaluate` && method === "POST") {
       const body = JSON.parse(req.postData() || "{}");
       return json({
-        id: "77777777-7777-7777-7777-777777777777",
+        id: "88888888-8888-8888-8888-888888888888",
         claim_id: claimId,
         verdict: body.verdict || "supported",
         confidence: body.confidence || 0.7,
@@ -287,7 +289,39 @@ test("admin workspace smoke", async ({ page }) => {
             url: "https://example.org/source",
             source_class: "primary",
             source_origin: "verification",
+            publisher: "Example Government Office",
             quality_score: 0.91,
+          },
+          claim_context: {
+            verification_primary_count: 1,
+            verification_secondary_count: 0,
+            missing_source_classes: ["secondary"],
+            verification_evidence_sufficient: false,
+            latest_verdict: "mixed",
+            latest_confidence: 0.62,
+            latest_rationale: "Prior evidence exists",
+            latest_citation_notes: "Source packet A",
+            latest_reviewer_id: "reviewer@local",
+            latest_evaluated_at: "2026-05-12T00:00:00Z",
+          },
+          review_notes: null,
+          created_at: "2026-05-12T00:00:00Z",
+          updated_at: "2026-05-12T00:00:00Z",
+        },
+        {
+          id: candidateProposalId,
+          claim_id: claimId,
+          proposal_type: "candidate_source_capture",
+          status: "proposed",
+          proposed_by: "agent:triage",
+          reviewed_by: null,
+          reviewed_at: null,
+          proposal_payload: {
+            url: "https://example.org/candidate-source",
+            source_class: "primary",
+            source_origin: "verification",
+            publisher: "Candidate One Campaign",
+            quality_score: 0.73,
           },
           claim_context: {
             verification_primary_count: 1,
@@ -607,6 +641,7 @@ test("admin workspace smoke", async ({ page }) => {
   await page.click("button[data-tab=\"bulk-sources\"]");
   await expect(page.locator("#tab-bulk-sources")).toBeVisible();
   await expect(page.locator("#bulk-attach-json")).toHaveValue(/claim_id/);
+  await page.fill("#bulk-approval-reviewer-id", "approver@local");
 
   await page.fill("#bulk-attach-json", "{");
   await page.click("#bulk-validate-json");
@@ -616,15 +651,18 @@ test("admin workspace smoke", async ({ page }) => {
   await page.fill(
     "#bulk-attach-json",
     JSON.stringify(
-      [
-        {
-          claim_id: claimId,
-          url: "https://example.gov/record",
-          source_class: "tertiary",
-          source_origin: "verification",
-          quality_score: 0.7,
-        },
-      ],
+      {
+        approval_reviewer_id: "approver@local",
+        items: [
+          {
+            claim_id: claimId,
+            url: "https://example.gov/record",
+            source_class: "tertiary",
+            source_origin: "verification",
+            quality_score: 0.7,
+          },
+        ],
+      },
       null,
       2
     )
@@ -638,24 +676,27 @@ test("admin workspace smoke", async ({ page }) => {
   await page.fill(
     "#bulk-attach-json",
     JSON.stringify(
-      [
-        {
-          claim_id: claimId,
-          url: "https://example.gov/record",
-          source_class: "primary",
-          source_origin: "verification",
-          publisher: "Example Government Office",
-          quality_score: 0.9,
-          is_direct_candidate_quote: false,
-        },
-        {
-          claim_id: claimId,
-          url: "https://invalid.example/dup",
-          source_class: "secondary",
-          source_origin: "verification",
-          quality_score: 0.4,
-        },
-      ],
+      {
+        approval_reviewer_id: "approver@local",
+        items: [
+          {
+            claim_id: claimId,
+            url: "https://example.gov/record",
+            source_class: "primary",
+            source_origin: "verification",
+            publisher: "Example Government Office",
+            quality_score: 0.9,
+            is_direct_candidate_quote: false,
+          },
+          {
+            claim_id: claimId,
+            url: "https://invalid.example/dup",
+            source_class: "secondary",
+            source_origin: "verification",
+            quality_score: 0.4,
+          },
+        ],
+      },
       null,
       2
     )
@@ -665,18 +706,52 @@ test("admin workspace smoke", async ({ page }) => {
   await expect(page.locator("#bulk-attach-summary")).toContainText("Total: 2 | Attached: 1 | Failed: 1");
   await expect(page.locator("#bulk-attach-results .row-btn")).toHaveCount(2);
   expect(bulkAttachPostCalls).toBe(1);
-  expect(Array.isArray(lastBulkAttachPayload)).toBeTruthy();
-  expect(lastBulkAttachPayload.length).toBe(2);
+  expect(lastBulkAttachPayload.approval_reviewer_id).toBe("approver@local");
+  expect(Array.isArray(lastBulkAttachPayload.items)).toBeTruthy();
+  expect(lastBulkAttachPayload.items.length).toBe(2);
   expect(evidenceGetCalls).toBeGreaterThan(evidenceCallsBeforeBulkSubmit);
   expect(auditGetCalls).toBeGreaterThan(auditCallsBeforeBulkSubmit);
 
   await page.click("button[data-tab=\"proposals\"]");
   await expect(page.locator("#tab-proposals")).toBeVisible();
-  await expect(page.locator("#proposal-list .row-btn")).toHaveCount(1);
-  await page.click("#proposal-list .row-btn");
+  await expect(page.locator("#proposal-list .row-btn")).toHaveCount(2);
+  await page.locator("#proposal-list .row-btn").first().click();
+  await expect(page.locator("#proposal-power-admin-status")).toContainText("Power-admin source/bundle review");
+  await expect(page.locator("#proposal-power-admin-items li")).toHaveCount(5);
+  await expect(page.locator("#proposal-power-admin-items")).toContainText("source_origin recorded: verification");
+  await expect(page.locator("#proposal-power-admin-items")).toContainText(
+    "source_origin matches proposal type (verification)"
+  );
+  await expect(page.locator("#proposal-power-admin-items")).toContainText("source_class recorded: primary");
+  await expect(page.locator("#proposal-power-admin-items")).toContainText("publisher recorded: Example Government Office");
+  await expect(page.locator("#proposal-power-admin-items")).toContainText("quality_score recorded: 0.91");
   await expect(page.locator("#proposal-claim-context")).toBeVisible();
+  await expect(page.locator("#proposal-claim-context-status")).toContainText("currently missing required class coverage");
+  await expect(page.locator("#proposal-claim-context-evidence li")).toHaveCount(4);
+  await expect(page.locator("#proposal-claim-context-evidence")).toContainText("verification primary count: 1");
+  await expect(page.locator("#proposal-claim-context-evidence")).toContainText("verification secondary count: 0");
   await expect(page.locator("#proposal-claim-context-evidence")).toContainText("missing source classes: secondary");
+  await expect(page.locator("#proposal-claim-context-evidence")).toContainText("evidence sufficiency gate: blocked");
+  await expect(page.locator("#proposal-claim-context-evaluation li")).toHaveCount(6);
   await expect(page.locator("#proposal-claim-context-evaluation")).toContainText("latest verdict: mixed");
+  await expect(page.locator("#proposal-claim-context-evaluation")).toContainText("latest confidence: 0.62");
+  await expect(page.locator("#proposal-claim-context-evaluation")).toContainText("latest reviewer: reviewer@local");
+  await expect(page.locator("#proposal-claim-context-evaluation")).toContainText("latest evaluated at:");
+  await expect(page.locator("#proposal-claim-context-evaluation")).toContainText(
+    "latest rationale: Prior evidence exists"
+  );
+  await expect(page.locator("#proposal-claim-context-evaluation")).toContainText("latest citation notes: Source packet A");
+  await page.locator("#proposal-list .row-btn").nth(1).click();
+  await expect(page.locator("#proposal-detail-json")).toContainText("candidate_source_capture");
+  await expect(page.locator("#proposal-power-admin-items li")).toHaveCount(5);
+  await expect(page.locator("#proposal-power-admin-items")).toContainText("source_origin recorded: verification");
+  await expect(page.locator("#proposal-power-admin-items")).toContainText(
+    "source_origin matches proposal type (candidate)"
+  );
+  await expect(page.locator("#proposal-power-admin-items")).toContainText("source_class recorded: primary");
+  await expect(page.locator("#proposal-power-admin-items")).toContainText("publisher recorded: Candidate One Campaign");
+  await expect(page.locator("#proposal-power-admin-items")).toContainText("quality_score recorded: 0.73");
+  await page.locator("#proposal-list .row-btn").first().click();
   await page.selectOption("#proposal-action", "approve");
   await page.fill("#proposal-review-notes", "Looks valid");
   await page.click("#proposal-action-form button[type=\"submit\"]");

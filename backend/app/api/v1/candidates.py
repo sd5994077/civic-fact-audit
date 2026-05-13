@@ -17,7 +17,13 @@ router = APIRouter(prefix='/candidates')
 @router.post(
     '',
     response_model=CandidateRead,
-    responses={400: {'model': ErrorResponse}, 401: {'model': ErrorResponse}, 403: {'model': ErrorResponse}, 404: {'model': ErrorResponse}},
+    responses={
+        400: {'model': ErrorResponse},
+        401: {'model': ErrorResponse},
+        403: {'model': ErrorResponse},
+        404: {'model': ErrorResponse},
+        409: {'model': ErrorResponse},
+    },
 )
 def create_candidate(
     payload: CandidateCreate,
@@ -68,7 +74,14 @@ def get_candidate(
 @router.patch(
     '/{candidate_id}',
     response_model=CandidateRead,
-    responses={400: {'model': ErrorResponse}, 401: {'model': ErrorResponse}, 403: {'model': ErrorResponse}, 404: {'model': ErrorResponse}, 422: {'model': ErrorResponse}},
+    responses={
+        400: {'model': ErrorResponse},
+        401: {'model': ErrorResponse},
+        403: {'model': ErrorResponse},
+        404: {'model': ErrorResponse},
+        409: {'model': ErrorResponse},
+        422: {'model': ErrorResponse},
+    },
 )
 def update_candidate(
     candidate_id: uuid.UUID,
@@ -76,7 +89,8 @@ def update_candidate(
     db: Session = Depends(get_db),
     identity: AuthIdentity = Depends(require_admin),
 ) -> CandidateRead:
-    if not payload.model_fields_set:
+    mutable_fields = set(payload.model_fields_set).difference({'approval_reviewer_id'})
+    if not mutable_fields:
         raise AppError('candidate_update_empty', 'Candidate update requires at least one field.', status_code=422)
     candidate = CandidateService.update_candidate(
         db,

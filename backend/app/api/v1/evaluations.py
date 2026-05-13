@@ -41,7 +41,16 @@ def review_queue(
     return [ReviewQueueItem.model_validate(row) for row in rows]
 
 
-@router.post('/{claim_id}/evaluate', response_model=ClaimEvaluationRead, responses={400: {'model': ErrorResponse}, 404: {'model': ErrorResponse}, 422: {'model': ErrorResponse}})
+@router.post(
+    '/{claim_id}/evaluate',
+    response_model=ClaimEvaluationRead,
+    responses={
+        400: {'model': ErrorResponse},
+        404: {'model': ErrorResponse},
+        409: {'model': ErrorResponse},
+        422: {'model': ErrorResponse},
+    },
+)
 def evaluate_claim(
     claim_id: uuid.UUID,
     payload: EvaluateClaimRequest,

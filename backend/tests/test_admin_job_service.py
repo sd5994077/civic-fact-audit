@@ -162,6 +162,25 @@ def test_create_and_run_job_marks_succeeded(monkeypatch) -> None:
     assert row['result_summary']['return_code'] == 0
 
 
+def test_create_and_run_job_blocks_non_allowlisted_resolved_module(monkeypatch) -> None:
+    db = _FakeDb()
+    payload = AdminJobRunCreateRequest(job_type='generate_publish_queue_report', input_payload={'profile_id': 'tx_2026_senate'})
+
+    def _fake_resolve(_job, _normalized_payload):  # type: ignore[no-untyped-def]
+        return 'app.scripts.unallowlisted_module', {'intake_profile_id': 'tx_2026_senate'}
+
+    monkeypatch.setattr(AdminJobService, '_resolve_job_module', staticmethod(_fake_resolve))
+
+    try:
+        AdminJobService.create_and_run_job(db, payload, requested_by_reviewer_id='admin@local')  # type: ignore[arg-type]
+        assert False, 'Expected job_module_not_allowlisted'
+    except AppError as exc:
+        assert exc.code == 'job_module_not_allowlisted'
+        assert exc.details is not None
+        assert exc.details.get('resolved_module') == 'app.scripts.unallowlisted_module'
+        assert 'app.scripts.generate_tx_2026_publish_queue_report' in exc.details.get('allowlisted_modules', [])
+
+
 def test_create_and_run_job_routes_profile_scoped_extract_job(monkeypatch) -> None:
     db = _FakeDb()
     payload = AdminJobRunCreateRequest(job_type='extract_claims_batch', input_payload={'profile_id': 'tx_2026_ag_runoff'})
