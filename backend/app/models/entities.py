@@ -157,6 +157,11 @@ class Claim(TimestampMixin, Base):
         Index('ix_claims_issue_frame_id', 'issue_frame_id'),
         Index('ix_claims_fact_checkable', 'fact_checkable'),
         Index('ix_claims_fact_checkable_published', 'fact_checkable', 'is_published'),
+        Index(
+            'ix_claims_fulltext',
+            text("to_tsvector('english', claim_text)"),
+            postgresql_using='gin',
+        ),
     )
 
 

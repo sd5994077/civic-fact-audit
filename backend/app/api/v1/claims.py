@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import AppError
 from app.core.rate_limiter import ADMIN_WRITE_LIMIT, EXTRACT_LIMIT, WRITE_STANDARD_LIMIT, ip_rate_limit
 from app.db.database import get_db
-from app.models.enums import ProposalStatus, ProposalType, RaceStage
+from app.models.enums import ClaimStatus, ProposalStatus, ProposalType, RaceStage
 from app.schemas.api import (
     AddSourceRequest,
     BulkSourceAttachRequest,
@@ -16,6 +16,7 @@ from app.schemas.api import (
     ClaimProposalDecisionRequest,
     ClaimProposalRead,
     ClaimRead,
+    ClaimSearchResult,
     EvidenceQueueItem,
     ErrorResponse,
     ExtractClaimsRequest,
@@ -27,6 +28,7 @@ from app.services.auth_dependency_service import require_reviewer_or_admin
 from app.services.auth_service import AuthIdentity, AuthService
 from app.services.claim_extraction_service import ClaimExtractionService
 from app.services.proposal_service import ProposalService
+from app.services.search_service import SearchService
 from app.services.source_service import SourceService
 
 router = APIRouter(prefix='/claims')
@@ -146,6 +148,38 @@ def evidence_queue(
         limit=limit,
     )
     return [EvidenceQueueItem.model_validate(row) for row in rows]
+
+
+@router.get(
+    '/search',
+    response_model=list[ClaimSearchResult],
+    responses={400: {'model': ErrorResponse}, 401: {'model': ErrorResponse}, 403: {'model': ErrorResponse}},
+)
+def search_claims(
+    q: str = Query(min_length=2, max_length=256),
+    state: str | None = Query(default=None, min_length=2, max_length=32),
+    office: str | None = Query(default=None, min_length=2, max_length=255),
+    election_cycle: int | None = Query(default=None, ge=1900, le=2100),
+    race_stage: RaceStage | None = Query(default=None),
+    status: ClaimStatus | None = Query(default=None),
+    fact_checkable: bool | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    identity: AuthIdentity = Depends(require_reviewer_or_admin),
+) -> list[ClaimSearchResult]:
+    _ = identity
+    rows = SearchService.search_claims(
+        db,
+        q=q,
+        state=state,
+        office=office,
+        election_cycle=election_cycle,
+        race_stage=race_stage,
+        status=status,
+        fact_checkable=fact_checkable,
+        limit=limit,
+    )
+    return [ClaimSearchResult.model_validate(row) for row in rows]
 
 
 @router.post(

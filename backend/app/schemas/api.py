@@ -296,6 +296,23 @@ class EvidenceQueueItem(BaseModel):
     missing_source_classes: list[SourceClass]
 
 
+class ClaimSearchResult(BaseModel):
+    claim_id: uuid.UUID
+    claim_text: str
+    issue_tag: str | None
+    status: ClaimStatus
+    fact_checkable: bool
+    is_published: bool
+    candidate_id: uuid.UUID
+    candidate_name: str
+    candidate_party: str | None
+    candidate_office: str | None
+    candidate_state: str | None
+    election_cycle: int | None
+    race_stage: RaceStage | None
+    rank: float
+
+
 class ReviewQueueItem(BaseModel):
     claim_id: uuid.UUID
     claim_text: str

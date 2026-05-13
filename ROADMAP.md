@@ -111,5 +111,5 @@
 ## Phase 7 - Production Hardening
 - [x] Rate limiting — per-IP sliding-window limits on all write endpoints (`app/core/rate_limiter.py`); HTTP 429 with `Retry-After` header; no new dependencies; multi-instance upgrade path documented (Redis swap-in). Limits: login 10/min, dual-control token 30/min, evaluate/create-proposal 120/min, publish/unpublish/bulk-attach/proposal-decisions 60/min.
 - [ ] Public read-only API tier (API key authentication for external consumers).
-- [ ] Full-text claim search across claim text, issue tag, and candidate name.
+- [x] Full-text claim search — `GET /v1/claims/search?q=` with PostgreSQL GIN tsvector index on `claim_text`, ILIKE fallback on `issue_tag` and `candidate.name`, ts_rank ordering, and optional race-context + status filters (`app/services/search_service.py`, migration `20260513_03`).
 - [ ] Reviewer notification workflow (email or webhook when claims enter review/publish queues or proposals await triage).
