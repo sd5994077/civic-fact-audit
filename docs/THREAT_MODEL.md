@@ -32,7 +32,7 @@ _Last updated: 2026-05-13. Scope: civic-fact-audit backend API and admin fronten
 
 - **No token revocation** — tokens are valid until expiry. If a reviewer account is deactivated, subsequent requests with an existing token will be rejected (active check on `ReviewerUser`). However a compromised token is live until it expires. Mitigation: short `AUTH_TOKEN_TTL_MINUTES` in production (recommend 60–120 minutes).
 - **Secret key strength** — `AUTH_SECRET_KEY` defaults to `change-me-in-prod`. The startup validator raises `ValueError` if the default is present outside `development`. **Action required**: generate with `python -c "import secrets; print(secrets.token_hex(32))"` before deploying.
-- **No brute-force protection on `POST /auth/login`** — the server enforces no login rate limiting. This must be handled at the reverse-proxy or load balancer (nginx `limit_req_zone`, Cloudflare rate limiting, or equivalent). Recommend max 5 attempts/minute per IP.
+- **Brute-force protection on `POST /auth/login`** — the server enforces a 10 req/min per-IP sliding-window limit via `app/core/rate_limiter.py`. Responses include a `Retry-After` header. A 429 `rate_limit_exceeded` error is returned with `retry_after_seconds` in the details payload. A reverse-proxy limit (nginx `limit_req_zone`, Cloudflare, etc.) is still recommended as a defence-in-depth layer.
 
 ---
 
@@ -48,6 +48,29 @@ _Last updated: 2026-05-13. Scope: civic-fact-audit backend API and admin fronten
 
 **Dual-control enforcement:**
 - Candidate mutations, evaluation overwrites, and verification-source bulk attach require two distinct active reviewer/admin identities (approval token + applying token). Reviewer identity is resolved against the database on every dual-control operation — deactivated accounts cannot approve.
+
+---
+
+## Rate Limiting
+
+All mutating write endpoints enforce per-IP sliding-window rate limits via `app/core/rate_limiter.SlidingWindowRateLimiter`. Limits are applied as FastAPI `Depends` on each route.
+
+| Endpoint group | Limit | Window |
+|---|---|---|
+| `POST /auth/login` | 10 req | 60 s |
+| `POST /auth/dual-control-approval-token` | 30 req | 60 s |
+| `POST /claims/{id}/evaluate` | 120 req | 60 s |
+| `POST /claims/{id}/publish` | 60 req | 60 s |
+| `POST /claims/{id}/unpublish` | 60 req | 60 s |
+| `POST /claims/sources/bulk` | 60 req | 60 s |
+| `POST /claims/{id}/proposals` | 120 req | 60 s |
+| `POST /claims/proposals/{id}/approve` | 60 req | 60 s |
+| `POST /claims/proposals/{id}/reject` | 60 req | 60 s |
+| `POST /claims/proposals/{id}/apply` | 60 req | 60 s |
+
+**Response:** HTTP 429 with `Retry-After: N` header and body `{"error": {"code": "rate_limit_exceeded", "details": {"retry_after_seconds": N}}}`.
+
+**Implementation note:** The limiter is in-process (single-instance). For multi-instance deployments, replace `SlidingWindowRateLimiter` backing store with Redis (the interface is isolated to `app/core/rate_limiter.py`).
 
 ---
 
@@ -108,6 +131,7 @@ All secrets are loaded from `.env` via `pydantic-settings`. `.env` is listed in 
 - [ ] Set `REVIEWER_BOOTSTRAP_PASSWORD` to a strong password; rotate immediately after first login
 - [ ] Set `CORS_ALLOWED_ORIGINS` to the exact production frontend origin(s)
 - [ ] Set `AUTH_TOKEN_TTL_MINUTES` to 60–120 for production
-- [ ] Configure reverse-proxy rate limiting on `POST /auth/login` (max ~5 req/min per IP)
+- [x] Application-level rate limiting applied to all write endpoints (built-in, no reverse-proxy config required)
+- [ ] Optionally add defence-in-depth reverse-proxy rate limiting (nginx `limit_req_zone`, Cloudflare) for additional protection
 - [ ] Confirm `.env` is not committed (check `.gitignore`)
 - [ ] Rotate `AUTH_SECRET_KEY` if any reviewer credentials are believed compromised (invalidates all live tokens)

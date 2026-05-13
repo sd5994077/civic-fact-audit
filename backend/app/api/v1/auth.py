@@ -3,6 +3,7 @@ import hashlib
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app.core.rate_limiter import AUTH_LOGIN_LIMIT, DUAL_CONTROL_TOKEN_LIMIT, ip_rate_limit
 from app.db.database import get_db
 from app.schemas.api import (
     AuthLoginRequest,
@@ -19,8 +20,12 @@ from app.services.auth_service import AuthIdentity, AuthService
 router = APIRouter(prefix='/auth')
 
 
-@router.post('/login', response_model=AuthLoginResponse, responses={400: {'model': ErrorResponse}, 401: {'model': ErrorResponse}})
-def login(payload: AuthLoginRequest, db: Session = Depends(get_db)) -> AuthLoginResponse:
+@router.post('/login', response_model=AuthLoginResponse, responses={400: {'model': ErrorResponse}, 401: {'model': ErrorResponse}, 429: {'model': ErrorResponse}})
+def login(
+    payload: AuthLoginRequest,
+    db: Session = Depends(get_db),
+    _rl: None = Depends(ip_rate_limit(AUTH_LOGIN_LIMIT, endpoint_key='auth_login')),
+) -> AuthLoginResponse:
     reviewer, access_token = AuthService.authenticate_login(
         db,
         email=payload.email,
@@ -56,6 +61,7 @@ def issue_dual_control_approval_token(
     payload: DualControlApprovalTokenRequest,
     db: Session = Depends(get_db),
     identity: AuthIdentity = Depends(require_reviewer_or_admin),
+    _rl: None = Depends(ip_rate_limit(DUAL_CONTROL_TOKEN_LIMIT, endpoint_key='dual_control_token')),
 ) -> DualControlApprovalTokenResponse:
     action = AuthService.normalize_dual_control_action(payload.action)
     token, expires_at = AuthService.issue_dual_control_approval_token(

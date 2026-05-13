@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends
 from fastapi import Query
 from sqlalchemy.orm import Session
 
+from app.core.rate_limiter import ADMIN_WRITE_LIMIT, WRITE_STANDARD_LIMIT, ip_rate_limit
 from app.db.database import get_db
 from app.models.enums import RaceStage
 from app.schemas.api import ClaimEvaluationRead, ErrorResponse, EvaluateClaimRequest, ReviewQueueItem
@@ -49,6 +50,7 @@ def review_queue(
         404: {'model': ErrorResponse},
         409: {'model': ErrorResponse},
         422: {'model': ErrorResponse},
+        429: {'model': ErrorResponse},
     },
 )
 def evaluate_claim(
@@ -56,6 +58,7 @@ def evaluate_claim(
     payload: EvaluateClaimRequest,
     db: Session = Depends(get_db),
     identity: AuthIdentity = Depends(require_reviewer_or_admin),
+    _rl: None = Depends(ip_rate_limit(WRITE_STANDARD_LIMIT, endpoint_key='evaluate_claim')),
 ) -> ClaimEvaluationRead:
     approval_reviewer_id: str | None = None
     if payload.approval_token is not None:
@@ -108,12 +111,13 @@ def publish_queue(
 @router.post(
     '/{claim_id}/publish',
     response_model=PublishClaimResponse,
-    responses={400: {'model': ErrorResponse}, 404: {'model': ErrorResponse}, 409: {'model': ErrorResponse}, 422: {'model': ErrorResponse}},
+    responses={400: {'model': ErrorResponse}, 404: {'model': ErrorResponse}, 409: {'model': ErrorResponse}, 422: {'model': ErrorResponse}, 429: {'model': ErrorResponse}},
 )
 def publish_claim(
     claim_id: uuid.UUID,
     db: Session = Depends(get_db),
     identity: AuthIdentity = Depends(require_admin),
+    _rl: None = Depends(ip_rate_limit(ADMIN_WRITE_LIMIT, endpoint_key='publish_claim')),
 ) -> PublishClaimResponse:
     claim = EvaluationService.publish_claim(db, claim_id, approver_id=identity.reviewer_id)
     return PublishClaimResponse(
@@ -127,12 +131,13 @@ def publish_claim(
 @router.post(
     '/{claim_id}/unpublish',
     response_model=PublishClaimResponse,
-    responses={400: {'model': ErrorResponse}, 404: {'model': ErrorResponse}, 409: {'model': ErrorResponse}},
+    responses={400: {'model': ErrorResponse}, 404: {'model': ErrorResponse}, 409: {'model': ErrorResponse}, 429: {'model': ErrorResponse}},
 )
 def unpublish_claim(
     claim_id: uuid.UUID,
     db: Session = Depends(get_db),
     identity: AuthIdentity = Depends(require_admin),
+    _rl: None = Depends(ip_rate_limit(ADMIN_WRITE_LIMIT, endpoint_key='unpublish_claim')),
 ) -> PublishClaimResponse:
     claim = EvaluationService.unpublish_claim(db, claim_id, approver_id=identity.reviewer_id)
     return PublishClaimResponse(

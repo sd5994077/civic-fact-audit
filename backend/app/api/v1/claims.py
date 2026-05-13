@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
+from app.core.rate_limiter import ADMIN_WRITE_LIMIT, WRITE_STANDARD_LIMIT, ip_rate_limit
 from app.db.database import get_db
 from app.models.enums import ProposalStatus, ProposalType, RaceStage
 from app.schemas.api import (
@@ -91,12 +92,14 @@ def add_source(
         404: {'model': ErrorResponse},
         409: {'model': ErrorResponse},
         422: {'model': ErrorResponse},
+        429: {'model': ErrorResponse},
     },
 )
 def add_sources_bulk(
     payload: BulkSourceAttachRequest,
     db: Session = Depends(get_db),
     identity: AuthIdentity = Depends(require_reviewer_or_admin),
+    _rl: None = Depends(ip_rate_limit(ADMIN_WRITE_LIMIT, endpoint_key='sources_bulk')),
 ) -> BulkSourceAttachResponse:
     approval_reviewer_id: str | None = None
     if payload.approval_token is not None:
@@ -144,13 +147,14 @@ def evidence_queue(
 @router.post(
     '/{claim_id}/proposals',
     response_model=ClaimProposalRead,
-    responses={400: {'model': ErrorResponse}, 404: {'model': ErrorResponse}, 409: {'model': ErrorResponse}, 422: {'model': ErrorResponse}},
+    responses={400: {'model': ErrorResponse}, 404: {'model': ErrorResponse}, 409: {'model': ErrorResponse}, 422: {'model': ErrorResponse}, 429: {'model': ErrorResponse}},
 )
 def create_claim_proposal(
     claim_id: uuid.UUID,
     payload: ClaimProposalCreateRequest,
     db: Session = Depends(get_db),
     identity: AuthIdentity = Depends(require_reviewer_or_admin),
+    _rl: None = Depends(ip_rate_limit(WRITE_STANDARD_LIMIT, endpoint_key='create_proposal')),
 ) -> ClaimProposalRead:
     proposal = ProposalService.create_proposal(db, claim_id, payload, proposed_by=identity.reviewer_id)
     return ClaimProposalRead.model_validate(ProposalService._to_read_model(proposal))
@@ -197,13 +201,14 @@ def list_claim_proposals(
 @router.post(
     '/proposals/{proposal_id}/approve',
     response_model=ClaimProposalRead,
-    responses={400: {'model': ErrorResponse}, 404: {'model': ErrorResponse}, 409: {'model': ErrorResponse}},
+    responses={400: {'model': ErrorResponse}, 404: {'model': ErrorResponse}, 409: {'model': ErrorResponse}, 429: {'model': ErrorResponse}},
 )
 def approve_claim_proposal(
     proposal_id: uuid.UUID,
     payload: ClaimProposalDecisionRequest,
     db: Session = Depends(get_db),
     identity: AuthIdentity = Depends(require_reviewer_or_admin),
+    _rl: None = Depends(ip_rate_limit(ADMIN_WRITE_LIMIT, endpoint_key='approve_proposal')),
 ) -> ClaimProposalRead:
     proposal = ProposalService.approve_proposal(
         db,
@@ -217,13 +222,14 @@ def approve_claim_proposal(
 @router.post(
     '/proposals/{proposal_id}/reject',
     response_model=ClaimProposalRead,
-    responses={400: {'model': ErrorResponse}, 404: {'model': ErrorResponse}, 409: {'model': ErrorResponse}},
+    responses={400: {'model': ErrorResponse}, 404: {'model': ErrorResponse}, 409: {'model': ErrorResponse}, 429: {'model': ErrorResponse}},
 )
 def reject_claim_proposal(
     proposal_id: uuid.UUID,
     payload: ClaimProposalDecisionRequest,
     db: Session = Depends(get_db),
     identity: AuthIdentity = Depends(require_reviewer_or_admin),
+    _rl: None = Depends(ip_rate_limit(ADMIN_WRITE_LIMIT, endpoint_key='reject_proposal')),
 ) -> ClaimProposalRead:
     proposal = ProposalService.reject_proposal(
         db,
@@ -237,13 +243,14 @@ def reject_claim_proposal(
 @router.post(
     '/proposals/{proposal_id}/apply',
     response_model=ClaimProposalApplyResponse,
-    responses={400: {'model': ErrorResponse}, 404: {'model': ErrorResponse}, 409: {'model': ErrorResponse}, 422: {'model': ErrorResponse}},
+    responses={400: {'model': ErrorResponse}, 404: {'model': ErrorResponse}, 409: {'model': ErrorResponse}, 422: {'model': ErrorResponse}, 429: {'model': ErrorResponse}},
 )
 def apply_claim_proposal(
     proposal_id: uuid.UUID,
     payload: ClaimProposalDecisionRequest,
     db: Session = Depends(get_db),
     identity: AuthIdentity = Depends(require_reviewer_or_admin),
+    _rl: None = Depends(ip_rate_limit(ADMIN_WRITE_LIMIT, endpoint_key='apply_proposal')),
 ) -> ClaimProposalApplyResponse:
     result = ProposalService.apply_proposal(
         db,

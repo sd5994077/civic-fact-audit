@@ -36,9 +36,14 @@ app.include_router(v1_router)
 
 @app.exception_handler(AppError)
 async def app_error_handler(_: Request, exc: AppError) -> JSONResponse:
+    headers: dict[str, str] | None = None
+    if exc.status_code == 429:
+        retry_after = exc.details.get('retry_after_seconds', 60)
+        headers = {'Retry-After': str(retry_after)}
     return JSONResponse(
         status_code=exc.status_code,
         content={'error': {'code': exc.code, 'message': exc.message, 'details': exc.details}},
+        headers=headers,
     )
 
 

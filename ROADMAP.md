@@ -107,3 +107,9 @@
 - [x] Add persistent job orchestration records before exposing web-triggered intake workflows.
 - [x] Build the admin UI only after backend mutation, audit, and job contracts are stable.
 - [x] Add worker-health observability: queue lag, retry counts, and terminal-failure visibility (`GET /v1/admin/jobs/worker-health`, Jobs tab health panel with 30s auto-refresh).
+
+## Phase 7 - Production Hardening
+- [x] Rate limiting — per-IP sliding-window limits on all write endpoints (`app/core/rate_limiter.py`); HTTP 429 with `Retry-After` header; no new dependencies; multi-instance upgrade path documented (Redis swap-in). Limits: login 10/min, dual-control token 30/min, evaluate/create-proposal 120/min, publish/unpublish/bulk-attach/proposal-decisions 60/min.
+- [ ] Public read-only API tier (API key authentication for external consumers).
+- [ ] Full-text claim search across claim text, issue tag, and candidate name.
+- [ ] Reviewer notification workflow (email or webhook when claims enter review/publish queues or proposals await triage).
