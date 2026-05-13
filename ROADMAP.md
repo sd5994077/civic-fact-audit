@@ -56,7 +56,7 @@
 - [x] Security hardening and threat model review (`docs/THREAT_MODEL.md`, CORS middleware, production startup validators for `postgres_password` + `cors_allowed_origins`, `.env.example`).
 - [ ] Expand moderation beyond boundary phrase gates (context-aware abuse detection, adversarial prompting controls, and reviewer override risk scoring).
 - [x] Generalize the Texas Senate workflow into a reusable multi-race intake pipeline.
-- [ ] Add a runoff onboarding playbook and templated script generator so new runoff races can be added through config-first inputs (office/state/cycle/stage/source seeds) instead of bespoke scripts.
+- [x] Add a runoff onboarding playbook and templated script generator (`generate_race_stubs.py`, `run_generic_pipeline.py`, `pipeline_helpers.py`, `docs/ONBOARDING_PLAYBOOK.md`) — new races require only a profile config entry + editorial roster/statement data; extraction, backfill, and KPI run generically.
 - [x] Harden source-admission enforcement with config-backed partisan/domain rules, proposal-path validation parity, and non-destructive legacy verification-source exclusion flags.
 - [ ] Define a priority-race list for 2026 so additional Senate, House, gubernatorial, and other high-impact campaigns can be onboarded deliberately.
 
