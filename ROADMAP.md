@@ -51,9 +51,9 @@
 
 ## Phase 5 - Reliability + Scale (Weeks 11+)
 - [x] Background jobs and retries.
-- [ ] Source quality scoring automation.
+- [x] Source quality scoring automation (`score_source_quality()` heuristic, `quality_score` now optional on add/bulk-attach, versioned formula `quality_v1_2026_05_13`).
 - [ ] Caching and query optimization.
-- [ ] Security hardening and threat model review.
+- [x] Security hardening and threat model review (`docs/THREAT_MODEL.md`, CORS middleware, production startup validators for `postgres_password` + `cors_allowed_origins`, `.env.example`).
 - [ ] Expand moderation beyond boundary phrase gates (context-aware abuse detection, adversarial prompting controls, and reviewer override risk scoring).
 - [x] Generalize the Texas Senate workflow into a reusable multi-race intake pipeline.
 - [ ] Add a runoff onboarding playbook and templated script generator so new runoff races can be added through config-first inputs (office/state/cycle/stage/source seeds) instead of bespoke scripts.

@@ -7,6 +7,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     _DEFAULT_AUTH_SECRET = 'change-me-in-prod'
     _DEFAULT_BOOTSTRAP_PASSWORD = 'change-me'
+    _DEFAULT_DB_PASSWORD = 'postgres'
+    _DEFAULT_CORS_ORIGINS = ['http://localhost:5500', 'http://127.0.0.1:5500']
     _MAX_AUTH_TOKEN_TTL_MINUTES = 24 * 60
 
     app_name: str = 'civic-fact-audit'
@@ -17,7 +19,7 @@ class Settings(BaseSettings):
     postgres_port: int = 5433
     postgres_db: str = 'civic_fact_audit'
     postgres_user: str = 'postgres'
-    postgres_password: str = 'postgres'
+    postgres_password: str = _DEFAULT_DB_PASSWORD
 
     openai_api_key: str = ''
     auth_secret_key: str = _DEFAULT_AUTH_SECRET
@@ -25,6 +27,7 @@ class Settings(BaseSettings):
     reviewer_bootstrap_email: str = 'reviewer@local'
     reviewer_bootstrap_password: str = _DEFAULT_BOOTSTRAP_PASSWORD
     reviewer_bootstrap_name: str = 'Local Reviewer'
+    cors_allowed_origins: list[str] = _DEFAULT_CORS_ORIGINS
 
     model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8', extra='ignore')
 
@@ -46,6 +49,10 @@ class Settings(BaseSettings):
                 raise ValueError('auth_secret_key must be changed outside development environments')
             if self.reviewer_bootstrap_password == self._DEFAULT_BOOTSTRAP_PASSWORD:
                 raise ValueError('reviewer_bootstrap_password must be changed outside development environments')
+            if self.postgres_password == self._DEFAULT_DB_PASSWORD:
+                raise ValueError('postgres_password must be changed outside development environments')
+            if self.cors_allowed_origins == self._DEFAULT_CORS_ORIGINS:
+                raise ValueError('cors_allowed_origins must be configured for non-development environments')
 
         if self.auth_token_ttl_minutes <= 0:
             raise ValueError('auth_token_ttl_minutes must be greater than 0')
