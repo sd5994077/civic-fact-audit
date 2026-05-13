@@ -30,7 +30,8 @@ class ErrorResponse(BaseModel):
 
 class CandidateCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
-    approval_reviewer_id: str = Field(min_length=1, max_length=255)
+    approval_token: str | None = Field(default=None, min_length=1, max_length=4096)
+    approval_reviewer_id: str | None = Field(default=None, min_length=1, max_length=255)
     party: str | None = Field(default=None, max_length=128)
     office: str | None = Field(default=None, max_length=255)
     state: str | None = Field(default=None, max_length=32)
@@ -44,7 +45,8 @@ class CandidateCreate(BaseModel):
 
 
 class CandidateUpdate(BaseModel):
-    approval_reviewer_id: str = Field(min_length=1, max_length=255)
+    approval_token: str | None = Field(default=None, min_length=1, max_length=4096)
+    approval_reviewer_id: str | None = Field(default=None, min_length=1, max_length=255)
     name: str | None = Field(default=None, min_length=1, max_length=255)
     party: str | None = Field(default=None, max_length=128)
     office: str | None = Field(default=None, max_length=255)
@@ -139,6 +141,7 @@ class EvaluateClaimRequest(BaseModel):
     confidence: float = Field(ge=0, le=1)
     rationale: str = Field(min_length=10)
     citation_notes: str | None = None
+    approval_token: str | None = Field(default=None, min_length=1, max_length=4096)
     approval_reviewer_id: str | None = Field(default=None, min_length=1, max_length=255)
 
 
@@ -243,8 +246,20 @@ class BulkSourceAttachItem(BaseModel):
 
 
 class BulkSourceAttachRequest(BaseModel):
-    approval_reviewer_id: str = Field(min_length=1, max_length=255)
+    approval_token: str | None = Field(default=None, min_length=1, max_length=4096)
+    approval_reviewer_id: str | None = Field(default=None, min_length=1, max_length=255)
     items: list[BulkSourceAttachItem] = Field(default_factory=list)
+
+
+class DualControlApprovalTokenRequest(BaseModel):
+    action: str = Field(min_length=1, max_length=128)
+
+
+class DualControlApprovalTokenResponse(BaseModel):
+    action: str
+    approval_reviewer_id: str
+    approval_token: str
+    expires_at: datetime
 
 
 class BulkSourceAttachResultItem(BaseModel):
@@ -431,6 +446,11 @@ class AdminJobRunRead(BaseModel):
     input_payload: dict[str, Any]
     started_at: datetime | None
     finished_at: datetime | None
+    attempt_count: int = 0
+    max_attempts: int = 3
+    next_attempt_at: datetime | None = None
+    lease_expires_at: datetime | None = None
+    last_error_code: str | None = None
     result_summary: dict[str, Any] | None
     error_details: dict[str, Any] | None
     created_at: datetime
@@ -464,7 +484,7 @@ class AdminIntakeProfileRead(BaseModel):
 class AdminJobMetadataResponse(BaseModel):
     allowlist_version: str
     intake_profile_version: str
-    synchronous_execution: bool = True
+    synchronous_execution: bool = False
     jobs: list[AdminJobTypeMetadataRead] = Field(default_factory=list)
     intake_profiles: list[AdminIntakeProfileRead] = Field(default_factory=list)
 

@@ -82,9 +82,22 @@ class EvaluationService:
             )
         )
 
-        latest_eval = (
-            select(ClaimEvaluation.claim_id, func.max(ClaimEvaluation.created_at).label('latest_created_at'))
-            .group_by(ClaimEvaluation.claim_id)
+        latest_eval_ranked = (
+            select(
+                ClaimEvaluation.claim_id.label('claim_id'),
+                ClaimEvaluation.verdict.label('latest_verdict'),
+                ClaimEvaluation.confidence.label('latest_confidence'),
+                ClaimEvaluation.rationale.label('latest_rationale'),
+                ClaimEvaluation.citation_notes.label('latest_citation_notes'),
+                ClaimEvaluation.reviewer_id.label('latest_reviewer_id'),
+                ClaimEvaluation.created_at.label('latest_evaluated_at'),
+                func.row_number()
+                .over(
+                    partition_by=ClaimEvaluation.claim_id,
+                    order_by=(ClaimEvaluation.created_at.desc(), ClaimEvaluation.id.desc()),
+                )
+                .label('row_num'),
+            )
             .subquery()
         )
 
@@ -95,7 +108,7 @@ class EvaluationService:
                 Claim.issue_tag,
                 Claim.status,
                 Statement.source_url.label('statement_source_url'),
-                Statement.published_at,
+                Statement.published_at.label('statement_published_at'),
                 Candidate.id.label('candidate_id'),
                 Candidate.name.label('candidate_name'),
                 Candidate.party,
@@ -103,28 +116,31 @@ class EvaluationService:
                 Candidate.state,
                 Candidate.election_cycle,
                 Candidate.race_stage,
+                Claim.fact_checkable.label('fact_checkable'),
+                Claim.is_published.label('is_published'),
+                Claim.published_at.label('claim_published_at'),
+                Claim.published_by_reviewer_id.label('published_by_reviewer_id'),
                 primary_count.label('primary_count'),
                 secondary_count.label('secondary_count'),
                 candidate_count.label('candidate_count'),
                 verification_count.label('verification_count'),
                 verification_primary_count.label('verification_primary_count'),
                 verification_secondary_count.label('verification_secondary_count'),
-                ClaimEvaluation.verdict.label('latest_verdict'),
-                ClaimEvaluation.confidence.label('latest_confidence'),
-                ClaimEvaluation.rationale.label('latest_rationale'),
-                ClaimEvaluation.citation_notes.label('latest_citation_notes'),
-                ClaimEvaluation.reviewer_id.label('latest_reviewer_id'),
-                ClaimEvaluation.created_at.label('latest_evaluated_at'),
+                latest_eval_ranked.c.latest_verdict,
+                latest_eval_ranked.c.latest_confidence,
+                latest_eval_ranked.c.latest_rationale,
+                latest_eval_ranked.c.latest_citation_notes,
+                latest_eval_ranked.c.latest_reviewer_id,
+                latest_eval_ranked.c.latest_evaluated_at,
             )
             .join(Statement, Statement.id == Claim.statement_id)
             .join(Candidate, Candidate.id == Statement.candidate_id)
             .outerjoin(Source, Source.claim_id == Claim.id)
-            .outerjoin(latest_eval, latest_eval.c.claim_id == Claim.id)
             .outerjoin(
-                ClaimEvaluation,
+                latest_eval_ranked,
                 and_(
-                    ClaimEvaluation.claim_id == latest_eval.c.claim_id,
-                    ClaimEvaluation.created_at == latest_eval.c.latest_created_at,
+                    latest_eval_ranked.c.claim_id == Claim.id,
+                    latest_eval_ranked.c.row_num == 1,
                 ),
             )
             .where(EvaluationService._fact_checkable_predicate())
@@ -133,6 +149,10 @@ class EvaluationService:
                 Claim.claim_text,
                 Claim.issue_tag,
                 Claim.status,
+                Claim.fact_checkable,
+                Claim.is_published,
+                Claim.published_at,
+                Claim.published_by_reviewer_id,
                 Statement.source_url,
                 Statement.published_at,
                 Candidate.id,
@@ -142,12 +162,12 @@ class EvaluationService:
                 Candidate.state,
                 Candidate.election_cycle,
                 Candidate.race_stage,
-                ClaimEvaluation.verdict,
-                ClaimEvaluation.confidence,
-                ClaimEvaluation.rationale,
-                ClaimEvaluation.citation_notes,
-                ClaimEvaluation.reviewer_id,
-                ClaimEvaluation.created_at,
+                latest_eval_ranked.c.latest_verdict,
+                latest_eval_ranked.c.latest_confidence,
+                latest_eval_ranked.c.latest_rationale,
+                latest_eval_ranked.c.latest_citation_notes,
+                latest_eval_ranked.c.latest_reviewer_id,
+                latest_eval_ranked.c.latest_evaluated_at,
             )
             .order_by(Statement.published_at.desc(), Candidate.name.asc())
         )
@@ -201,7 +221,7 @@ class EvaluationService:
                 'issue_tag': row['issue_tag'],
                 'status': ClaimStatus(row['status']),
                 'statement_source_url': row['statement_source_url'],
-                'statement_published_at': row['published_at'],
+                'statement_published_at': row['statement_published_at'],
                 'candidate_id': row['candidate_id'],
                 'candidate_name': row['candidate_name'],
                 'candidate_party': row['party'],
@@ -209,6 +229,10 @@ class EvaluationService:
                 'candidate_state': row['state'],
                 'election_cycle': row['election_cycle'],
                 'race_stage': row['race_stage'],
+                'fact_checkable': row['fact_checkable'],
+                'is_published': row['is_published'],
+                'published_at': row['claim_published_at'],
+                'published_by_reviewer_id': row['published_by_reviewer_id'],
                 'primary_source_count': int(row['primary_count']),
                 'secondary_source_count': int(row['secondary_count']),
                 'candidate_source_count': int(row['candidate_count']),
@@ -231,10 +255,10 @@ class EvaluationService:
 
     @staticmethod
     def evaluate_claim(db: Session, claim_id: uuid.UUID, payload: EvaluateClaimRequest, reviewer_id: str) -> ClaimEvaluation:
-        claim = db.get(Claim, claim_id)
+        claim = EvaluationService._get_claim_for_evaluation_mutation(db, claim_id)
         if claim is None:
             raise AppError('claim_not_found', 'Claim does not exist.', status_code=404)
-        latest_evaluation = EvaluationService._latest_evaluation(db, claim_id)
+        latest_evaluation = EvaluationService._latest_evaluation(db, claim_id, lock=True)
         rationale_text = payload.rationale.strip()
         rationale_violation = find_moderation_violation(rationale_text)
         if rationale_violation is not None:
@@ -333,8 +357,8 @@ class EvaluationService:
         return evaluation
 
     @staticmethod
-    def _latest_evaluation(db: Session, claim_id: uuid.UUID) -> ClaimEvaluation | None:
-        return EvaluationService._latest_evaluation_for_publish(db, claim_id, lock=False)
+    def _latest_evaluation(db: Session, claim_id: uuid.UUID, *, lock: bool = False) -> ClaimEvaluation | None:
+        return EvaluationService._latest_evaluation_for_publish(db, claim_id, lock=lock)
 
     @staticmethod
     def _latest_evaluation_for_publish(db: Session, claim_id: uuid.UUID, *, lock: bool) -> ClaimEvaluation | None:
@@ -350,6 +374,12 @@ class EvaluationService:
 
     @staticmethod
     def _get_claim_for_publish_mutation(db: Session, claim_id: uuid.UUID) -> Claim | None:
+        if hasattr(db, 'execute'):
+            return db.execute(select(Claim).where(Claim.id == claim_id).with_for_update()).scalars().first()
+        return db.get(Claim, claim_id)
+
+    @staticmethod
+    def _get_claim_for_evaluation_mutation(db: Session, claim_id: uuid.UUID) -> Claim | None:
         if hasattr(db, 'execute'):
             return db.execute(select(Claim).where(Claim.id == claim_id).with_for_update()).scalars().first()
         return db.get(Claim, claim_id)
@@ -486,19 +516,15 @@ class EvaluationService:
         )
         out: list[dict[str, object]] = []
         for row in rows:
-            claim = db.get(Claim, row['claim_id'])
-            if claim is None:
-                continue
-            latest_eval = EvaluationService._latest_evaluation(db, claim.id)
-            failures = EvaluationService._publish_gate_failures(db, claim, latest_eval)
+            failures = EvaluationService._publish_gate_failures_from_review_row(row)
             gate_passed = len(failures) == 0
-            if not include_already_published and claim.is_published:
+            if not include_already_published and bool(row.get('is_published')):
                 continue
             if only_gate_passed and not gate_passed:
                 continue
             out.append(
                 {
-                    'claim_id': claim.id,
+                    'claim_id': row['claim_id'],
                     'claim_text': row['claim_text'],
                     'issue_tag': row['issue_tag'],
                     'candidate_name': row['candidate_name'],
@@ -516,12 +542,39 @@ class EvaluationService:
                     'verification_secondary_count': row['verification_secondary_count'],
                     'publish_gate_passed': gate_passed,
                     'publish_gate_failures': failures,
-                    'is_published': claim.is_published,
-                    'published_at': claim.published_at,
-                    'published_by_reviewer_id': claim.published_by_reviewer_id,
+                    'is_published': bool(row.get('is_published', False)),
+                    'published_at': row.get('claim_published_at'),
+                    'published_by_reviewer_id': row.get('published_by_reviewer_id'),
                 }
             )
         return out
+
+    @staticmethod
+    def _publish_gate_failures_from_review_row(row: dict[str, object]) -> list[str]:
+        failures: list[str] = []
+        if not bool(row.get('fact_checkable', True)):
+            failures.append(EvaluationService._PUBLISH_GATE_FACT_CHECKABLE)
+        latest_verdict = row.get('latest_verdict')
+        if latest_verdict not in {Verdict.supported, Verdict.mixed, Verdict.unsupported}:
+            failures.append(EvaluationService._PUBLISH_GATE_VERDICT)
+        latest_rationale = str(row.get('latest_rationale') or '').strip()
+        if not latest_rationale:
+            failures.append(EvaluationService._PUBLISH_GATE_RATIONALE)
+        latest_citation_notes = str(row.get('latest_citation_notes') or '').strip()
+        if not latest_citation_notes:
+            failures.append(EvaluationService._PUBLISH_GATE_CITATION_NOTES)
+        moderation_blocked = False
+        if latest_rationale:
+            moderation_blocked = find_moderation_violation(latest_rationale) is not None
+        if not moderation_blocked and latest_citation_notes:
+            moderation_blocked = find_moderation_violation(latest_citation_notes) is not None
+        if moderation_blocked:
+            failures.append(EvaluationService._PUBLISH_GATE_MODERATION_POLICY)
+        if int(row.get('verification_primary_count') or 0) <= 0:
+            failures.append(EvaluationService._PUBLISH_GATE_VERIFICATION_PRIMARY)
+        if int(row.get('verification_secondary_count') or 0) <= 0:
+            failures.append(EvaluationService._PUBLISH_GATE_VERIFICATION_SECONDARY)
+        return list(dict.fromkeys(failures))
 
     @staticmethod
     def publish_claim(db: Session, claim_id: uuid.UUID, *, approver_id: str) -> Claim:

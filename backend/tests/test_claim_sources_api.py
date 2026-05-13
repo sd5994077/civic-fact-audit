@@ -18,6 +18,27 @@ def _override_reviewer() -> AuthIdentity:
     return AuthIdentity(reviewer_user_id=uuid.uuid4(), reviewer_id='reviewer@local', role='reviewer')
 
 
+def _mock_dual_control_token(monkeypatch, *, reviewer_id: str) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setattr(
+        'app.api.v1.claims.AuthService.identity_from_dual_control_approval_token',
+        lambda _db, _token, *, expected_action: AuthIdentity(
+            reviewer_user_id=uuid.uuid4(),
+            reviewer_id=reviewer_id,
+            role='reviewer',
+        ),
+    )
+
+
+def _mock_dual_control_token_error(monkeypatch, exc: AppError) -> None:  # type: ignore[no-untyped-def]
+    def _raise(_db, _token, *, expected_action):  # type: ignore[no-untyped-def]
+        raise exc
+
+    monkeypatch.setattr(
+        'app.api.v1.claims.AuthService.identity_from_dual_control_approval_token',
+        _raise,
+    )
+
+
 def test_add_source_returns_422_for_policy_violation(monkeypatch) -> None:
     app.dependency_overrides[get_db] = _override_db
     app.dependency_overrides[require_reviewer_or_admin] = _override_reviewer
@@ -72,6 +93,7 @@ def test_add_sources_bulk_returns_mixed_policy_results(monkeypatch) -> None:
     app.dependency_overrides[get_db] = _override_db
     app.dependency_overrides[require_reviewer_or_admin] = _override_reviewer
     claim_id = uuid.uuid4()
+    _mock_dual_control_token(monkeypatch, reviewer_id='approver@local')
 
     def _fake_attach_bulk(_db, *, approval_reviewer_id, applying_reviewer_id, items):  # type: ignore[no-untyped-def]
         assert approval_reviewer_id == 'approver@local'
@@ -112,7 +134,7 @@ def test_add_sources_bulk_returns_mixed_policy_results(monkeypatch) -> None:
     response = client.post(
         '/v1/claims/sources/bulk',
         json={
-            'approval_reviewer_id': 'approver@local',
+            'approval_token': 'approval-token',
             'items': [
                 {
                     'claim_id': str(claim_id),
@@ -151,7 +173,7 @@ def test_add_sources_bulk_requires_reviewer_or_admin_auth() -> None:
     response = client.post(
         '/v1/claims/sources/bulk',
         json={
-            'approval_reviewer_id': 'approver@local',
+            'approval_token': 'approval-token',
             'items': [
                 {
                     'claim_id': str(claim_id),
@@ -170,6 +192,7 @@ def test_add_sources_bulk_requires_reviewer_or_admin_auth() -> None:
 def test_add_sources_bulk_returns_409_for_dual_control_conflict(monkeypatch) -> None:
     app.dependency_overrides[get_db] = _override_db
     app.dependency_overrides[require_reviewer_or_admin] = _override_reviewer
+    _mock_dual_control_token(monkeypatch, reviewer_id='reviewer@local')
 
     def _fake_attach_bulk(_db, *, approval_reviewer_id, applying_reviewer_id, items):  # type: ignore[no-untyped-def]
         assert approval_reviewer_id == 'reviewer@local'
@@ -194,7 +217,7 @@ def test_add_sources_bulk_returns_409_for_dual_control_conflict(monkeypatch) -> 
     response = client.post(
         '/v1/claims/sources/bulk',
         json={
-            'approval_reviewer_id': 'reviewer@local',
+            'approval_token': 'approval-token',
             'items': [
                 {
                     'claim_id': str(claim_id),
@@ -220,6 +243,7 @@ def test_add_sources_bulk_mixed_batch_same_reviewer_returns_partial_results(monk
     app.dependency_overrides[get_db] = _override_db
     app.dependency_overrides[require_reviewer_or_admin] = _override_reviewer
     claim_id = uuid.uuid4()
+    _mock_dual_control_token(monkeypatch, reviewer_id='reviewer@local')
 
     def _fake_attach_bulk(_db, *, approval_reviewer_id, applying_reviewer_id, items):  # type: ignore[no-untyped-def]
         assert approval_reviewer_id == 'reviewer@local'
@@ -260,7 +284,7 @@ def test_add_sources_bulk_mixed_batch_same_reviewer_returns_partial_results(monk
     response = client.post(
         '/v1/claims/sources/bulk',
         json={
-            'approval_reviewer_id': 'reviewer@local',
+            'approval_token': 'approval-token',
             'items': [
                 {
                     'claim_id': str(claim_id),
@@ -287,4 +311,64 @@ def test_add_sources_bulk_mixed_batch_same_reviewer_returns_partial_results(monk
     assert body['failed'] == 1
     assert body['results'][0]['error']['code'] == 'bulk_attach_dual_control_required'
     assert body['results'][1]['status'] == 'attached'
+    app.dependency_overrides.clear()
+
+
+def test_add_sources_bulk_returns_401_for_invalid_dual_control_token(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[require_reviewer_or_admin] = _override_reviewer
+    _mock_dual_control_token_error(
+        monkeypatch,
+        AppError('invalid_dual_control_token', 'Dual-control approval token is invalid.', status_code=401),
+    )
+    claim_id = uuid.uuid4()
+    client = TestClient(app)
+    response = client.post(
+        '/v1/claims/sources/bulk',
+        json={
+            'approval_token': 'bad-token',
+            'items': [
+                {
+                    'claim_id': str(claim_id),
+                    'url': 'https://example.gov/record',
+                    'source_class': SourceClass.primary.value,
+                    'source_origin': SourceOrigin.verification.value,
+                    'quality_score': 0.95,
+                }
+            ],
+        },
+    )
+    body = response.json()
+    assert response.status_code == 401
+    assert body['error']['code'] == 'invalid_dual_control_token'
+    app.dependency_overrides.clear()
+
+
+def test_add_sources_bulk_returns_401_for_expired_dual_control_token(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[require_reviewer_or_admin] = _override_reviewer
+    _mock_dual_control_token_error(
+        monkeypatch,
+        AppError('token_expired', 'Authentication token has expired.', status_code=401),
+    )
+    claim_id = uuid.uuid4()
+    client = TestClient(app)
+    response = client.post(
+        '/v1/claims/sources/bulk',
+        json={
+            'approval_token': 'expired-token',
+            'items': [
+                {
+                    'claim_id': str(claim_id),
+                    'url': 'https://example.gov/record',
+                    'source_class': SourceClass.primary.value,
+                    'source_origin': SourceOrigin.verification.value,
+                    'quality_score': 0.95,
+                }
+            ],
+        },
+    )
+    body = response.json()
+    assert response.status_code == 401
+    assert body['error']['code'] == 'token_expired'
     app.dependency_overrides.clear()

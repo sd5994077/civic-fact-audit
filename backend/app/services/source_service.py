@@ -359,7 +359,7 @@ class SourceService:
     def attach_sources_bulk(
         db: Session,
         *,
-        approval_reviewer_id: str,
+        approval_reviewer_id: str | None,
         applying_reviewer_id: str,
         items: list[BulkSourceAttachItem],
     ) -> dict[str, object]:

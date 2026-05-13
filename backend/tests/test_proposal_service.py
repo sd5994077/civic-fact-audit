@@ -84,7 +84,7 @@ def test_apply_proposal_checks_locked_status_snapshot_when_available() -> None:
             self.proposal_type = ProposalType.draft_verdict
             self.status = status
             self.proposal_payload = '{"verdict":"supported","confidence":0.81,"rationale":"draft text","citation_notes":"notes"}'
-            self.reviewed_by = None
+            self.reviewed_by = 'approver@local'
             self.reviewed_at = None
             self.review_notes = None
 
@@ -131,7 +131,7 @@ def test_apply_draft_verdict_has_no_official_evaluation_effect(monkeypatch) -> N
             self.proposal_type = ProposalType.draft_verdict
             self.status = ProposalStatus.approved
             self.proposal_payload = '{"verdict":"supported","confidence":0.81,"rationale":"draft text","citation_notes":"notes"}'
-            self.reviewed_by = None
+            self.reviewed_by = 'approver@local'
             self.reviewed_at = None
             self.review_notes = None
 
@@ -263,7 +263,7 @@ def test_apply_source_proposal_uses_single_transaction(monkeypatch) -> None:
             self.proposal_payload = (
                 '{"url":"https://example.com","source_class":"primary","source_origin":"verification","quality_score":0.9}'
             )
-            self.reviewed_by = None
+            self.reviewed_by = 'approver@local'
             self.reviewed_at = None
             self.review_notes = None
 
@@ -529,7 +529,7 @@ def test_approve_proposal_records_audit_metadata_with_reviewer_linkage(monkeypat
             self.proposal_type = ProposalType.verification_source_suggestion
             self.status = ProposalStatus.proposed
             self.proposal_payload = '{}'
-            self.reviewed_by = None
+            self.reviewed_by = 'approver@local'
             self.reviewed_at = None
             self.review_notes = None
 
@@ -643,7 +643,7 @@ def test_proposal_audit_events_persist_metadata_for_approve_and_apply() -> None:
             self.proposal_type = ProposalType.issue_frame_mapping
             self.status = ProposalStatus.proposed
             self.proposal_payload = f'{{"issue_frame_id":"{frame_id}"}}'
-            self.reviewed_by = None
+            self.reviewed_by = 'approver@local'
             self.reviewed_at = None
             self.review_notes = None
 

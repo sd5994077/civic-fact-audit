@@ -9,7 +9,7 @@ from app.models.enums import RaceStage
 from app.schemas.api import ClaimEvaluationRead, ErrorResponse, EvaluateClaimRequest, ReviewQueueItem
 from app.schemas.api import PublishClaimResponse, PublishQueueItem
 from app.services.auth_dependency_service import require_admin, require_reviewer_or_admin
-from app.services.auth_service import AuthIdentity
+from app.services.auth_service import AuthIdentity, AuthService
 from app.services.evaluation_service import EvaluationService
 
 router = APIRouter(prefix='/claims')
@@ -57,7 +57,20 @@ def evaluate_claim(
     db: Session = Depends(get_db),
     identity: AuthIdentity = Depends(require_reviewer_or_admin),
 ) -> ClaimEvaluationRead:
-    evaluation = EvaluationService.evaluate_claim(db, claim_id, payload, reviewer_id=identity.reviewer_id)
+    approval_reviewer_id: str | None = None
+    if payload.approval_token is not None:
+        approval_identity = AuthService.identity_from_dual_control_approval_token(
+            db,
+            payload.approval_token,
+            expected_action='evaluation_overwrite',
+        )
+        approval_reviewer_id = approval_identity.reviewer_id
+    payload_for_service = payload.model_copy(
+        update={
+            'approval_reviewer_id': approval_reviewer_id,
+        }
+    )
+    evaluation = EvaluationService.evaluate_claim(db, claim_id, payload_for_service, reviewer_id=identity.reviewer_id)
     return ClaimEvaluationRead.model_validate(evaluation, from_attributes=True)
 
 

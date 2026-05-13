@@ -21,6 +21,27 @@ def _override_db():  # type: ignore[no-untyped-def]
     yield object()
 
 
+def _mock_dual_control_token(monkeypatch, *, reviewer_id: str) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setattr(
+        'app.api.v1.evaluations.AuthService.identity_from_dual_control_approval_token',
+        lambda _db, _token, *, expected_action: AuthIdentity(
+            reviewer_user_id=uuid.uuid4(),
+            reviewer_id=reviewer_id,
+            role='reviewer',
+        ),
+    )
+
+
+def _mock_dual_control_token_error(monkeypatch, exc: AppError) -> None:  # type: ignore[no-untyped-def]
+    def _raise(_db, _token, *, expected_action):  # type: ignore[no-untyped-def]
+        raise exc
+
+    monkeypatch.setattr(
+        'app.api.v1.evaluations.AuthService.identity_from_dual_control_approval_token',
+        _raise,
+    )
+
+
 def test_evaluate_claim_returns_422_for_moderation_violation(monkeypatch) -> None:
     app.dependency_overrides[get_db] = _override_db
     app.dependency_overrides[require_reviewer_or_admin] = _override_reviewer
@@ -62,6 +83,7 @@ def test_evaluate_claim_returns_409_for_overwrite_dual_control_conflict(monkeypa
     app.dependency_overrides[get_db] = _override_db
     app.dependency_overrides[require_reviewer_or_admin] = _override_reviewer
     claim_id = uuid.uuid4()
+    _mock_dual_control_token(monkeypatch, reviewer_id='reviewer@local')
 
     def _fake_evaluate(_db, _claim_id, _payload, *, reviewer_id):  # type: ignore[no-untyped-def]
         assert reviewer_id == 'reviewer@local'
@@ -88,7 +110,7 @@ def test_evaluate_claim_returns_409_for_overwrite_dual_control_conflict(monkeypa
             'confidence': 0.8,
             'rationale': 'Neutral rationale with enough detail.',
             'citation_notes': 'Source packet A',
-            'approval_reviewer_id': 'reviewer@local',
+            'approval_token': 'approval-token',
         },
     )
     body = response.json()
@@ -237,4 +259,54 @@ def test_unpublish_claim_returns_409_for_dual_control_block(monkeypatch) -> None
     assert body['error']['details']['approval_reviewer_id'] == 'admin@local'
     assert body['error']['details']['applying_reviewer_id'] == 'admin@local'
     assert body['error']['details']['action'] == 'unpublish'
+    app.dependency_overrides.clear()
+
+
+def test_evaluate_claim_returns_401_for_invalid_dual_control_token(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[require_reviewer_or_admin] = _override_reviewer
+    _mock_dual_control_token_error(
+        monkeypatch,
+        AppError('invalid_dual_control_token', 'Dual-control approval token is invalid.', status_code=401),
+    )
+    claim_id = uuid.uuid4()
+    client = TestClient(app)
+    response = client.post(
+        f'/v1/claims/{claim_id}/evaluate',
+        json={
+            'verdict': 'supported',
+            'confidence': 0.8,
+            'rationale': 'Neutral rationale with enough detail.',
+            'citation_notes': 'Source packet A',
+            'approval_token': 'bad-token',
+        },
+    )
+    body = response.json()
+    assert response.status_code == 401
+    assert body['error']['code'] == 'invalid_dual_control_token'
+    app.dependency_overrides.clear()
+
+
+def test_evaluate_claim_returns_401_for_expired_dual_control_token(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[require_reviewer_or_admin] = _override_reviewer
+    _mock_dual_control_token_error(
+        monkeypatch,
+        AppError('token_expired', 'Authentication token has expired.', status_code=401),
+    )
+    claim_id = uuid.uuid4()
+    client = TestClient(app)
+    response = client.post(
+        f'/v1/claims/{claim_id}/evaluate',
+        json={
+            'verdict': 'supported',
+            'confidence': 0.8,
+            'rationale': 'Neutral rationale with enough detail.',
+            'citation_notes': 'Source packet A',
+            'approval_token': 'expired-token',
+        },
+    )
+    body = response.json()
+    assert response.status_code == 401
+    assert body['error']['code'] == 'token_expired'
     app.dependency_overrides.clear()

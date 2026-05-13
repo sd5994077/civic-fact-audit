@@ -23,7 +23,7 @@ def create_admin_job(
     db: Session = Depends(get_db),
     identity: AuthIdentity = Depends(require_admin),
 ) -> AdminJobRunRead:
-    job_run = AdminJobService.create_and_run_job(db, payload, requested_by_reviewer_id=identity.reviewer_id)
+    job_run = AdminJobService.enqueue_job(db, payload, requested_by_reviewer_id=identity.reviewer_id)
     return AdminJobRunRead.model_validate(job_run)
 
 

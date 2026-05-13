@@ -3,7 +3,7 @@
 This workflow keeps race setup and statement intake reproducible and auditable.
 
 ## Admin job intake profiles (Step 2)
-- Intake jobs in `POST /v1/admin/jobs` are now profile-driven and still execute synchronously in-request (no async worker yet).
+- Intake jobs in `POST /v1/admin/jobs` are profile-driven and now enqueue for background worker execution with retries.
 - Supported payload shapes:
   - `{"job_type":"ingest_candidate_roster","input_payload":{"profile_id":"tx_2026_senate"}}`
   - `{"job_type":"ingest_statement_batch","input_payload":{"profile_id":"tx_2026_senate","statement_batch":"round4"}}`

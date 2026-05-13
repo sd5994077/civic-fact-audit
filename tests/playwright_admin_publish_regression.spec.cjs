@@ -281,7 +281,7 @@ test("candidate update surfaces dual-control 409 and does not retry", async ({ p
     await page.click("button[data-tab='candidates']");
     await page.click("#candidate-list .row-btn");
     await expect(page.locator("#candidate-edit-status")).toContainText("Loaded Candidate One.");
-    await page.fill("#candidate-approval-reviewer-id", "admin@local");
+    await page.fill("#candidate-approval-token", "approval-token-1");
     await page.fill("#candidate-party", "Democratic");
     await page.click("#candidate-edit-form button[type='submit']");
     await expect(page.locator("#candidate-edit-status")).toContainText("Dual-control blocked for candidate_update");
@@ -348,7 +348,7 @@ test("evaluation overwrite surfaces dual-control 409 and does not retry", async 
     await signIn(page, localServer.baseUrl);
     await page.click("button[data-tab='review']");
     await page.click("#review-list .row-btn");
-    await page.fill("#review-approval-reviewer-id", "admin@local");
+    await page.fill("#review-approval-token", "approval-token-2");
     await page.fill("#review-rationale", "Neutral rationale with enough detail.");
     await page.click("#review-form button[type='submit']");
     await expect(page.locator("#review-submit-status")).toContainText("Dual-control blocked for evaluate_overwrite");
@@ -362,7 +362,7 @@ test("evaluation first-write succeeds without approval reviewer", async ({ page 
   const localServer = await startFrontendStaticServer(path.resolve(__dirname, "../frontend"));
   const claimId = "55555555-5555-5555-5555-555555555555";
   let evaluatePostCalls = 0;
-  let postedApprovalReviewerId = "unexpected";
+  let postedApprovalToken = "unexpected";
   try {
     await registerBaseRoutes(page, {
       "GET /api/v1/claims/review-queue": (_route, _req, _url, json) =>
@@ -397,7 +397,7 @@ test("evaluation first-write succeeds without approval reviewer", async ({ page 
       "POST /api/v1/claims/55555555-5555-5555-5555-555555555555/evaluate": (_route, req, _url, json) => {
         evaluatePostCalls += 1;
         const body = JSON.parse(req.postData() || "{}");
-        postedApprovalReviewerId = body.approval_reviewer_id;
+        postedApprovalToken = body.approval_token;
         return json({
           id: "88888888-8888-8888-8888-888888888888",
           claim_id: claimId,
@@ -417,7 +417,7 @@ test("evaluation first-write succeeds without approval reviewer", async ({ page 
     await page.click("#review-form button[type='submit']");
     await expect(page.locator("#review-submit-status")).toContainText("Evaluation saved");
     expect(evaluatePostCalls).toBe(1);
-    expect(postedApprovalReviewerId).toBeNull();
+    expect(postedApprovalToken).toBeNull();
   } finally {
     await new Promise((resolve) => localServer.server.close(resolve));
   }
@@ -450,12 +450,12 @@ test("bulk attach surfaces dual-control 409 and does not retry", async ({ page }
     });
     await signIn(page, localServer.baseUrl);
     await page.click("button[data-tab='bulk-sources']");
-    await page.fill("#bulk-approval-reviewer-id", "admin@local");
+    await page.fill("#bulk-approval-token", "approval-token-3");
     await page.fill(
       "#bulk-attach-json",
       JSON.stringify(
         {
-          approval_reviewer_id: "admin@local",
+          approval_token: "approval-token-3",
           items: [
             {
               claim_id: claimId,

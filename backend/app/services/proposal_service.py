@@ -362,8 +362,26 @@ class ProposalService:
         return ProposalService._get_proposal(db, proposal_id)
 
     @staticmethod
+    def _get_proposal_for_transition(db: Session, proposal_id: uuid.UUID) -> ClaimProposal:
+        execute = getattr(db, 'execute', None)
+        if callable(execute):
+            proposal = (
+                db.execute(
+                    select(ClaimProposal)
+                    .where(ClaimProposal.id == proposal_id)
+                    .with_for_update()
+                )
+                .scalars()
+                .first()
+            )
+            if proposal is None:
+                raise AppError('proposal_not_found', 'Proposal does not exist.', status_code=404)
+            return proposal
+        return ProposalService._get_proposal(db, proposal_id)
+
+    @staticmethod
     def approve_proposal(db: Session, proposal_id: uuid.UUID, *, reviewer_id: str, review_notes: str | None = None) -> ClaimProposal:
-        proposal = ProposalService._get_proposal(db, proposal_id)
+        proposal = ProposalService._get_proposal_for_transition(db, proposal_id)
         if proposal.status != ProposalStatus.proposed:
             raise AppError('invalid_proposal_transition', 'Only proposed proposals can be approved.', status_code=409)
         normalized_reviewer_id = ProposalService._normalize_reviewer_id(reviewer_id)
@@ -408,7 +426,7 @@ class ProposalService:
 
     @staticmethod
     def reject_proposal(db: Session, proposal_id: uuid.UUID, *, reviewer_id: str, review_notes: str | None = None) -> ClaimProposal:
-        proposal = ProposalService._get_proposal(db, proposal_id)
+        proposal = ProposalService._get_proposal_for_transition(db, proposal_id)
         if proposal.status != ProposalStatus.proposed:
             raise AppError('invalid_proposal_transition', 'Only proposed proposals can be rejected.', status_code=409)
         normalized_reviewer_id = ProposalService._normalize_reviewer_id(reviewer_id)
@@ -477,22 +495,19 @@ class ProposalService:
         ProposalService._validate_payload(proposal.proposal_type, payload)
         approval_reviewer_id = (proposal.reviewed_by or '').strip().lower()
         applying_reviewer_id = normalized_reviewer_id
-        if (
-            ProposalService._is_verification_source_apply_target(proposal, payload)
-            and approval_reviewer_id
-            and approval_reviewer_id == applying_reviewer_id
-        ):
-            raise AppError(
-                'proposal_dual_control_required',
-                'Verification-source proposals require different reviewers for approval and apply actions.',
-                status_code=409,
-                details={
-                    'proposal_id': str(proposal.id),
-                    'proposal_type': proposal.proposal_type.value,
-                    'approval_reviewer_id': approval_reviewer_id,
-                    'applying_reviewer_id': applying_reviewer_id,
-                },
-            )
+        if ProposalService._is_verification_source_apply_target(proposal, payload):
+            if not approval_reviewer_id or approval_reviewer_id == applying_reviewer_id:
+                raise AppError(
+                    'proposal_dual_control_required',
+                    'Verification-source proposals require different reviewers for approval and apply actions.',
+                    status_code=409,
+                    details={
+                        'proposal_id': str(proposal.id),
+                        'proposal_type': proposal.proposal_type.value,
+                        'approval_reviewer_id': approval_reviewer_id or None,
+                        'applying_reviewer_id': applying_reviewer_id,
+                    },
+                )
 
         try:
             applied_effect = 'no_change'

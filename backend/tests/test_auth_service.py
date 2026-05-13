@@ -79,3 +79,72 @@ def test_identity_from_bearer_rejects_invalid_signature() -> None:
             assert exc.code == 'invalid_token'
     finally:
         settings.auth_secret_key = original_secret
+
+
+def test_identity_from_bearer_rejects_dual_control_token() -> None:
+    original_secret = settings.auth_secret_key
+    settings.auth_secret_key = 'test-secret'
+    reviewer_id = uuid.uuid4()
+    token, _expires_at = AuthService.issue_dual_control_approval_token(
+        reviewer_user_id=reviewer_id,
+        role='reviewer',
+        action='candidate_mutation',
+    )
+    db = _FakeDb(_FakeReviewer(id=reviewer_id, email='reviewer@local', role='reviewer', is_active=True))
+    try:
+        try:
+            AuthService.identity_from_bearer(db, token)
+            assert False, 'Expected invalid_token for dual-control token in bearer auth'
+        except AppError as exc:
+            assert exc.code == 'invalid_token'
+            assert exc.status_code == 401
+            assert exc.details['token_use'] == 'dual_control_approval'
+    finally:
+        settings.auth_secret_key = original_secret
+
+
+def test_issue_and_verify_dual_control_approval_token_identity() -> None:
+    original_secret = settings.auth_secret_key
+    settings.auth_secret_key = 'test-secret'
+    reviewer_id = uuid.uuid4()
+    token, _expires_at = AuthService.issue_dual_control_approval_token(
+        reviewer_user_id=reviewer_id,
+        role='reviewer',
+        action='candidate_mutation',
+    )
+    db = _FakeDb(_FakeReviewer(id=reviewer_id, email='reviewer@local', role='reviewer', is_active=True))
+    try:
+        identity = AuthService.identity_from_dual_control_approval_token(
+            db,
+            token,
+            expected_action='candidate_mutation',
+        )
+        assert identity.reviewer_id == 'reviewer@local'
+        assert identity.role == 'reviewer'
+    finally:
+        settings.auth_secret_key = original_secret
+
+
+def test_dual_control_approval_token_rejects_wrong_action() -> None:
+    original_secret = settings.auth_secret_key
+    settings.auth_secret_key = 'test-secret'
+    reviewer_id = uuid.uuid4()
+    token, _expires_at = AuthService.issue_dual_control_approval_token(
+        reviewer_user_id=reviewer_id,
+        role='reviewer',
+        action='evaluation_overwrite',
+    )
+    db = _FakeDb(_FakeReviewer(id=reviewer_id, email='reviewer@local', role='reviewer', is_active=True))
+    try:
+        try:
+            AuthService.identity_from_dual_control_approval_token(
+                db,
+                token,
+                expected_action='candidate_mutation',
+            )
+            assert False, 'Expected dual_control_token_action_mismatch'
+        except AppError as exc:
+            assert exc.code == 'dual_control_token_action_mismatch'
+            assert exc.status_code == 409
+    finally:
+        settings.auth_secret_key = original_secret

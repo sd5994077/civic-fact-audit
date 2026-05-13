@@ -16,14 +16,19 @@ Moderation/output boundaries are defined in `docs/MODERATION_POLICY.md`.
   - `draft_verdict`: remains draft-only guidance; reviewer must still use `POST /v1/claims/{claim_id}/evaluate`
 - Proposal attribution:
   - `proposed_by` is set server-side from authenticated reviewer/admin identity.
+- Dual-control approval token:
+  - `POST /v1/auth/dual-control-approval-token` mints a short-lived, signed approval token from the approver's authenticated identity.
+  - Request body: `{ "action": "candidate_mutation" | "evaluation_overwrite" | "bulk_attach_verification_sources" }`.
 - Bulk source attach request contract:
-  - `POST /v1/claims/sources/bulk` expects `{ "approval_reviewer_id": "<id>", "items": [...] }`.
+  - `POST /v1/claims/sources/bulk` expects `{ "approval_token": "<signed-token>", "items": [...] }` for verification-origin items.
+  - Client-supplied `approval_reviewer_id` is ignored on this route; reviewer identity is resolved from token subject server-side.
   - Dual-control is enforced only when a batch contains verification-origin items.
 - Source-admission enforcement:
   - Proposal create/apply can return `422 source_admission_policy_violation`.
   - If blocked, keep proposal for audit trail, update payload to a neutral/record-based verification source, then re-submit/re-approve.
 - Two-person control (verification-source apply):
   - `verification_source_suggestion` proposals require `approved_by != applying_reviewer`.
+  - Verification-source apply also requires an explicit stored approval reviewer identity on the approved proposal; missing reviewer metadata is blocked as `409 proposal_dual_control_required`.
   - If the same reviewer attempts apply, API returns `409 proposal_dual_control_required`.
   - Use a second reviewer/admin account to apply after approval.
 - Power-admin source/bundle-first sequence:
@@ -55,7 +60,7 @@ Before publish, reviewer/admin should ensure:
 - Verification evidence includes at least:
   - 1 primary source
   - 1 independent secondary source
-- If updating an already-evaluated claim verdict, provide `approval_reviewer_id` from a different reviewer/admin than the applying actor.
+- If updating an already-evaluated claim verdict, include `approval_token` minted by a different reviewer/admin than the applying actor.
 - Moderation gate is clean.
 - Publish gate passes for the claim.
 
@@ -80,7 +85,7 @@ Signoff definition:
 
 ## Exception handling notes
 - Evaluation overwrite dual-control blocked (`409 evaluation_overwrite_dual_control_required`):
-  - first evaluation is exempt; overwrites require a different approval reviewer identity.
+  - first evaluation is exempt; overwrites require a different approval reviewer identity resolved from a valid `evaluation_overwrite` approval token.
   - keep claim state unchanged and re-submit evaluate request with different reviewer separation.
 - Bulk attach dual-control blocked (`409 bulk_attach_dual_control_required`):
   - conflict applies only when payload contains verification-origin items.

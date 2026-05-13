@@ -27,9 +27,9 @@ Current operational constraints to preserve until config-first intake work is co
 2. Job trigger audit linkage:
 - `admin_job_triggered` events are recorded with `entity_type = admin_job_run` and `entity_id = <job_run_id>`.
 
-3. Intake orchestration is config-first and synchronous:
+3. Intake orchestration is config-first and async:
 - profile config selects roster and statement-batch modules per race profile.
-- execution remains synchronous within `POST /v1/admin/jobs` for this step.
+- execution now enqueues within `POST /v1/admin/jobs` and runs via a background worker with retries and status polling.
 
 ## 3) Proposed Data Model Additions
 
@@ -173,12 +173,12 @@ Design rule:
   - `claim_published` / `claim_unpublished` audit events persist reviewer-linkage metadata (`approval_reviewer_id`, `applying_reviewer_id`, `dual_control_enforced`),
   - `/admin` Publish tab surfaces explicit dual-control denial guidance for deterministic `409 publish_dual_control_required`.
 - [x] Dual-control v2 verification-only expansion implemented:
-  - candidate create/update now require explicit `approval_reviewer_id` and enforce reviewer separation (`409 candidate_dual_control_required`),
-  - evaluation overwrite now requires explicit `approval_reviewer_id` with first-evaluation exception (`409 evaluation_overwrite_dual_control_required` only when overwriting),
-  - bulk attach now uses object payload (`approval_reviewer_id` + `items`) and enforces reviewer separation only for verification-origin items (`409 bulk_attach_dual_control_required`),
+  - candidate create/update now enforce reviewer separation (`409 candidate_dual_control_required`) using server-verified dual-control approval tokens,
+  - evaluation overwrite now enforces reviewer separation with first-evaluation exception (`409 evaluation_overwrite_dual_control_required` only when overwriting) using server-verified dual-control approval tokens,
+  - bulk attach now uses object payload (`approval_token` + `items`) and enforces reviewer separation only for verification-origin items (`409 bulk_attach_dual_control_required`),
   - bulk attach emits a deterministic `bulk_operation_id` for traceable batch audit correlation,
   - candidate/evaluation overwrite/bulk attach audit events persist reviewer-linkage metadata and dual-control flags.
 
 ## 10) Next Up (Pending)
 
-- [x] Define and document remaining dual-control v2 expansion scope beyond completed publish/unpublish first slice.
+- [ ] Add worker-health observability for queue lag, retry counts, and terminal failure alerting.

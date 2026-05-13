@@ -85,7 +85,7 @@ const SOURCE_CLASS_VALUES = new Set(["primary", "secondary"]);
 const SOURCE_ORIGIN_VALUES = new Set(["candidate", "verification"]);
 const SOURCE_PROPOSAL_TYPES = new Set(["candidate_source_capture", "verification_source_suggestion"]);
 const BULK_ATTACH_EXAMPLE = {
-  approval_reviewer_id: "reviewer2@local",
+  approval_token: "paste-approval-token-here",
   items: [
     {
       claim_id: "00000000-0000-0000-0000-000000000000",
@@ -309,7 +309,7 @@ function renderCandidateList(rows) {
 
 function populateCandidateForm(candidate) {
   $("candidate-id").value = candidate.id || "";
-  $("candidate-approval-reviewer-id").value = "";
+  $("candidate-approval-token").value = "";
   $("candidate-name").value = candidate.name || "";
   $("candidate-party").value = candidate.party || "";
   $("candidate-office").value = candidate.office || "";
@@ -350,7 +350,7 @@ async function loadCandidateDetail(candidateId) {
 
 function buildCandidatePayload(prefix) {
   return {
-    approval_reviewer_id: normalizeOptionalText($(`${prefix}-approval-reviewer-id`).value) || "",
+    approval_token: normalizeOptionalText($(`${prefix}-approval-token`).value) || "",
     name: normalizeOptionalText($(`${prefix}-name`).value) || "",
     party: normalizeOptionalText($(`${prefix}-party`).value),
     office: normalizeOptionalText($(`${prefix}-office`).value),
@@ -374,8 +374,8 @@ async function saveCandidate(event) {
 
   try {
     const payload = buildCandidatePayload("candidate");
-    if (!payload.approval_reviewer_id) {
-      setStatus("candidate-edit-status", "Approval reviewer ID is required.", "bad");
+    if (!payload.approval_token) {
+      setStatus("candidate-edit-status", "Approval token is required.", "bad");
       return;
     }
     setStatus("candidate-edit-status", "Saving candidate...");
@@ -397,8 +397,8 @@ async function createCandidate(event) {
   event.preventDefault();
   try {
     const payload = buildCandidatePayload("create");
-    if (!payload.approval_reviewer_id) {
-      setStatus("candidate-create-status", "Approval reviewer ID is required.", "bad");
+    if (!payload.approval_token) {
+      setStatus("candidate-create-status", "Approval token is required.", "bad");
       return;
     }
     setStatus("candidate-create-status", "Creating candidate...");
@@ -904,7 +904,7 @@ async function submitReview(event) {
   const confidenceRaw = $("review-confidence")?.value;
   const rationale = $("review-rationale")?.value?.trim();
   const citationNotes = $("review-citation-notes")?.value?.trim();
-  const approvalReviewerId = $("review-approval-reviewer-id")?.value?.trim();
+  const approvalToken = $("review-approval-token")?.value?.trim();
 
   if (!claimId || !verdict || !confidenceRaw || !rationale) {
     setStatus("review-submit-status", "Claim, verdict, confidence, and rationale are required.", "bad");
@@ -926,7 +926,7 @@ async function submitReview(event) {
         confidence,
         rationale,
         citation_notes: citationNotes || null,
-        approval_reviewer_id: approvalReviewerId || null,
+        approval_token: approvalToken || null,
       },
     });
     setStatus("review-submit-status", "Evaluation saved.", "ok");
@@ -1120,9 +1120,9 @@ function renderBulkAttachResults(response) {
 
 function validateBulkAttachTextarea() {
   const raw = $("bulk-attach-json")?.value || "";
-  const approvalReviewerId = normalizeOptionalText($("bulk-approval-reviewer-id")?.value);
-  if (!approvalReviewerId) {
-    setStatus("bulk-attach-status", "Approval reviewer ID is required.", "bad");
+  const approvalToken = normalizeOptionalText($("bulk-approval-token")?.value);
+  if (!approvalToken) {
+    setStatus("bulk-attach-status", "Approval token is required.", "bad");
     return null;
   }
   const parsed = parseJsonTextarea(raw, "Attach payload");
@@ -1131,13 +1131,13 @@ function validateBulkAttachTextarea() {
     return null;
   }
   if (!parsed.value || typeof parsed.value !== "object" || Array.isArray(parsed.value)) {
-    setStatus("bulk-attach-status", "Validation failed: Payload must be an object with approval_reviewer_id and items.", "bad");
+    setStatus("bulk-attach-status", "Validation failed: Payload must be an object with approval_token and items.", "bad");
     return null;
   }
-  const approvalInPayload = normalizeOptionalText(parsed.value.approval_reviewer_id);
+  const approvalInPayload = normalizeOptionalText(parsed.value.approval_token);
   const items = parsed.value.items;
   if (!approvalInPayload) {
-    setStatus("bulk-attach-status", "Validation failed: approval_reviewer_id is required in payload.", "bad");
+    setStatus("bulk-attach-status", "Validation failed: approval_token is required in payload.", "bad");
     return null;
   }
   const errors = validateBulkSourceAttachItems(items);
@@ -1145,10 +1145,10 @@ function validateBulkAttachTextarea() {
     setStatus("bulk-attach-status", `Validation failed: ${errors[0]}`, "bad");
     return null;
   }
-  if (approvalInPayload !== approvalReviewerId) {
+  if (approvalInPayload !== approvalToken) {
     setStatus(
       "bulk-attach-status",
-      "Validation failed: form Approval Reviewer ID must match payload approval_reviewer_id.",
+      "Validation failed: form Approval Token must match payload approval_token.",
       "bad"
     );
     return null;

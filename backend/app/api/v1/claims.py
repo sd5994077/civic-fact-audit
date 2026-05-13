@@ -23,7 +23,7 @@ from app.schemas.api import (
     SourceRead,
 )
 from app.services.auth_dependency_service import require_reviewer_or_admin
-from app.services.auth_service import AuthIdentity
+from app.services.auth_service import AuthIdentity, AuthService
 from app.services.claim_extraction_service import ClaimExtractionService
 from app.services.proposal_service import ProposalService
 from app.services.source_service import SourceService
@@ -98,9 +98,17 @@ def add_sources_bulk(
     db: Session = Depends(get_db),
     identity: AuthIdentity = Depends(require_reviewer_or_admin),
 ) -> BulkSourceAttachResponse:
+    approval_reviewer_id: str | None = None
+    if payload.approval_token is not None:
+        approval_identity = AuthService.identity_from_dual_control_approval_token(
+            db,
+            payload.approval_token,
+            expected_action='bulk_attach_verification_sources',
+        )
+        approval_reviewer_id = approval_identity.reviewer_id
     response = SourceService.attach_sources_bulk(
         db,
-        approval_reviewer_id=payload.approval_reviewer_id,
+        approval_reviewer_id=approval_reviewer_id,
         applying_reviewer_id=identity.reviewer_id,
         items=payload.items,
     )

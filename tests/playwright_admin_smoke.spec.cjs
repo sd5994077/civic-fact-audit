@@ -641,7 +641,7 @@ test("admin workspace smoke", async ({ page }) => {
   await page.click("button[data-tab=\"bulk-sources\"]");
   await expect(page.locator("#tab-bulk-sources")).toBeVisible();
   await expect(page.locator("#bulk-attach-json")).toHaveValue(/claim_id/);
-  await page.fill("#bulk-approval-reviewer-id", "approver@local");
+  await page.fill("#bulk-approval-token", "approval-token-1");
 
   await page.fill("#bulk-attach-json", "{");
   await page.click("#bulk-validate-json");
@@ -652,7 +652,7 @@ test("admin workspace smoke", async ({ page }) => {
     "#bulk-attach-json",
     JSON.stringify(
       {
-        approval_reviewer_id: "approver@local",
+        approval_token: "approval-token-1",
         items: [
           {
             claim_id: claimId,
@@ -677,7 +677,7 @@ test("admin workspace smoke", async ({ page }) => {
     "#bulk-attach-json",
     JSON.stringify(
       {
-        approval_reviewer_id: "approver@local",
+        approval_token: "approval-token-1",
         items: [
           {
             claim_id: claimId,
@@ -706,7 +706,7 @@ test("admin workspace smoke", async ({ page }) => {
   await expect(page.locator("#bulk-attach-summary")).toContainText("Total: 2 | Attached: 1 | Failed: 1");
   await expect(page.locator("#bulk-attach-results .row-btn")).toHaveCount(2);
   expect(bulkAttachPostCalls).toBe(1);
-  expect(lastBulkAttachPayload.approval_reviewer_id).toBe("approver@local");
+  expect(lastBulkAttachPayload.approval_token).toBe("approval-token-1");
   expect(Array.isArray(lastBulkAttachPayload.items)).toBeTruthy();
   expect(lastBulkAttachPayload.items.length).toBe(2);
   expect(evidenceGetCalls).toBeGreaterThan(evidenceCallsBeforeBulkSubmit);
