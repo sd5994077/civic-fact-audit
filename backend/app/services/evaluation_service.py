@@ -58,6 +58,7 @@ class EvaluationService:
         election_cycle: int | None,
         race_stage: RaceStage | None,
         require_minimum_evidence: bool,
+        exclude_published: bool = False,
     ):
         eligible = SourceService._eligible_for_verification_calculations_predicate()
         primary_count = func.sum(case((and_(eligible, Source.source_class == SourceClass.primary), 1), else_=0))
@@ -187,6 +188,8 @@ class EvaluationService:
 
         if require_minimum_evidence:
             query = query.having(verification_primary_count > 0, verification_secondary_count > 0)
+        if exclude_published:
+            query = query.where(Claim.is_published.is_(False))
 
         return query
 
@@ -199,6 +202,7 @@ class EvaluationService:
         election_cycle: int | None = None,
         race_stage: RaceStage | None = None,
         require_minimum_evidence: bool = True,
+        exclude_published: bool = False,
         limit: int = 200,
     ) -> list[dict[str, object]]:
         rows = (
@@ -209,6 +213,7 @@ class EvaluationService:
                     election_cycle=election_cycle,
                     race_stage=race_stage,
                     require_minimum_evidence=require_minimum_evidence,
+                    exclude_published=exclude_published,
                 ).limit(limit)
             )
             .mappings()
@@ -523,14 +528,13 @@ class EvaluationService:
             election_cycle=election_cycle,
             race_stage=race_stage,
             require_minimum_evidence=False,
+            exclude_published=not include_already_published,
             limit=limit,
         )
         out: list[dict[str, object]] = []
         for row in rows:
             failures = EvaluationService._publish_gate_failures_from_review_row(row)
             gate_passed = len(failures) == 0
-            if not include_already_published and bool(row.get('is_published')):
-                continue
             if only_gate_passed and not gate_passed:
                 continue
             out.append(

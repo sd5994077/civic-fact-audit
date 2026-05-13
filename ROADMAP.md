@@ -52,7 +52,7 @@
 ## Phase 5 - Reliability + Scale (Weeks 11+)
 - [x] Background jobs and retries.
 - [x] Source quality scoring automation (`score_source_quality()` heuristic, `quality_score` now optional on add/bulk-attach, versioned formula `quality_v1_2026_05_13`).
-- [ ] Caching and query optimization.
+- [x] Caching and query optimization (composite index on `candidates(state, office, election_cycle, race_stage)`; `claims(fact_checkable)` and `claims(fact_checkable, is_published)` indexes; `list_publish_queue` `is_published` filter pushed to SQL before `LIMIT` to prevent published claims consuming queue slots).
 - [x] Security hardening and threat model review (`docs/THREAT_MODEL.md`, CORS middleware, production startup validators for `postgres_password` + `cors_allowed_origins`, `.env.example`).
 - [x] Expand moderation beyond boundary phrase gates (regex rule engine, 4 new violation types: `violence_or_threat`, `harassment_or_doxxing`, `defamatory_framing`, `prompt_injection_attempt`; prompt injection gate on claim extraction; per-reviewer violation audit logging; `GET /v1/admin/moderation-risk` risk endpoint).
 - [x] Generalize the Texas Senate workflow into a reusable multi-race intake pipeline.

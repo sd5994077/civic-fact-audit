@@ -66,6 +66,38 @@ def test_build_review_queue_query_without_minimum_evidence_has_no_having() -> No
     assert 'HAVING' not in compiled
 
 
+def test_build_review_queue_query_exclude_published_adds_where_clause() -> None:
+    with_exclude = EvaluationService._build_review_queue_query(
+        state=None, office=None, election_cycle=None, race_stage=None,
+        require_minimum_evidence=False, exclude_published=True,
+    )
+    without_exclude = EvaluationService._build_review_queue_query(
+        state=None, office=None, election_cycle=None, race_stage=None,
+        require_minimum_evidence=False, exclude_published=False,
+    )
+
+    compiled_with = str(with_exclude)
+    compiled_without = str(without_exclude)
+    assert 'is_published IS false' in compiled_with
+    assert 'is_published IS false' not in compiled_without
+
+
+def test_list_publish_queue_passes_exclude_published_to_review_queue(monkeypatch) -> None:
+    captured: dict = {}
+
+    def _fake_list_review_queue(db, *, exclude_published, **kwargs):
+        captured['exclude_published'] = exclude_published
+        return []
+
+    monkeypatch.setattr(EvaluationService, 'list_review_queue', staticmethod(_fake_list_review_queue))
+
+    EvaluationService.list_publish_queue(object(), include_already_published=False)
+    assert captured['exclude_published'] is True
+
+    EvaluationService.list_publish_queue(object(), include_already_published=True)
+    assert captured['exclude_published'] is False
+
+
 def test_publish_gate_failures_empty_when_all_rules_pass() -> None:
     claim = _FakeClaim(fact_checkable=True)
     latest_eval = _FakeEval(verdict=Verdict.supported, rationale='Looks good', citation_notes='Cited.')

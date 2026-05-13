@@ -48,6 +48,8 @@ class Candidate(TimestampMixin, Base):
     statements: Mapped[list['Statement']] = relationship(back_populates='candidate', cascade='all, delete-orphan')
     score_snapshots: Mapped[list['ScoreSnapshot']] = relationship(back_populates='candidate', cascade='all, delete-orphan')
 
+    __table_args__ = (Index('ix_candidates_race_context', 'state', 'office', 'election_cycle', 'race_stage'),)
+
 
 class ReviewerUser(TimestampMixin, Base):
     __tablename__ = 'reviewer_users'
@@ -153,6 +155,8 @@ class Claim(TimestampMixin, Base):
     __table_args__ = (
         Index('ix_claims_statement_status', 'statement_id', 'status'),
         Index('ix_claims_issue_frame_id', 'issue_frame_id'),
+        Index('ix_claims_fact_checkable', 'fact_checkable'),
+        Index('ix_claims_fact_checkable_published', 'fact_checkable', 'is_published'),
     )
 
 
