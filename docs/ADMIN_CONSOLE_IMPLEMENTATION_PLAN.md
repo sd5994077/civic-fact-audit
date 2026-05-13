@@ -180,6 +180,14 @@ Design rule:
   - bulk attach emits a deterministic `bulk_operation_id` for traceable batch audit correlation,
   - candidate/evaluation overwrite/bulk attach audit events persist reviewer-linkage metadata and dual-control flags.
 
-## 10) Next Up (Pending)
+## 10) Worker-Health Observability (Complete)
 
-- [ ] Add worker-health observability for queue lag, retry counts, and terminal failure alerting.
+- [x] Add worker-health observability for queue lag, retry counts, and terminal failure alerting:
+  - `GET /v1/admin/jobs/worker-health` endpoint (admin-only) returns a `WorkerHealthResponse` with `worker_alive`, `queue_depth`, `due_depth`, `retry_queue_depth`, `oldest_queued_age_seconds`, `oldest_due_age_seconds`, `running_count`, `terminal_failure_count`, and `recent_terminal_failures` (last 10),
+  - aggregate query uses `COUNT(*) FILTER (WHERE ...)` and `MIN() FILTER (WHERE ...)` for a single-pass read,
+  - `worker_alive` reflects live thread state via `AdminJobService._worker_thread.is_alive()`,
+  - `recent_terminal_failures` surface `job_type`, `attempt_count`, `max_attempts`, `last_error_code`, and `finished_at` for each exhausted-retry job,
+  - route registered before `/{job_run_id}` to prevent FastAPI UUID coercion conflict,
+  - admin UI Jobs tab shows a Worker Health panel with colour-coded stat tiles (alive/dead, queue depth, due-now, retrying, running, oldest-due lag, terminal failure count) and a recent-failures list,
+  - panel auto-refreshes every 30 seconds while the Jobs tab is active and stops polling on tab switch,
+  - two API tests (`test_get_worker_health_requires_admin_auth`, `test_get_worker_health_success`) and two service unit tests (`test_health_failure_summary_serializes_job_run_fields`, `test_health_failure_summary_handles_zero_attempts`) added.

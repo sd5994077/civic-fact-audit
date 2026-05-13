@@ -496,3 +496,26 @@ class AdminAuditEventRead(BaseModel):
     metadata: dict[str, Any] | None
     created_at: datetime
     updated_at: datetime
+
+
+class WorkerHealthTerminalFailureSummary(BaseModel):
+    id: uuid.UUID
+    job_type: str
+    attempt_count: int
+    max_attempts: int
+    last_error_code: str | None = None
+    finished_at: datetime | None = None
+    created_at: datetime
+
+
+class WorkerHealthResponse(BaseModel):
+    worker_alive: bool
+    queue_depth: int
+    due_depth: int
+    retry_queue_depth: int
+    oldest_queued_age_seconds: float | None = None
+    oldest_due_age_seconds: float | None = None
+    running_count: int
+    terminal_failure_count: int
+    recent_terminal_failures: list[WorkerHealthTerminalFailureSummary] = Field(default_factory=list)
+    checked_at: datetime

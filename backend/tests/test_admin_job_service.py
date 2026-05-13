@@ -194,3 +194,48 @@ def test_run_job_command_timeout_raises_job_execution_failed(monkeypatch) -> Non
         assert exc.code == 'job_execution_failed'
         assert exc.details is not None
         assert exc.details.get('timed_out') is True
+
+
+def test_health_failure_summary_serializes_job_run_fields() -> None:
+    now = datetime(2026, 5, 13, tzinfo=timezone.utc)
+    job_run = AdminJobRun(
+        id=uuid.uuid4(),
+        job_type='extract_claims_batch',
+        status='failed',
+        requested_by_reviewer_id='admin@local',
+        input_payload='{}',
+        attempt_count=3,
+        max_attempts=3,
+        last_error_code='job_execution_failed',
+        finished_at=now,
+        created_at=now,
+        updated_at=now,
+    )
+    summary = AdminJobService._to_health_failure_summary(job_run)
+    assert summary['job_type'] == 'extract_claims_batch'
+    assert summary['attempt_count'] == 3
+    assert summary['max_attempts'] == 3
+    assert summary['last_error_code'] == 'job_execution_failed'
+    assert summary['finished_at'] == now
+    assert summary['created_at'] == now
+
+
+def test_health_failure_summary_handles_zero_attempts() -> None:
+    now = datetime(2026, 5, 13, tzinfo=timezone.utc)
+    job_run = AdminJobRun(
+        id=uuid.uuid4(),
+        job_type='backfill_claim_reviewability',
+        status='failed',
+        requested_by_reviewer_id='admin@local',
+        input_payload='{}',
+        attempt_count=0,
+        max_attempts=3,
+        last_error_code=None,
+        finished_at=None,
+        created_at=now,
+        updated_at=now,
+    )
+    summary = AdminJobService._to_health_failure_summary(job_run)
+    assert summary['attempt_count'] == 0
+    assert summary['last_error_code'] is None
+    assert summary['finished_at'] is None

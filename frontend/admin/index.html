@@ -396,6 +396,48 @@
       </section>
 
       <section class="tab-panel" id="tab-jobs" hidden>
+        <article class="panel" style="margin-bottom:1rem;">
+          <div class="panel-head">
+            <h3>Worker Health</h3>
+            <button id="worker-health-refresh" class="ghost-btn" type="button">Refresh</button>
+          </div>
+          <p id="worker-health-status" class="status-text"></p>
+          <div id="worker-health-stats" class="health-stat-grid" hidden>
+            <div class="health-stat">
+              <span class="health-stat-label">Worker</span>
+              <span id="health-worker-alive" class="health-stat-value">—</span>
+            </div>
+            <div class="health-stat">
+              <span class="health-stat-label">Queued</span>
+              <span id="health-queue-depth" class="health-stat-value">—</span>
+            </div>
+            <div class="health-stat">
+              <span class="health-stat-label">Due Now</span>
+              <span id="health-due-depth" class="health-stat-value">—</span>
+            </div>
+            <div class="health-stat">
+              <span class="health-stat-label">Retrying</span>
+              <span id="health-retry-depth" class="health-stat-value">—</span>
+            </div>
+            <div class="health-stat">
+              <span class="health-stat-label">Running</span>
+              <span id="health-running" class="health-stat-value">—</span>
+            </div>
+            <div class="health-stat">
+              <span class="health-stat-label">Oldest Due</span>
+              <span id="health-oldest-due" class="health-stat-value">—</span>
+            </div>
+            <div class="health-stat">
+              <span class="health-stat-label">Terminal Failures</span>
+              <span id="health-terminal-count" class="health-stat-value">—</span>
+            </div>
+          </div>
+          <div id="worker-health-failures" hidden>
+            <p class="status-text" style="margin-top:0.7rem;margin-bottom:0.4rem;">Recent terminal failures (last 10):</p>
+            <div id="worker-health-failures-list" class="list" style="max-height:200px;"></div>
+          </div>
+        </article>
+
         <div class="grid-two">
           <article class="panel">
             <div class="panel-head"><h3>Run Job</h3></div>

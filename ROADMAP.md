@@ -106,3 +106,4 @@
 - [x] Ship admin-safe candidate CRUD and roster-verification foundations first.
 - [x] Add persistent job orchestration records before exposing web-triggered intake workflows.
 - [x] Build the admin UI only after backend mutation, audit, and job contracts are stable.
+- [x] Add worker-health observability: queue lag, retry counts, and terminal-failure visibility (`GET /v1/admin/jobs/worker-health`, Jobs tab health panel with 30s auto-refresh).

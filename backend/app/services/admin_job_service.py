@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import Select, or_, select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.admin_job_allowlist import AdminJobAllowlist, AdminJobDefinition, get_admin_job_allowlist
@@ -790,6 +790,91 @@ class AdminJobService:
         if job_run is None:
             raise AppError('admin_job_not_found', 'Admin job run does not exist.', status_code=404)
         return AdminJobService._to_read_model(job_run)
+
+    @staticmethod
+    def _to_health_failure_summary(job_run: AdminJobRun) -> dict[str, Any]:
+        return {
+            'id': job_run.id,
+            'job_type': job_run.job_type,
+            'attempt_count': int(job_run.attempt_count or 0),
+            'max_attempts': int(job_run.max_attempts or _MAX_ATTEMPTS_DEFAULT),
+            'last_error_code': job_run.last_error_code,
+            'finished_at': job_run.finished_at,
+            'created_at': job_run.created_at,
+        }
+
+    @staticmethod
+    def get_worker_health(db: Session) -> dict[str, Any]:
+        now = AdminJobService._utcnow()
+        is_due = or_(AdminJobRun.next_attempt_at.is_(None), AdminJobRun.next_attempt_at <= now)
+
+        agg = db.execute(
+            select(
+                func.count()
+                .filter(AdminJobRun.status == AdminJobStatus.queued.value)
+                .label('queue_depth'),
+                func.count()
+                .filter(
+                    AdminJobRun.status == AdminJobStatus.queued.value,
+                    AdminJobRun.attempt_count > 0,
+                )
+                .label('retry_queue_depth'),
+                func.count()
+                .filter(
+                    AdminJobRun.status == AdminJobStatus.queued.value,
+                    is_due,
+                )
+                .label('due_depth'),
+                func.min(AdminJobRun.created_at)
+                .filter(AdminJobRun.status == AdminJobStatus.queued.value)
+                .label('oldest_queued_at'),
+                func.min(AdminJobRun.created_at)
+                .filter(
+                    AdminJobRun.status == AdminJobStatus.queued.value,
+                    is_due,
+                )
+                .label('oldest_due_at'),
+                func.count()
+                .filter(AdminJobRun.status == AdminJobStatus.running.value)
+                .label('running_count'),
+                func.count()
+                .filter(AdminJobRun.status == AdminJobStatus.failed.value)
+                .label('terminal_failure_count'),
+            ).select_from(AdminJobRun)
+        ).one()
+
+        recent_failures = db.execute(
+            select(AdminJobRun)
+            .where(AdminJobRun.status == AdminJobStatus.failed.value)
+            .order_by(AdminJobRun.finished_at.desc().nullslast(), AdminJobRun.updated_at.desc())
+            .limit(10)
+        ).scalars().all()
+
+        def _age_seconds(dt: datetime | None) -> float | None:
+            if dt is None:
+                return None
+            aware = dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+            return max(0.0, round((now - aware).total_seconds(), 1))
+
+        worker_alive = (
+            AdminJobService._worker_thread is not None
+            and AdminJobService._worker_thread.is_alive()
+        )
+
+        return {
+            'worker_alive': worker_alive,
+            'queue_depth': int(agg.queue_depth or 0),
+            'due_depth': int(agg.due_depth or 0),
+            'retry_queue_depth': int(agg.retry_queue_depth or 0),
+            'oldest_queued_age_seconds': _age_seconds(agg.oldest_queued_at),
+            'oldest_due_age_seconds': _age_seconds(agg.oldest_due_at),
+            'running_count': int(agg.running_count or 0),
+            'terminal_failure_count': int(agg.terminal_failure_count or 0),
+            'recent_terminal_failures': [
+                AdminJobService._to_health_failure_summary(f) for f in recent_failures
+            ],
+            'checked_at': now,
+        }
 
     @staticmethod
     def list_job_runs(

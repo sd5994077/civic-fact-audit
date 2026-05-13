@@ -336,3 +336,65 @@ def test_create_admin_job_routes_profile_scoped_report_for_ag_runoff(monkeypatch
     assert response.status_code == 200
     body = response.json()
     assert body['status'] == 'queued'
+
+
+def test_get_worker_health_requires_admin_auth() -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides.pop(require_admin, None)
+
+    client = TestClient(app)
+    response = client.get('/v1/admin/jobs/worker-health')
+
+    assert response.status_code == 401
+
+
+def test_get_worker_health_success(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[require_admin] = _override_admin
+    now = datetime(2026, 5, 13, tzinfo=timezone.utc)
+    failure_id = uuid.uuid4()
+
+    def _fake_health(_db):  # type: ignore[no-untyped-def]
+        return {
+            'worker_alive': True,
+            'queue_depth': 2,
+            'due_depth': 1,
+            'retry_queue_depth': 1,
+            'oldest_queued_age_seconds': 45.0,
+            'oldest_due_age_seconds': 45.0,
+            'running_count': 0,
+            'terminal_failure_count': 3,
+            'recent_terminal_failures': [
+                {
+                    'id': failure_id,
+                    'job_type': 'extract_claims_batch',
+                    'attempt_count': 3,
+                    'max_attempts': 3,
+                    'last_error_code': 'job_execution_failed',
+                    'finished_at': now,
+                    'created_at': now,
+                }
+            ],
+            'checked_at': now,
+        }
+
+    monkeypatch.setattr('app.api.v1.admin_jobs.AdminJobService.get_worker_health', _fake_health)
+
+    client = TestClient(app)
+    response = client.get('/v1/admin/jobs/worker-health')
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body['worker_alive'] is True
+    assert body['queue_depth'] == 2
+    assert body['due_depth'] == 1
+    assert body['retry_queue_depth'] == 1
+    assert body['oldest_queued_age_seconds'] == 45.0
+    assert body['running_count'] == 0
+    assert body['terminal_failure_count'] == 3
+    assert len(body['recent_terminal_failures']) == 1
+    failure = body['recent_terminal_failures'][0]
+    assert failure['id'] == str(failure_id)
+    assert failure['job_type'] == 'extract_claims_batch'
+    assert failure['attempt_count'] == 3
+    assert failure['last_error_code'] == 'job_execution_failed'

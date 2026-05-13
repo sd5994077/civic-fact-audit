@@ -10,10 +10,12 @@ const API_EVALUATE_BASE_URL = "/api/v1/claims";
 const API_PROPOSALS_URL = "/api/v1/claims/proposals";
 const API_PUBLISH_QUEUE_URL = "/api/v1/claims/publish-queue";
 const API_BULK_SOURCE_ATTACH_URL = "/api/v1/claims/sources/bulk";
+const API_WORKER_HEALTH_URL = "/api/v1/admin/jobs/worker-health";
 const AUTH_STORAGE_KEY = "cfa_admin_token";
 
 let authToken = localStorage.getItem(AUTH_STORAGE_KEY) || "";
 let identity = null;
+let _healthRefreshTimer = null;
 let selectedCandidateId = "";
 let selectedJobId = "";
 let selectedAuditId = "";
@@ -242,6 +244,86 @@ function setActiveTab(tabName) {
     const panel = $(`tab-${name}`);
     if (panel) panel.hidden = name !== tabName;
   });
+
+  if (tabName === "jobs") {
+    startWorkerHealthAutoRefresh();
+  } else {
+    stopWorkerHealthAutoRefresh();
+  }
+}
+
+function _fmtAge(seconds) {
+  if (seconds === null || seconds === undefined) return "\u2014";
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
+  return `${Math.round(seconds / 3600)}h`;
+}
+
+function renderWorkerHealth(data) {
+  const stats = $("worker-health-stats");
+  const failures = $("worker-health-failures");
+  if (!stats || !failures) return;
+
+  const workerEl = $("health-worker-alive");
+  const queueEl = $("health-queue-depth");
+  const dueEl = $("health-due-depth");
+  const retryEl = $("health-retry-depth");
+  const runningEl = $("health-running");
+  const oldestDueEl = $("health-oldest-due");
+  const terminalEl = $("health-terminal-count");
+
+  function _setTile(el, text, tone) {
+    if (!el) return;
+    el.textContent = text;
+    el.className = "health-stat-value" + (tone ? ` is-${tone}` : "");
+  }
+
+  _setTile(workerEl, data.worker_alive ? "alive" : "dead", data.worker_alive ? "ok" : "bad");
+  _setTile(queueEl, String(data.queue_depth), data.queue_depth > 0 ? "warn" : null);
+  _setTile(dueEl, String(data.due_depth), data.due_depth > 0 ? "warn" : null);
+  _setTile(retryEl, String(data.retry_queue_depth), data.retry_queue_depth > 0 ? "warn" : null);
+  _setTile(runningEl, String(data.running_count), null);
+  _setTile(oldestDueEl, _fmtAge(data.oldest_due_age_seconds), data.oldest_due_age_seconds > 300 ? "bad" : data.oldest_due_age_seconds > 60 ? "warn" : null);
+  _setTile(terminalEl, String(data.terminal_failure_count), data.terminal_failure_count > 0 ? "bad" : null);
+
+  stats.hidden = false;
+
+  const list = $("worker-health-failures-list");
+  const recent = data.recent_terminal_failures || [];
+  if (list && recent.length) {
+    list.innerHTML = recent
+      .map((f) => {
+        const age = f.finished_at ? formatDateTime(f.finished_at) : "\u2014";
+        return `<div class="row-btn" style="cursor:default;"><strong>${escapeHtml(f.job_type)}</strong><span class="row-meta">attempts ${escapeHtml(String(f.attempt_count))}/${escapeHtml(String(f.max_attempts))} | ${escapeHtml(f.last_error_code || "\u2014")} | finished ${escapeHtml(age)}</span></div>`;
+      })
+      .join("");
+    failures.hidden = false;
+  } else {
+    failures.hidden = true;
+  }
+}
+
+async function loadWorkerHealth() {
+  try {
+    setStatus("worker-health-status", "Loading...");
+    const data = await apiRequest(API_WORKER_HEALTH_URL);
+    renderWorkerHealth(data);
+    setStatus("worker-health-status", `Updated ${formatDateTime(data.checked_at)}.`, "ok");
+  } catch (err) {
+    setStatus("worker-health-status", parseApiError(err, "Failed to load worker health."), "bad");
+  }
+}
+
+function startWorkerHealthAutoRefresh() {
+  if (_healthRefreshTimer !== null) return;
+  loadWorkerHealth();
+  _healthRefreshTimer = setInterval(loadWorkerHealth, 30000);
+}
+
+function stopWorkerHealthAutoRefresh() {
+  if (_healthRefreshTimer === null) return;
+  clearInterval(_healthRefreshTimer);
+  _healthRefreshTimer = null;
 }
 
 function renderJsonDetail(preId, emptyId, payload) {
@@ -1509,20 +1591,6 @@ async function submitPublishAction(event) {
     setStatus("publish-action-status", "Select a claim and action first.", "bad");
     return;
   }
-  const row = publishQueueRows.find((item) => String(item.claim_id) === String(claimId));
-  if (!row) {
-    setStatus("publish-action-status", "Selected claim is not in the current publish queue. Refresh and reselect.", "bad");
-    renderPublishChecklist(null);
-    return;
-  }
-  if (action === "publish" && row) {
-    const allPassed = buildPublishChecklist(row).every((item) => item.ok);
-    if (!allPassed) {
-      setStatus("publish-action-status", "Publish blocked: complete the pre-publish checklist first.", "bad");
-      renderPublishChecklist(row);
-      return;
-    }
-  }
 
   try {
     setStatus("publish-action-status", "Submitting publish action...");
@@ -1646,6 +1714,7 @@ function bindEvents() {
   $("job-detail-refresh")?.addEventListener("click", async () => {
     if (selectedJobId) await loadJobDetail(selectedJobId);
   });
+  $("worker-health-refresh")?.addEventListener("click", async () => loadWorkerHealth());
 
   $("audit-filter-form")?.addEventListener("submit", async (event) => {
     event.preventDefault();
