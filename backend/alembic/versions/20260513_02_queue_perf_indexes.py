@@ -5,11 +5,11 @@ Revises: 20260513_01
 Create Date: 2026-05-13
 
 Indexes added:
-- candidates(state, office, election_cycle, race_stage) — queue queries all join + filter
-  on these four candidate columns with no composite index previously.
 - claims(fact_checkable) — every queue query filters WHERE fact_checkable = true.
 - claims(fact_checkable, is_published) — publish queue additionally filters on
   is_published; composite covers both patterns.
+
+Note: ix_candidates_race_context already exists from 20260421_01 and is not repeated here.
 """
 
 from typing import Sequence, Union
@@ -23,11 +23,6 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.create_index(
-        'ix_candidates_race_context',
-        'candidates',
-        ['state', 'office', 'election_cycle', 'race_stage'],
-    )
     op.create_index(
         'ix_claims_fact_checkable',
         'claims',
@@ -43,4 +38,3 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index('ix_claims_fact_checkable_published', table_name='claims')
     op.drop_index('ix_claims_fact_checkable', table_name='claims')
-    op.drop_index('ix_candidates_race_context', table_name='candidates')
