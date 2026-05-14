@@ -375,6 +375,9 @@ class EvaluationService:
             )
         db.commit()
         db.refresh(evaluation)
+        from app.services.notification_service import NotificationService
+
+        NotificationService.enqueue(db, event_type='claim_ready_for_publish', claim_id=claim.id)
         return evaluation
 
     @staticmethod

@@ -584,3 +584,21 @@ class PublicClaimRead(BaseModel):
     race_stage: RaceStage | None
     statement_source_url: str
     statement_published_at: datetime
+
+
+class NotificationEventRead(BaseModel):
+    id: uuid.UUID
+    event_type: str
+    claim_id: uuid.UUID | None
+    reviewer_id: uuid.UUID
+    recipient_email: str
+    transport: str
+    status: str
+    error_message: str | None = None
+    sent_at: datetime | None = None
+    created_at: datetime
+
+
+class NotificationTestRequest(BaseModel):
+    reviewer_id: uuid.UUID
+    event_type: str = 'claim_ready_for_publish'

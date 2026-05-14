@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1 import admin_api_keys, admin_audit, admin_jobs, auth, candidates, claims, compare, evaluations, public_claims, scores, statements
+from app.api.v1 import admin_api_keys, admin_audit, admin_jobs, admin_notifications, auth, candidates, claims, compare, evaluations, public_claims, scores, statements
 
 router = APIRouter(prefix='/v1')
 router.include_router(auth.router, tags=['auth'])
@@ -13,4 +13,5 @@ router.include_router(compare.router, tags=['compare'])
 router.include_router(admin_jobs.router, tags=['admin-jobs'])
 router.include_router(admin_audit.router, tags=['admin-audit'])
 router.include_router(admin_api_keys.router, tags=['admin-api-keys'])
+router.include_router(admin_notifications.router, tags=['admin-notifications'])
 router.include_router(public_claims.router, tags=['public'])

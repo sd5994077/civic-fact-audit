@@ -319,6 +319,9 @@ class ProposalService:
         db.add(proposal)
         db.commit()
         db.refresh(proposal)
+        from app.services.notification_service import NotificationService
+
+        NotificationService.enqueue(db, event_type='proposal_needs_triage', claim_id=claim_id)
         return proposal
 
     @staticmethod

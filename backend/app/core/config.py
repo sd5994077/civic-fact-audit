@@ -30,6 +30,15 @@ class Settings(BaseSettings):
     reviewer_bootstrap_role: str = 'admin'
     cors_allowed_origins: list[str] = _DEFAULT_CORS_ORIGINS
 
+    notification_enabled: bool = False
+    notification_from: str = 'notifications@civic-fact-audit.local'
+    smtp_host: str = ''
+    smtp_port: int = 587
+    smtp_user: str = ''
+    smtp_password: str = ''
+    notification_webhook_url: str = ''
+    notification_rate_limit_per_minute: int = 30
+
     model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8', extra='ignore')
 
     @computed_field  # type: ignore[prop-decorator]
