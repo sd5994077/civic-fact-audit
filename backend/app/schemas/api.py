@@ -548,3 +548,39 @@ class WorkerHealthResponse(BaseModel):
     terminal_failure_count: int
     recent_terminal_failures: list[WorkerHealthTerminalFailureSummary] = Field(default_factory=list)
     checked_at: datetime
+
+
+class ApiKeyCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+
+
+class ApiKeyRead(BaseModel):
+    id: uuid.UUID
+    name: str
+    created_by_reviewer_id: str
+    is_active: bool
+    created_at: datetime
+    last_used_at: datetime | None = None
+
+
+class ApiKeyCreatedResponse(ApiKeyRead):
+    plaintext_key: str
+
+
+class PublicClaimRead(BaseModel):
+    claim_id: uuid.UUID
+    claim_text: str
+    issue_tag: str | None
+    published_at: datetime
+    verdict: Verdict | None
+    confidence: float | None
+    rationale: str | None
+    candidate_id: uuid.UUID
+    candidate_name: str
+    candidate_party: str | None
+    candidate_office: str | None
+    candidate_state: str | None
+    election_cycle: int | None
+    race_stage: RaceStage | None
+    statement_source_url: str
+    statement_published_at: datetime

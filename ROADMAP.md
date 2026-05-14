@@ -110,6 +110,6 @@
 
 ## Phase 7 - Production Hardening
 - [x] Rate limiting — per-IP sliding-window limits on all write endpoints (`app/core/rate_limiter.py`); HTTP 429 with `Retry-After` header; no new dependencies; multi-instance upgrade path documented (Redis swap-in). Limits: login 10/min, dual-control token 30/min, evaluate/create-proposal 120/min, publish/unpublish/bulk-attach/proposal-decisions 60/min.
-- [ ] Public read-only API tier (API key authentication for external consumers).
+- [x] Public read-only API tier — `api_keys` table with SHA-256 hashing, `ApiKeyService` for generate/verify/revoke, `require_api_key` dependency for `X-API-Key` header auth, admin endpoints `POST/GET/DELETE /v1/admin/api-keys`, public claims endpoints `GET /v1/public/claims` and `GET /v1/public/claims/{id}` for published claim verdicts, CORS updated for `X-API-Key` header.
 - [x] Full-text claim search — `GET /v1/claims/search?q=` with PostgreSQL GIN tsvector index on `claim_text`, ILIKE fallback on `issue_tag` and `candidate.name`, ts_rank ordering, and optional race-context + status filters (`app/services/search_service.py`, migration `20260513_03`).
 - [ ] Reviewer notification workflow (email or webhook when claims enter review/publish queues or proposals await triage).

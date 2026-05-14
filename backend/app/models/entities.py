@@ -357,3 +357,14 @@ class ClaimProposal(TimestampMixin, Base):
         Index('ix_claim_proposals_status_type_created', 'status', 'proposal_type', 'created_at'),
         Index('ix_claim_proposals_claim_id', 'claim_id'),
     )
+
+
+class ApiKey(TimestampMixin, Base):
+    __tablename__ = 'api_keys'
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    key_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    created_by_reviewer_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    is_active: Mapped[bool] = mapped_column(nullable=False, default=True, server_default=text('true'))
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
