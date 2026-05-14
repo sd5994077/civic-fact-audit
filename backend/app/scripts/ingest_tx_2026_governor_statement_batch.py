@@ -35,7 +35,9 @@ class StatementSeed:
     note: str
 
 
-CAPTURED_AT = datetime.now(timezone.utc)  # TODO: set a fixed capture timestamp
+# TODO: Replace with a fixed ISO datetime string once capture date is known,
+# e.g. datetime(2026, 5, 14, 0, 0, 0, tzinfo=timezone.utc)
+CAPTURED_AT = datetime(2026, 5, 14, 0, 0, 0, tzinfo=timezone.utc)
 
 # TODO: Add one StatementSeed per statement. Remove this example entry.
 SEEDS: list[StatementSeed] = [

@@ -1,5 +1,5 @@
 {
-  "version": "admin_jobs_allowlist_v5_2026_05_12",
+  "version": "admin_jobs_allowlist_v6_2026_05_14",
   "job_types": [
     {
       "job_type": "ingest_candidate_roster",
