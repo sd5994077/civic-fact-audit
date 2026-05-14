@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     reviewer_bootstrap_email: str = 'reviewer@local'
     reviewer_bootstrap_password: str = _DEFAULT_BOOTSTRAP_PASSWORD
     reviewer_bootstrap_name: str = 'Local Reviewer'
+    reviewer_bootstrap_role: str = 'admin'
     cors_allowed_origins: list[str] = _DEFAULT_CORS_ORIGINS
 
     model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8', extra='ignore')

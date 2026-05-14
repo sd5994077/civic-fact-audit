@@ -20,25 +20,26 @@ def main() -> None:
         existing = db.execute(select(ReviewerUser).where(func.lower(ReviewerUser.email) == email)).scalars().first()
         password_hash = AuthService.hash_password(settings.reviewer_bootstrap_password)
 
+        role = settings.reviewer_bootstrap_role
         if existing is None:
             reviewer = ReviewerUser(
                 email=email,
                 display_name=settings.reviewer_bootstrap_name,
                 password_hash=password_hash,
-                role='reviewer',
+                role=role,
                 is_active=True,
             )
             db.add(reviewer)
             db.commit()
-            print(f'Created reviewer user: {email}')
+            print(f'Created {role} user: {email}')
             return
 
         existing.display_name = settings.reviewer_bootstrap_name
         existing.password_hash = password_hash
-        existing.role = 'reviewer'
+        existing.role = role
         existing.is_active = True
         db.commit()
-        print(f'Updated reviewer user: {email}')
+        print(f'Updated {role} user: {email}')
     finally:
         db.close()
 
