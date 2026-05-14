@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 import uuid
 from datetime import datetime, timezone
 from typing import Literal
@@ -24,16 +25,14 @@ NotificationEventType = Literal[
 
 
 class NotificationService:
+    _ADMIN_ONLY_EVENTS = {'claim_ready_for_publish', 'proposal_needs_triage'}
+
     @staticmethod
     def _select_reviewers(
         db: Session, *, event_type: str
     ) -> list[ReviewerUser]:
-        stmt = select(ReviewerUser).where(
-            ReviewerUser.is_active.is_(True),
-        )
-        if event_type == 'claim_ready_for_publish':
-            stmt = stmt.where(ReviewerUser.role == 'admin')
-        elif event_type == 'proposal_needs_triage':
+        stmt = select(ReviewerUser).where(ReviewerUser.is_active.is_(True))
+        if event_type in NotificationService._ADMIN_ONLY_EVENTS:
             stmt = stmt.where(ReviewerUser.role == 'admin')
         return list(db.execute(stmt).scalars().all())
 
@@ -101,10 +100,23 @@ class NotificationService:
             created += 1
         if created:
             db.commit()
-        sent, failed = 0, 0
-        if created:
-            sent, failed = NotificationService.process_pending(db)
-        return created, sent, failed
+            threading.Thread(
+                target=NotificationService._dispatch_background,
+                daemon=True,
+            ).start()
+        return created, 0, 0
+
+    @staticmethod
+    def _dispatch_background() -> None:
+        from app.db.database import SessionLocal
+
+        db = SessionLocal()
+        try:
+            NotificationService.process_pending(db)
+        except Exception:
+            logger.exception('Background notification dispatch failed')
+        finally:
+            db.close()
 
     @staticmethod
     def process_pending(db: Session) -> tuple[int, int]:
@@ -174,4 +186,8 @@ class NotificationService:
         db.add(event)
         db.commit()
         db.refresh(event)
+        threading.Thread(
+            target=NotificationService._dispatch_background,
+            daemon=True,
+        ).start()
         return event

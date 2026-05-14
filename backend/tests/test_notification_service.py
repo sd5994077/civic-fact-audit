@@ -102,13 +102,13 @@ class TestEnqueue:
 
         with patch('app.services.notification_service.settings.notification_enabled', True):
             with patch('app.services.notification_service.settings.notification_webhook_url', ''):
-                with patch.object(NotificationService, 'process_pending', return_value=(1, 0)):
+                with patch.object(NotificationService, '_dispatch_background'):
                     created, sent, failed = NotificationService.enqueue(
                         db, event_type='claim_ready_for_publish', claim_id=uuid.uuid4()
                     )
 
         assert created == 1
-        assert sent == 1
+        assert sent == 0
         assert failed == 0
         db.add.assert_called_once()
         db.commit.assert_called()

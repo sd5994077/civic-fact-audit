@@ -30,6 +30,7 @@ def upgrade() -> None:
         sa.Column('error_message', sa.Text(), nullable=True),
         sa.Column('sent_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
     )
     op.create_index('ix_reviewer_notifications_reviewer_id', 'reviewer_notifications', ['reviewer_id'])
     op.create_index('ix_reviewer_notifications_claim_id', 'reviewer_notifications', ['claim_id'])

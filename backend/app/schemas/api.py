@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, HttpUrl
 
@@ -601,4 +601,8 @@ class NotificationEventRead(BaseModel):
 
 class NotificationTestRequest(BaseModel):
     reviewer_id: uuid.UUID
-    event_type: str = 'claim_ready_for_publish'
+    event_type: Literal[
+        'claim_ready_for_review',
+        'claim_ready_for_publish',
+        'proposal_needs_triage',
+    ] = 'claim_ready_for_publish'
