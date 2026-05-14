@@ -1,6 +1,6 @@
 # 2026 Priority Race List
 
-_Last updated: 2026-05-13. Nonpartisan. No endorsements or voting recommendations._
+_Last updated: 2026-05-14. Nonpartisan. No endorsements or voting recommendations._
 
 ---
 
@@ -89,6 +89,7 @@ Before promoting any Tier 2 race:
 
 ## Maintenance
 
+- **Current next phase:** onboard the next priority race(s) using the existing config-first intake profiles and `/admin/` operator workspace.
 - **After each primary/runoff:** Promote relevant Tier 2 races to Tier 1 once candidates are certified.
 - **Quarterly review:** Re-assess Tier 3 races against polling data and candidate announcement activity.
 - **Profile retirement:** When a general-election profile supersedes a primary profile for the same seat, mark the primary profile as `archived` in the label and note the general profile ID.

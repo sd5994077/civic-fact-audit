@@ -1,6 +1,6 @@
-# Admin Console Implementation Plan (Current-State + Next Step)
+# Admin Console Implementation Plan (Current-State + Handoff)
 
-Purpose: document implemented admin-console behavior and define the next implementation step.
+Purpose: document implemented admin-console behavior and record the handoff to the next roadmap phase.
 
 ## 1) What Exists Today
 
@@ -15,7 +15,7 @@ Purpose: document implemented admin-console behavior and define the next impleme
 
 ## 2) Implemented Baseline Constraints
 
-Current operational constraints to preserve until config-first intake work is completed:
+Current operational constraints preserved by the config-first intake model:
 
 1. Admin job input payload is now validated per job type:
 - `ingest_candidate_roster`: `{ "profile_id": "<profile_id>" }`
@@ -150,44 +150,14 @@ Design rule:
   - existing review/publish/checking workflows still function
   - compare/export behavior unchanged except intended admin gating separation
 
-## 9) Status + Next Step Checklist
+## 9) Status + Handoff
 
-- [x] Candidate model extension approved/implemented.
-- [x] Job-run model approved/implemented.
-- [x] Audit-event model decision approved/implemented.
-- [x] Mutation guard policy approved/implemented (race-context protections + admin gating).
-- [x] Admin endpoint contract approved/implemented.
-- [x] Frontend section priority approved/implemented.
-- [x] Next step: generalize race-specific CLI workflows into config-first admin flows (typed job inputs and per-job validated payload schemas).
-- [x] Power-admin workflow v1 implemented:
-  - source/bundle-first proposal review cues in Proposals tab,
-  - two-person control for verification-source proposal apply,
-  - publish-tab pre-publish checklist gate as final signoff control,
-  - no new signoff state-machine or endpoint family introduced.
-- [x] Power-admin source checklist coverage implemented for both proposal types, including `needs review` mismatch handling for `candidate_source_capture` and `verification_source_suggestion`.
-- [x] Proposal-detail claim context enrichment implemented in `/admin` with current evidence sufficiency snapshot and latest evaluation summary beside proposal payload.
-- [x] Backend/API proposal audit metadata coverage implemented so `proposal_approved` and `proposal_applied` reads persist reviewer-linkage fields (`approval_reviewer_id`, `applying_reviewer_id`, `proposal_type`).
-- [x] Publish checklist hard-block and stale-selection regression coverage implemented for the admin Publish tab.
-- [x] Dual-control v2 first slice implemented:
-  - publish/unpublish endpoints enforce two-person control against latest evaluation approver identity,
-  - `claim_published` / `claim_unpublished` audit events persist reviewer-linkage metadata (`approval_reviewer_id`, `applying_reviewer_id`, `dual_control_enforced`),
-  - `/admin` Publish tab surfaces explicit dual-control denial guidance for deterministic `409 publish_dual_control_required`.
-- [x] Dual-control v2 verification-only expansion implemented:
-  - candidate create/update now enforce reviewer separation (`409 candidate_dual_control_required`) using server-verified dual-control approval tokens,
-  - evaluation overwrite now enforces reviewer separation with first-evaluation exception (`409 evaluation_overwrite_dual_control_required` only when overwriting) using server-verified dual-control approval tokens,
-  - bulk attach now uses object payload (`approval_token` + `items`) and enforces reviewer separation only for verification-origin items (`409 bulk_attach_dual_control_required`),
-  - dual-control reviewer identities are resolved against active reviewer accounts (reviewer/admin roles) before mutation is allowed,
-  - bulk attach emits a deterministic `bulk_operation_id` for traceable batch audit correlation,
-  - candidate/evaluation overwrite/bulk attach audit events persist reviewer-linkage metadata and dual-control flags.
+The admin-console implementation scope is complete:
+- candidate lifecycle/admin job/audit infrastructure is in place,
+- `/admin/` contains the dedicated operator workspace,
+- power-admin and dual-control workflows are implemented,
+- worker-health observability is live,
+- and the admin console no longer has an open implementation backlog.
 
-## 10) Worker-Health Observability (Complete)
-
-- [x] Add worker-health observability for queue lag, retry counts, and terminal failure alerting:
-  - `GET /v1/admin/jobs/worker-health` endpoint (admin-only) returns a `WorkerHealthResponse` with `worker_alive`, `queue_depth`, `due_depth`, `retry_queue_depth`, `oldest_queued_age_seconds`, `oldest_due_age_seconds`, `running_count`, `terminal_failure_count`, and `recent_terminal_failures` (last 10),
-  - aggregate query uses `COUNT(*) FILTER (WHERE ...)` and `MIN() FILTER (WHERE ...)` for a single-pass read,
-  - `worker_alive` reflects live thread state via `AdminJobService._worker_thread.is_alive()`,
-  - `recent_terminal_failures` surface `job_type`, `attempt_count`, `max_attempts`, `last_error_code`, and `finished_at` for each exhausted-retry job,
-  - route registered before `/{job_run_id}` to prevent FastAPI UUID coercion conflict,
-  - admin UI Jobs tab shows a Worker Health panel with colour-coded stat tiles (alive/dead, queue depth, due-now, retrying, running, oldest-due lag, terminal failure count) and a recent-failures list,
-  - panel auto-refreshes every 30 seconds while the Jobs tab is active and stops polling on tab switch,
-  - two API tests (`test_get_worker_health_requires_admin_auth`, `test_get_worker_health_success`) and two service unit tests (`test_health_failure_summary_serializes_job_run_fields`, `test_health_failure_summary_handles_zero_attempts`) added.
+Next roadmap step:
+- use `docs/PRIORITY_RACES_2026.md` and the config-first intake profiles to onboard the next priority race(s) without changing the admin-console architecture.

@@ -6,7 +6,8 @@
       "module": "app.scripts.ingest_tx_2026_senate_roster",
       "allowed_modules": [
         "app.scripts.ingest_tx_2026_senate_roster",
-        "app.scripts.ingest_tx_2026_attorney_general_runoff_roster"
+        "app.scripts.ingest_tx_2026_attorney_general_runoff_roster",
+        "app.scripts.ingest_tx_2026_governor_roster"
       ],
       "supports_dry_run": false,
       "description": "Upsert candidate roster metadata for the selected intake profile.",
@@ -27,7 +28,8 @@
         "app.scripts.ingest_tx_2026_statement_batch_round3",
         "app.scripts.ingest_tx_2026_statement_batch_round4",
         "app.scripts.ingest_tx_2026_attorney_general_runoff_statement_batch",
-        "app.scripts.ingest_tx_2026_attorney_general_runoff_statement_batch_round2"
+        "app.scripts.ingest_tx_2026_attorney_general_runoff_statement_batch_round2",
+        "app.scripts.ingest_tx_2026_governor_statement_batch"
       ],
       "supports_dry_run": false,
       "description": "Ingest statement batch for the selected intake profile and batch key.",
