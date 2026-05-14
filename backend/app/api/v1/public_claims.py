@@ -59,7 +59,7 @@ def _build_public_claims_query(
         .join(Statement, Claim.statement_id == Statement.id)
         .join(Candidate, Statement.candidate_id == Candidate.id)
         .outerjoin(latest_eval, latest_eval.c.claim_id == Claim.id)
-        .where(Claim.is_published.is_(True))
+        .where(Claim.is_published.is_(True), Claim.published_at.is_not(None))
         .order_by(Claim.published_at.desc())
         .limit(limit)
     )

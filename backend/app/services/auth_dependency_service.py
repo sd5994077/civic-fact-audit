@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
 from app.db.database import get_db
+from app.services.api_key_service import ApiKeyService
 from app.services.auth_service import AuthIdentity, AuthService
 
 
@@ -45,8 +46,6 @@ def require_api_key(
     x_api_key: str | None = Header(default=None, alias='X-API-Key'),
     db: Session = Depends(get_db),
 ) -> ApiKeyIdentity:
-    from app.services.api_key_service import ApiKeyService
-
     if not x_api_key:
         raise AppError('api_key_required', 'X-API-Key header is required.', status_code=401)
     api_key = ApiKeyService.verify_key(db, plaintext=x_api_key)

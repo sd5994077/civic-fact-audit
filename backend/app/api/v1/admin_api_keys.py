@@ -65,12 +65,14 @@ def list_api_keys(
         401: {'model': ErrorResponse},
         403: {'model': ErrorResponse},
         404: {'model': ErrorResponse},
+        429: {'model': ErrorResponse},
     },
 )
 def revoke_api_key(
     key_id: uuid.UUID,
     db: Session = Depends(get_db),
     identity: AuthIdentity = Depends(require_admin),
+    _rl: None = Depends(ip_rate_limit(ADMIN_WRITE_LIMIT, endpoint_key='revoke_api_key')),
 ) -> ApiKeyRead:
     _ = identity
     api_key = ApiKeyService.revoke_key(db, key_id=key_id)
