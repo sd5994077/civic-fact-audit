@@ -11,9 +11,11 @@ let proposalQueueRows = [];
 let authToken = localStorage.getItem("cfa_auth_token") || "";
 let compareState = null;
 let compareAbortController = null;
+const DEFAULT_RACE_KEY = "TX|US Senate|2026";
+const DEFAULT_RACE_STAGE = "primary_runoff";
 let compareFilters = {
-  raceKey: "TX|US Senate|2026",
-  raceStage: "",
+  raceKey: DEFAULT_RACE_KEY,
+  raceStage: DEFAULT_RACE_STAGE,
   startDate: "",
   endDate: "",
   issueContains: "",
@@ -170,7 +172,7 @@ function renderTopCards(compare) {
           <div class="candidate-topline">
             <div class="portrait ${portraitTone}">${escapeHtml(initials(candidate.name))}</div>
             <div>
-              <p class="card-kicker">Candidate ${escapeHtml(String.fromCharCode(65 + idx))}</p>
+              <p class="card-kicker">Candidate profile</p>
               <h3>${escapeHtml(candidate.name)}</h3>
               <p class="candidate-role">${escapeHtml(formatCandidateContext(candidate, compare.race))}</p>
             </div>
@@ -370,8 +372,8 @@ async function loadRaceOptions() {
     raceOptions = Array.from(raceMap.values());
     raceStageOptions = stageMap;
     if (raceOptions.length === 0) {
-      raceOptions = [{ key: "TX|US Senate|2026", state: "TX", office: "US Senate", electionCycle: 2026 }];
-      raceStageOptions = new Map([["TX|US Senate|2026", new Set()]]);
+      raceOptions = [{ key: DEFAULT_RACE_KEY, state: "TX", office: "US Senate", electionCycle: 2026 }];
+      raceStageOptions = new Map([[DEFAULT_RACE_KEY, new Set([DEFAULT_RACE_STAGE])]]);
     }
 
     const raceSelect = $("filter-race");
@@ -379,22 +381,28 @@ async function loadRaceOptions() {
       raceSelect.innerHTML = raceOptions
         .map((race) => `<option value="${escapeHtml(race.key)}">${escapeHtml(`${race.state} ${race.office} ${race.electionCycle ?? ""}`.trim())}</option>`)
         .join("");
-      const preferred = raceOptions.find((option) => option.key === compareFilters.raceKey);
+      const preferred = raceOptions.find((option) => option.key === DEFAULT_RACE_KEY);
       raceSelect.value = preferred ? preferred.key : raceOptions[0].key;
       compareFilters.raceKey = raceSelect.value;
     }
 
     refreshStageSelectForRace();
+    const stagesForRace = Array.from(raceStageOptions.get(compareFilters.raceKey) || []);
+    compareFilters.raceStage = stagesForRace.includes(DEFAULT_RACE_STAGE) ? DEFAULT_RACE_STAGE : "";
+    const stageSelect = $("filter-stage");
+    if (stageSelect) {
+      stageSelect.value = compareFilters.raceStage;
+    }
   } catch (err) {
-    raceOptions = [{ key: "TX|US Senate|2026", state: "TX", office: "US Senate", electionCycle: 2026 }];
-    raceStageOptions = new Map([["TX|US Senate|2026", new Set()]]);
+    raceOptions = [{ key: DEFAULT_RACE_KEY, state: "TX", office: "US Senate", electionCycle: 2026 }];
+    raceStageOptions = new Map([[DEFAULT_RACE_KEY, new Set([DEFAULT_RACE_STAGE])]]);
     const raceSelect = $("filter-race");
     if (raceSelect) {
-      raceSelect.innerHTML = `<option value="TX|US Senate|2026">TX US Senate 2026</option>`;
-      raceSelect.value = "TX|US Senate|2026";
+      raceSelect.innerHTML = `<option value="${DEFAULT_RACE_KEY}">TX US Senate 2026</option>`;
+      raceSelect.value = DEFAULT_RACE_KEY;
     }
-    compareFilters.raceKey = "TX|US Senate|2026";
-    compareFilters.raceStage = "";
+    compareFilters.raceKey = DEFAULT_RACE_KEY;
+    compareFilters.raceStage = DEFAULT_RACE_STAGE;
     refreshStageSelectForRace();
   }
 }
@@ -579,7 +587,7 @@ function renderExplanationCards(issue, compare) {
       return `
         <article class="explanation-card ${stanceClass(item.verdict)}">
           <div class="explanation-topline">
-            <span class="stance-label">${escapeHtml(candidate.party || `Candidate ${String.fromCharCode(65 + idx)}`)}</span>
+            <span class="stance-label">${escapeHtml(candidate.party || "Unlisted")}</span>
             <span class="mini-tag ${verdictClass(item.verdict)}">${escapeHtml(formatVerdictLabel(item.verdict))}</span>
           </div>
           <h5>${escapeHtml(candidate.name)}</h5>
@@ -623,6 +631,7 @@ function renderPanel(compare, issueIndex) {
       : compare.race.disclaimer;
   $("panel-stamp").textContent = `As of ${formatAsOf(compare.race.as_of)}`;
   $("panel-side-by-side").style.setProperty("--panel-cols", String(Math.min(candidates.length, 3)));
+  $("panel-explanations").style.setProperty("--panel-cols", String(Math.min(candidates.length, 3)));
   renderExplanationCards(issue, compare);
 
   const html = candidates
@@ -631,7 +640,7 @@ function renderPanel(compare, issueIndex) {
       if (!item) {
         return `
           <article class="stance">
-            <span class="stance-label">${escapeHtml(c.party || `Candidate ${String.fromCharCode(65 + idx)}`)}</span>
+            <span class="stance-label">${escapeHtml(c.party || "Unlisted")}</span>
             <p><strong>${escapeHtml(c.name)}</strong></p>
             <small>${escapeHtml(formatCandidateContext(c, compare.race))}</small>
             <p>No evaluated claim available for this issue in the selected window.</p>
@@ -652,7 +661,7 @@ function renderPanel(compare, issueIndex) {
 
       return `
         <article class="stance ${stanceClass(item.verdict)}">
-          <span class="stance-label">${escapeHtml(c.party || `Candidate ${String.fromCharCode(65 + idx)}`)}</span>
+          <span class="stance-label">${escapeHtml(c.party || "Unlisted")}</span>
           <p><strong>${escapeHtml(c.name)}</strong></p>
           <small>${escapeHtml(formatCandidateContext(c, compare.race))}</small>
           <div class="issue-tags">${verdictPill}${warningPills}</div>
@@ -857,8 +866,8 @@ async function loadCompare() {
 
 function resetCompareFilters() {
   compareFilters = {
-    raceKey: raceOptions[0]?.key || "TX|US Senate|2026",
-    raceStage: "",
+    raceKey: raceOptions.find((option) => option.key === DEFAULT_RACE_KEY)?.key || raceOptions[0]?.key || DEFAULT_RACE_KEY,
+    raceStage: DEFAULT_RACE_STAGE,
     startDate: "",
     endDate: "",
     issueContains: "",
@@ -875,6 +884,7 @@ function resetCompareFilters() {
 
   sync("filter-race", compareFilters.raceKey);
   refreshStageSelectForRace();
+  sync("filter-stage", compareFilters.raceStage);
   sync("filter-start", "");
   sync("filter-end", "");
   sync("filter-issue", "");
