@@ -49,3 +49,41 @@ def test_compare_export_json_includes_disclaimer(monkeypatch) -> None:
     assert response.status_code == 200
     assert 'voting recommendation' in body['disclaimer'].lower()
     app.dependency_overrides.clear()
+
+
+def test_compare_stage_alias_maps_to_race_stage(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def _fake_compare_office_state(**kwargs):  # type: ignore[no-untyped-def]
+        captured.update(kwargs)
+        candidate = CandidatePublicRead(
+            id=uuid.uuid4(),
+            name='Candidate A',
+            party='Independent',
+            office='US Senate',
+            state='TX',
+            election_cycle=2026,
+            race_stage=RaceStage.primary_runoff,
+            created_at=datetime(2026, 5, 1, tzinfo=timezone.utc),
+        )
+        return CompareResponse(
+            race=CompareRaceMeta(
+                state='TX',
+                office='US Senate',
+                election_cycle=2026,
+                race_stage=RaceStage.primary_runoff,
+                as_of=datetime(2026, 5, 1, tzinfo=timezone.utc),
+                disclaimer='This comparison is evidence-traceable, not an endorsement or voting recommendation.',
+            ),
+            candidates=[candidate],
+            issues=[],
+        )
+
+    monkeypatch.setattr('app.api.v1.compare.ComparisonService.compare_office_state', _fake_compare_office_state)
+    app.dependency_overrides[get_db] = _override_db
+
+    client = TestClient(app)
+    response = client.get('/v1/compare?state=TX&office=US%20Senate&election_cycle=2026&stage=primary_runoff')
+    assert response.status_code == 200
+    assert captured['race_stage'] == RaceStage.primary_runoff
+    app.dependency_overrides.clear()

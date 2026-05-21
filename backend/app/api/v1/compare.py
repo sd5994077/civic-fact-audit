@@ -90,6 +90,7 @@ def compare_office_state(
     office: str = Query(min_length=2, max_length=255, description="Office label (e.g. 'US Senate')."),
     election_cycle: int | None = Query(default=None, ge=1900, le=2100, description='Election cycle year (e.g. 2026).'),
     race_stage: RaceStage | None = Query(default=None, description='Election stage (e.g. primary, general).'),
+    stage: RaceStage | None = Query(default=None, description='Alias for race_stage.'),
     limit_issues: int = Query(default=5, ge=1, le=10),
     window_start: datetime | None = Query(default=None),
     window_end: datetime | None = Query(default=None),
@@ -97,12 +98,13 @@ def compare_office_state(
     ) -> CompareResponse:
     computed_window_start = window_start or datetime(1970, 1, 1, tzinfo=timezone.utc)
     computed_window_end = window_end or datetime.now(timezone.utc)
+    selected_stage = race_stage or stage
     return ComparisonService.compare_office_state(
         db=db,
         state=state,
         office=office,
         election_cycle=election_cycle,
-        race_stage=race_stage,
+        race_stage=selected_stage,
         limit_issues=limit_issues,
         window_start=computed_window_start,
         window_end=computed_window_end,
@@ -118,6 +120,7 @@ def compare_office_state_export(
     office: str = Query(min_length=2, max_length=255, description="Office label (e.g. 'US Senate')."),
     election_cycle: int | None = Query(default=None, ge=1900, le=2100, description='Election cycle year (e.g. 2026).'),
     race_stage: RaceStage | None = Query(default=None, description='Election stage (e.g. primary, general).'),
+    stage: RaceStage | None = Query(default=None, description='Alias for race_stage.'),
     issue_contains: str | None = Query(default=None, max_length=128),
     min_confidence: float = Query(default=0, ge=0, le=1),
     min_source_quality: float = Query(default=0, ge=0, le=1),
@@ -136,12 +139,13 @@ def compare_office_state_export(
     except ValueError as exc:
         raise AppError('invalid_filter', str(exc), status_code=422)
 
+    selected_stage = race_stage or stage
     compare_payload = ComparisonService.compare_office_state(
         db=db,
         state=state,
         office=office,
         election_cycle=election_cycle,
-        race_stage=race_stage,
+        race_stage=selected_stage,
         limit_issues=limit_issues,
         window_start=computed_window_start,
         window_end=computed_window_end,
