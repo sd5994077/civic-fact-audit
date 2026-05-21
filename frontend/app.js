@@ -528,7 +528,7 @@ function renderSourceLinks(links) {
       const originClass = link.source_origin === "candidate" ? "source-origin-candidate" : "source-origin-verification";
       const quality = link.quality_score == null ? "Not scored" : String(link.quality_score);
       return `
-        <a class="source-link" href="${escapeHtml(link.url)}" target="_blank" rel="noreferrer">
+        <a class="source-link" href="${escapeHtml(link.url)}" rel="noreferrer">
           <div class="source-badges">
             <span class="source-type ${kindClass}">${escapeHtml(kind)}</span>
             <span class="source-origin ${originClass}">${escapeHtml(origin)}</span>
@@ -649,7 +649,7 @@ function renderPanel(compare, issueIndex) {
       }
 
       const stmtMeta = item.statement_source_url
-        ? `<small>Statement source: <a href="${escapeHtml(item.statement_source_url)}" target="_blank" rel="noreferrer">candidate statement record</a></small>`
+        ? `<small>Statement source: <a href="${escapeHtml(item.statement_source_url)}" rel="noreferrer">candidate statement record</a></small>`
         : "";
 
       const verdictPill = `<span class="mini-tag ${verdictClass(item.verdict)}">${escapeHtml(item.verdict)} | ${Math.round(
