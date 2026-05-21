@@ -79,6 +79,117 @@ def test_evaluate_claim_returns_422_for_moderation_violation(monkeypatch) -> Non
     app.dependency_overrides.clear()
 
 
+def test_workbench_requires_reviewer_or_admin_auth(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides.pop(require_reviewer_or_admin, None)
+    monkeypatch.setattr('app.api.v1.evaluations.ClaimWorkbenchService.list_workbench', lambda *_args, **_kwargs: [])
+
+    client = TestClient(app)
+    response = client.get('/v1/claims/workbench')
+
+    assert response.status_code == 401
+    app.dependency_overrides.clear()
+
+
+def test_workbench_returns_rows_for_reviewer(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[require_reviewer_or_admin] = _override_reviewer
+    claim_id = uuid.uuid4()
+    candidate_id = uuid.uuid4()
+    captured: dict[str, object] = {}
+
+    def _fake_workbench(
+        _db,
+        *,
+        actor_reviewer_id,
+        state=None,
+        office=None,
+        election_cycle=None,
+        race_stage=None,
+        include_non_fact_checkable=False,
+        workbench_state=None,
+        limit=200,
+    ):  # type: ignore[no-untyped-def]
+        captured.update(
+            {
+                'actor_reviewer_id': actor_reviewer_id,
+                'state': state,
+                'office': office,
+                'election_cycle': election_cycle,
+                'race_stage': race_stage,
+                'include_non_fact_checkable': include_non_fact_checkable,
+                'workbench_state': workbench_state,
+                'limit': limit,
+            }
+        )
+        return [
+            {
+                'claim_id': claim_id,
+                'claim_text': 'Claim text',
+                'issue_tag': 'Economy',
+                'status': 'reviewed',
+                'statement_source_url': 'https://example.com/statement',
+                'statement_published_at': '2026-05-11T00:00:00+00:00',
+                'candidate_id': candidate_id,
+                'candidate_name': 'Candidate A',
+                'candidate_party': 'Independent',
+                'candidate_office': 'Governor',
+                'candidate_state': 'TX',
+                'election_cycle': 2026,
+                'race_stage': None,
+                'fact_checkable': True,
+                'is_published': False,
+                'published_at': None,
+                'published_by_reviewer_id': None,
+                'reviewer_state': 'Needs Review',
+                'second_reviewer_action': None,
+                'primary_source_count': 1,
+                'secondary_source_count': 1,
+                'candidate_source_count': 0,
+                'verification_source_count': 2,
+                'verification_primary_count': 1,
+                'verification_secondary_count': 1,
+                'latest_verdict': None,
+                'latest_confidence': None,
+                'latest_rationale': None,
+                'latest_citation_notes': None,
+                'latest_reviewer_id': None,
+                'latest_evaluated_at': None,
+                'publish_gate_passed': False,
+                'publish_gate_failures': ['latest_verdict_must_be_supported_mixed_or_unsupported'],
+                'checklist': [
+                    {
+                        'code': 'fact_checkable',
+                        'label': 'Claim is fact-checkable',
+                        'passed': True,
+                        'blocking': True,
+                    }
+                ],
+            }
+        ]
+
+    monkeypatch.setattr('app.api.v1.evaluations.ClaimWorkbenchService.list_workbench', _fake_workbench)
+
+    client = TestClient(app)
+    response = client.get(
+        '/v1/claims/workbench?state=TX&office=Governor&election_cycle=2026&include_non_fact_checkable=true&workbench_state=Needs%20Review&limit=77'
+    )
+    body = response.json()
+
+    assert response.status_code == 200
+    assert len(body) == 1
+    assert body[0]['claim_id'] == str(claim_id)
+    assert body[0]['reviewer_state'] == 'Needs Review'
+    assert captured['actor_reviewer_id'] == 'reviewer@local'
+    assert captured['state'] == 'TX'
+    assert captured['office'] == 'Governor'
+    assert captured['election_cycle'] == 2026
+    assert captured['include_non_fact_checkable'] is True
+    assert captured['workbench_state'] == 'Needs Review'
+    assert captured['limit'] == 77
+    app.dependency_overrides.clear()
+
+
 def test_evaluate_claim_returns_409_for_overwrite_dual_control_conflict(monkeypatch) -> None:
     app.dependency_overrides[get_db] = _override_db
     app.dependency_overrides[require_reviewer_or_admin] = _override_reviewer

@@ -3,6 +3,11 @@
 This workflow converts provisional fact-check claims into public, cited verdicts.
 Moderation/output boundaries are defined in `docs/MODERATION_POLICY.md`.
 
+## Workbench-first operations
+- Primary operator flow now runs through the `/admin` Claim Workbench tab backed by `GET /v1/claims/workbench`.
+- Reviewer-facing states, checklist semantics, and handoff rules are documented in `docs/CLAIM_WORKBENCH_WORKFLOW.md`.
+- Keep the API-level queues in this document for script/report operations, debugging, and regression verification.
+
 ## 1) Triage proposal queue (new)
 - API endpoints (reviewer/admin):
   - `POST /v1/claims/{claim_id}/proposals`

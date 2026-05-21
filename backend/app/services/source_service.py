@@ -13,7 +13,7 @@ from app.core.source_admission_policy import (
     get_source_admission_policy,
     is_social_url,
 )
-from app.models.entities import Candidate, Claim, Source, Statement
+from app.models.entities import Candidate, Claim, ClaimEvidenceLink, Source, Statement
 from app.models.enums import RaceStage, SourceClass, SourceOrigin
 from app.models.enums import ClaimStatus as ClaimStatusEnum
 from app.schemas.api import AddSourceRequest, BulkSourceAttachItem
@@ -83,10 +83,37 @@ class SourceService:
 
     @staticmethod
     def validate_source_admission(payload: AddSourceRequest) -> None:
+        policy = get_source_admission_policy()
+        is_candidate_social_url = is_social_url(str(payload.url))
+        if is_candidate_social_url and payload.source_origin == SourceOrigin.verification:
+            raise AppError(
+                'source_admission_policy_violation',
+                'Candidate social URLs cannot be added as verification evidence.',
+                status_code=422,
+                details={
+                    'policy_version': policy.version,
+                    'rejection_field': 'source_origin',
+                    'source_origin': payload.source_origin.value,
+                    'allowed_social_domains': list(policy.social_domains),
+                },
+            )
+        if is_candidate_social_url and payload.source_origin == SourceOrigin.candidate and not payload.is_direct_candidate_quote:
+            raise AppError(
+                'source_admission_policy_violation',
+                'Candidate social sources require is_direct_candidate_quote=true when source_origin=candidate.',
+                status_code=422,
+                details={
+                    'policy_version': policy.version,
+                    'rejection_field': 'is_direct_candidate_quote',
+                    'source_origin': payload.source_origin.value,
+                    'is_direct_candidate_quote': payload.is_direct_candidate_quote,
+                    'allowed_social_domains': list(policy.social_domains),
+                },
+            )
+
         matched_rule = SourceService.get_partisan_match(publisher=payload.publisher, url=str(payload.url))
         if matched_rule is None:
             return
-        policy = get_source_admission_policy()
         matched_rule_payload = {
             'field': matched_rule.field,
             'match_type': matched_rule.match_type,
@@ -280,6 +307,103 @@ class SourceService:
             raise
 
         sources = db.scalars(select(Source).where(Source.claim_id == claim.id).order_by(Source.created_at.asc())).all()
+        return list(sources)
+
+    @staticmethod
+    def _get_claim_for_source_mutation(db: Session, claim_id: uuid.UUID, *, lock: bool = False) -> Claim | None:
+        if lock and hasattr(db, 'execute'):
+            query = select(Claim).where(Claim.id == claim_id).with_for_update()
+            return db.execute(query).scalars().first()
+        return db.get(Claim, claim_id)
+
+    @staticmethod
+    def _get_source_for_claim_mutation(
+        db: Session,
+        *,
+        claim_id: uuid.UUID,
+        source_id: uuid.UUID,
+        lock: bool = False,
+    ) -> Source | None:
+        if hasattr(db, 'execute'):
+            query = select(Source).where(Source.id == source_id, Source.claim_id == claim_id)
+            if lock:
+                query = query.with_for_update()
+            return db.execute(query).scalars().first()
+        source = db.get(Source, source_id)
+        if source is None or source.claim_id != claim_id:
+            return None
+        return source
+
+    @staticmethod
+    def list_sources(db: Session, claim_id: uuid.UUID) -> list[Source]:
+        claim = SourceService._get_claim_for_source_mutation(db, claim_id)
+        if claim is None:
+            raise AppError('claim_not_found', 'Claim does not exist.', status_code=404)
+        sources = db.scalars(select(Source).where(Source.claim_id == claim_id).order_by(Source.created_at.asc())).all()
+        return list(sources)
+
+    @staticmethod
+    def delete_source(
+        db: Session,
+        *,
+        claim_id: uuid.UUID,
+        source_id: uuid.UUID,
+        reviewer_id: str,
+    ) -> list[Source]:
+        claim = SourceService._get_claim_for_source_mutation(db, claim_id, lock=True)
+        if claim is None:
+            raise AppError('claim_not_found', 'Claim does not exist.', status_code=404)
+        if bool(getattr(claim, 'is_published', False)):
+            raise AppError(
+                'source_delete_not_allowed_for_published_claim',
+                'Sources cannot be deleted after a claim is published.',
+                status_code=409,
+                details={'claim_id': str(claim_id), 'source_id': str(source_id)},
+            )
+
+        source = SourceService._get_source_for_claim_mutation(
+            db,
+            claim_id=claim_id,
+            source_id=source_id,
+            lock=True,
+        )
+        if source is None:
+            raise AppError('source_not_found', 'Source does not exist for this claim.', status_code=404)
+
+        before_payload = {
+            'id': str(source.id),
+            'claim_id': str(source.claim_id),
+            'url': source.url,
+            'source_class': source.source_class.value,
+            'source_origin': source.source_origin.value,
+            'publisher': source.publisher,
+            'quality_score': source.quality_score,
+        }
+
+        try:
+            evidence_links = db.scalars(select(ClaimEvidenceLink).where(ClaimEvidenceLink.source_id == source.id)).all()
+            for evidence_link in evidence_links:
+                db.delete(evidence_link)
+            db.delete(source)
+            db.flush()
+            EvidenceBundleService.sync_claim_bundle(db, claim_id, commit=False)
+            AdminAuditService.record_event(
+                db,
+                actor_reviewer_id=SourceService._normalize_reviewer_id(reviewer_id) or reviewer_id,
+                action='claim_source_deleted',
+                entity_type='source',
+                entity_id=str(source_id),
+                before_payload=before_payload,
+                after_payload={'deleted': True, 'claim_id': str(claim_id), 'source_id': str(source_id)},
+                metadata={'claim_id': str(claim_id), 'source_id': str(source_id)},
+                commit=False,
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+
+        sources = db.scalars(select(Source).where(Source.claim_id == claim_id).order_by(Source.created_at.asc())).all()
         return list(sources)
 
     @staticmethod

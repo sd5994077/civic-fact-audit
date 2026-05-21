@@ -38,6 +38,7 @@ class _FakeScalarResult:
 class _FakeClaim:
     def __init__(self, id_):
         self.id = id_
+        self.is_published = False
 
 
 class _FakeDbForAddSource:
@@ -68,6 +69,10 @@ class _FakeDbForAddSource:
 
     def scalars(self, *_args, **_kwargs):
         return _FakeScalarResult(self.scalar_values)
+
+    def delete(self, value):
+        if value in self.scalar_values:
+            self.scalar_values.remove(value)
 
 
 def test_build_evidence_queue_query_has_race_filters_and_missing_having() -> None:
@@ -293,6 +298,56 @@ def test_add_source_blocks_partisan_verification_sources() -> None:
         assert exc.code == 'source_admission_policy_violation'
         assert exc.details['rejection_field'] == 'source_origin'
         assert exc.details['matched_rule']['field'] in {'publisher', 'domain'}
+
+
+def test_add_source_blocks_candidate_social_url_for_verification_origin() -> None:
+    claim_id = 'claim-1'
+    db = _FakeDbForAddSource(claim_id=claim_id)
+    payload = type(
+        'Payload',
+        (),
+        {
+            'url': 'https://x.com/examplecandidate/status/123',
+            'source_class': SourceClass.primary,
+            'source_origin': SourceOrigin.verification,
+            'publisher': 'Example Candidate',
+            'quality_score': 0.5,
+            'is_direct_candidate_quote': True,
+        },
+    )()
+
+    try:
+        SourceService.add_source(db, claim_id, payload)
+        assert False, 'Expected source admission policy violation'
+    except AppError as exc:
+        assert exc.code == 'source_admission_policy_violation'
+        assert exc.details['rejection_field'] == 'source_origin'
+        assert 'allowed_social_domains' in exc.details
+
+
+def test_add_source_blocks_candidate_social_url_without_direct_quote_flag() -> None:
+    claim_id = 'claim-1'
+    db = _FakeDbForAddSource(claim_id=claim_id)
+    payload = type(
+        'Payload',
+        (),
+        {
+            'url': 'https://x.com/examplecandidate/status/123',
+            'source_class': SourceClass.primary,
+            'source_origin': SourceOrigin.candidate,
+            'publisher': 'Example Candidate',
+            'quality_score': 0.5,
+            'is_direct_candidate_quote': False,
+        },
+    )()
+
+    try:
+        SourceService.add_source(db, claim_id, payload)
+        assert False, 'Expected source admission policy violation'
+    except AppError as exc:
+        assert exc.code == 'source_admission_policy_violation'
+        assert exc.details['rejection_field'] == 'is_direct_candidate_quote'
+        assert exc.details['source_origin'] == SourceOrigin.candidate.value
 
 
 def test_add_source_blocks_partisan_candidate_without_direct_quote_flag() -> None:
@@ -668,3 +723,105 @@ def test_add_source_preserves_explicit_quality_score(monkeypatch) -> None:
 
     source = db.added[0]
     assert source.quality_score == 0.55
+
+
+def test_delete_source_succeeds_for_unpublished_claim(monkeypatch) -> None:
+    claim_id = uuid.uuid4()
+    source_id = uuid.uuid4()
+    db = _FakeDbForAddSource(claim_id)
+    fake_source = type(
+        'SourceObj',
+        (),
+        {
+            'id': source_id,
+            'claim_id': claim_id,
+            'url': 'https://example.com/source',
+            'source_class': SourceClass.primary,
+            'source_origin': SourceOrigin.verification,
+            'publisher': 'Example',
+            'quality_score': 0.8,
+        },
+    )()
+    db.scalar_values = [fake_source]
+
+    monkeypatch.setattr(
+        SourceService,
+        '_get_claim_for_source_mutation',
+        staticmethod(lambda *_args, **_kwargs: _FakeClaim(claim_id)),
+    )
+    monkeypatch.setattr(
+        SourceService,
+        '_get_source_for_claim_mutation',
+        staticmethod(lambda *_args, **_kwargs: fake_source),
+    )
+    monkeypatch.setattr('app.services.source_service.EvidenceBundleService.sync_claim_bundle', lambda *_args, **_kwargs: None)
+    audit_calls = []
+    monkeypatch.setattr(
+        'app.services.source_service.AdminAuditService.record_event',
+        lambda *_args, **kwargs: audit_calls.append(kwargs),
+    )
+
+    sources = SourceService.delete_source(
+        db,  # type: ignore[arg-type]
+        claim_id=claim_id,
+        source_id=source_id,
+        reviewer_id='reviewer@local',
+    )
+
+    assert db.committed == 1
+    assert sources == []
+    assert len(audit_calls) == 1
+    assert audit_calls[0]['action'] == 'claim_source_deleted'
+
+
+def test_delete_source_blocks_published_claim(monkeypatch) -> None:
+    claim_id = uuid.uuid4()
+    source_id = uuid.uuid4()
+    db = _FakeDbForAddSource(claim_id)
+    published_claim = _FakeClaim(claim_id)
+    published_claim.is_published = True
+    monkeypatch.setattr(
+        SourceService,
+        '_get_claim_for_source_mutation',
+        staticmethod(lambda *_args, **_kwargs: published_claim),
+    )
+
+    try:
+        SourceService.delete_source(
+            db,  # type: ignore[arg-type]
+            claim_id=claim_id,
+            source_id=source_id,
+            reviewer_id='reviewer@local',
+        )
+        assert False, 'Expected published-claim delete to be blocked'
+    except AppError as exc:
+        assert exc.code == 'source_delete_not_allowed_for_published_claim'
+        assert exc.status_code == 409
+
+
+def test_delete_source_raises_not_found_when_source_missing(monkeypatch) -> None:
+    claim_id = uuid.uuid4()
+    source_id = uuid.uuid4()
+    db = _FakeDbForAddSource(claim_id)
+    monkeypatch.setattr(
+        SourceService,
+        '_get_claim_for_source_mutation',
+        staticmethod(lambda *_args, **_kwargs: _FakeClaim(claim_id)),
+    )
+    monkeypatch.setattr(
+        SourceService,
+        '_get_source_for_claim_mutation',
+        staticmethod(lambda *_args, **_kwargs: None),
+    )
+
+    try:
+        SourceService.delete_source(
+            db,  # type: ignore[arg-type]
+            claim_id=claim_id,
+            source_id=source_id,
+            reviewer_id='reviewer@local',
+        )
+        assert False, 'Expected source_not_found'
+    except AppError as exc:
+        assert exc.code == 'source_not_found'
+        assert exc.status_code == 404

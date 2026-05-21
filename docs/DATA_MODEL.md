@@ -50,6 +50,10 @@ Operational API controls:
 - `created_at`
 - `updated_at`
 
+Claim read-performance indexes:
+- `ix_claims_fact_checkable` and `ix_claims_fact_checkable_published` optimize review/publish queue filters.
+- `ix_claims_is_published_published_at` optimizes public API listing/reporting reads that filter published claims and order by publish timestamp.
+
 ## IssueFrame
 - `id` (UUID)
 - `frame_key` (unique stable key, e.g. `tx-2026-us-senate-2020-election-integrity`)

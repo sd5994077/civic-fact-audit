@@ -88,6 +88,58 @@ def add_source(
     )
 
 
+@router.get(
+    '/{claim_id}/sources',
+    response_model=SourceListResponse,
+    responses={
+        401: {'model': ErrorResponse},
+        403: {'model': ErrorResponse},
+        404: {'model': ErrorResponse},
+    },
+)
+def list_sources(
+    claim_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    identity: AuthIdentity = Depends(require_reviewer_or_admin),
+) -> SourceListResponse:
+    _ = identity
+    sources = SourceService.list_sources(db, claim_id)
+    return SourceListResponse(
+        claim_id=claim_id,
+        sources=[SourceRead.model_validate(source, from_attributes=True) for source in sources],
+    )
+
+
+@router.delete(
+    '/{claim_id}/sources/{source_id}',
+    response_model=SourceListResponse,
+    responses={
+        401: {'model': ErrorResponse},
+        403: {'model': ErrorResponse},
+        404: {'model': ErrorResponse},
+        409: {'model': ErrorResponse},
+        429: {'model': ErrorResponse},
+    },
+)
+def delete_source(
+    claim_id: uuid.UUID,
+    source_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    identity: AuthIdentity = Depends(require_reviewer_or_admin),
+    _rl: None = Depends(ip_rate_limit(ADMIN_WRITE_LIMIT, endpoint_key='delete_source')),
+) -> SourceListResponse:
+    sources = SourceService.delete_source(
+        db,
+        claim_id=claim_id,
+        source_id=source_id,
+        reviewer_id=identity.reviewer_id,
+    )
+    return SourceListResponse(
+        claim_id=claim_id,
+        sources=[SourceRead.model_validate(source, from_attributes=True) for source in sources],
+    )
+
+
 @router.post(
     '/sources/bulk',
     response_model=BulkSourceAttachResponse,

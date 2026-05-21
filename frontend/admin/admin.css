@@ -12,6 +12,10 @@
 
 * { box-sizing: border-box; }
 
+.admin-shell [hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -284,6 +288,28 @@ textarea { min-height: 84px; resize: vertical; }
 
 .checklist .bad {
   color: var(--bad);
+}
+
+.stack-form h4 {
+  margin: 0.4rem 0 0.1rem;
+  font-family: Georgia, "Times New Roman", serif;
+  color: var(--ink);
+}
+
+.workbench-state-group {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.02);
+  padding: 0.6rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.workbench-state-heading {
+  margin: 0;
+  font-size: 0.86rem;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+  text-transform: uppercase;
 }
 
 .health-stat-grid {

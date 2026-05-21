@@ -7,10 +7,11 @@ from sqlalchemy.orm import Session
 from app.core.rate_limiter import ADMIN_WRITE_LIMIT, WRITE_STANDARD_LIMIT, ip_rate_limit
 from app.db.database import get_db
 from app.models.enums import RaceStage
-from app.schemas.api import ClaimEvaluationRead, ErrorResponse, EvaluateClaimRequest, ReviewQueueItem
+from app.schemas.api import ClaimEvaluationRead, ClaimWorkbenchItem, ClaimWorkbenchState, ErrorResponse, EvaluateClaimRequest, ReviewQueueItem
 from app.schemas.api import PublishClaimResponse, PublishQueueItem
 from app.services.auth_dependency_service import require_admin, require_reviewer_or_admin
 from app.services.auth_service import AuthIdentity, AuthService
+from app.services.claim_workbench_service import ClaimWorkbenchService
 from app.services.evaluation_service import EvaluationService
 
 router = APIRouter(prefix='/claims')
@@ -76,6 +77,36 @@ def evaluate_claim(
         approval_reviewer_id=approval_reviewer_id,
     )
     return ClaimEvaluationRead.model_validate(evaluation, from_attributes=True)
+
+
+@router.get(
+    '/workbench',
+    response_model=list[ClaimWorkbenchItem],
+    responses={400: {'model': ErrorResponse}, 401: {'model': ErrorResponse}, 403: {'model': ErrorResponse}},
+)
+def claim_workbench(
+    state: str | None = Query(default=None, min_length=2, max_length=32),
+    office: str | None = Query(default=None, min_length=2, max_length=255),
+    election_cycle: int | None = Query(default=None, ge=1900, le=2100),
+    race_stage: RaceStage | None = Query(default=None),
+    workbench_state: ClaimWorkbenchState | None = Query(default=None),
+    include_non_fact_checkable: bool = Query(default=False),
+    limit: int = Query(default=200, ge=1, le=1000),
+    db: Session = Depends(get_db),
+    identity: AuthIdentity = Depends(require_reviewer_or_admin),
+) -> list[ClaimWorkbenchItem]:
+    rows = ClaimWorkbenchService.list_workbench(
+        db,
+        actor_reviewer_id=identity.reviewer_id,
+        state=state,
+        office=office,
+        election_cycle=election_cycle,
+        race_stage=race_stage,
+        include_non_fact_checkable=include_non_fact_checkable,
+        workbench_state=workbench_state,
+        limit=limit,
+    )
+    return [ClaimWorkbenchItem.model_validate(row) for row in rows]
 
 
 @router.get(

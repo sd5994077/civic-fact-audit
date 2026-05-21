@@ -340,6 +340,61 @@ class ReviewQueueItem(BaseModel):
     warnings: list['ParityWarningRead'] = Field(default_factory=list)
 
 
+ClaimWorkbenchState = Literal[
+    'Needs Evidence',
+    'Needs Review',
+    'Needs Second Reviewer',
+    'Ready to Publish',
+    'Published',
+    'Insufficient Evidence',
+]
+ClaimWorkbenchSecondReviewerAction = Literal['publish_handoff', 'overwrite_handoff']
+
+
+class ClaimWorkbenchChecklistItem(BaseModel):
+    code: str
+    label: str
+    passed: bool
+    blocking: bool
+
+
+class ClaimWorkbenchItem(BaseModel):
+    claim_id: uuid.UUID
+    claim_text: str
+    issue_tag: str | None
+    status: ClaimStatus
+    statement_source_url: str
+    statement_published_at: datetime
+    candidate_id: uuid.UUID
+    candidate_name: str
+    candidate_party: str | None
+    candidate_office: str | None
+    candidate_state: str | None
+    election_cycle: int | None
+    race_stage: RaceStage | None
+    fact_checkable: bool
+    is_published: bool
+    published_at: datetime | None = None
+    published_by_reviewer_id: str | None = None
+    reviewer_state: ClaimWorkbenchState
+    second_reviewer_action: ClaimWorkbenchSecondReviewerAction | None = None
+    primary_source_count: int
+    secondary_source_count: int
+    candidate_source_count: int
+    verification_source_count: int
+    verification_primary_count: int
+    verification_secondary_count: int
+    latest_verdict: Verdict | None
+    latest_confidence: float | None
+    latest_rationale: str | None
+    latest_citation_notes: str | None
+    latest_reviewer_id: str | None
+    latest_evaluated_at: datetime | None
+    publish_gate_passed: bool
+    publish_gate_failures: list[str] = Field(default_factory=list)
+    checklist: list[ClaimWorkbenchChecklistItem] = Field(default_factory=list)
+
+
 class CompareRaceMeta(BaseModel):
     state: str
     office: str
@@ -494,6 +549,42 @@ class AdminIntakeProfileRead(BaseModel):
     statement_batches: list[str] = Field(default_factory=list)
 
 
+class AdminIntakeProfileDetailRead(AdminIntakeProfileRead):
+    roster_seed_module: str
+    statement_batch_modules: dict[str, str] = Field(default_factory=dict)
+    admin_job_modules: dict[str, str] = Field(default_factory=dict)
+
+
+class AdminIntakeProfileCreateRequest(BaseModel):
+    approval_token: str | None = Field(default=None, min_length=1, max_length=4096)
+    profile_id: str = Field(min_length=1, max_length=128)
+    label: str = Field(min_length=1, max_length=255)
+    state: str = Field(min_length=1, max_length=32)
+    office: str = Field(min_length=1, max_length=255)
+    election_cycle: int = Field(ge=1900, le=2100)
+    race_stage: RaceStage
+    roster_seed_module: str = Field(min_length=1, max_length=255)
+    statement_batch_modules: dict[str, str] = Field(default_factory=dict)
+    admin_job_modules: dict[str, str] = Field(default_factory=dict)
+
+
+class AdminIntakeProfileUpdateRequest(BaseModel):
+    approval_token: str | None = Field(default=None, min_length=1, max_length=4096)
+    label: str | None = Field(default=None, min_length=1, max_length=255)
+    state: str | None = Field(default=None, min_length=1, max_length=32)
+    office: str | None = Field(default=None, min_length=1, max_length=255)
+    election_cycle: int | None = Field(default=None, ge=1900, le=2100)
+    race_stage: RaceStage | None = None
+    roster_seed_module: str | None = Field(default=None, min_length=1, max_length=255)
+    statement_batch_modules: dict[str, str] | None = None
+    admin_job_modules: dict[str, str] | None = None
+
+
+class AdminIntakeProfilesResponse(BaseModel):
+    version: str
+    profiles: list[AdminIntakeProfileDetailRead] = Field(default_factory=list)
+
+
 class AdminJobMetadataResponse(BaseModel):
     allowlist_version: str
     intake_profile_version: str
@@ -584,6 +675,16 @@ class PublicClaimRead(BaseModel):
     race_stage: RaceStage | None
     statement_source_url: str
     statement_published_at: datetime
+
+
+class PublicRaceSummaryRead(BaseModel):
+    state: str | None
+    office: str | None
+    election_cycle: int | None
+    race_stage: RaceStage | None
+    candidate_count: int
+    published_claim_count: int
+    latest_published_at: datetime | None
 
 
 class NotificationEventRead(BaseModel):

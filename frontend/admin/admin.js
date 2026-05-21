@@ -1,11 +1,14 @@
 const API_AUTH_LOGIN_URL = "/api/v1/auth/login";
 const API_AUTH_ME_URL = "/api/v1/auth/me";
+const API_AUTH_APPROVAL_TOKEN_URL = "/api/v1/auth/dual-control-approval-token";
 const API_CANDIDATES_URL = "/api/v1/candidates";
+const API_ADMIN_INTAKE_PROFILES_URL = "/api/v1/admin/intake-profiles";
 const API_ADMIN_JOBS_URL = "/api/v1/admin/jobs";
 const API_ADMIN_JOB_METADATA_URL = "/api/v1/admin/jobs/metadata";
 const API_ADMIN_AUDIT_URL = "/api/v1/admin/audit-events";
 const API_REVIEW_QUEUE_URL = "/api/v1/claims/review-queue";
 const API_EVIDENCE_QUEUE_URL = "/api/v1/claims/evidence-queue";
+const API_WORKBENCH_URL = "/api/v1/claims/workbench";
 const API_EVALUATE_BASE_URL = "/api/v1/claims";
 const API_PROPOSALS_URL = "/api/v1/claims/proposals";
 const API_PUBLISH_QUEUE_URL = "/api/v1/claims/publish-queue";
@@ -21,13 +24,20 @@ let selectedJobId = "";
 let selectedAuditId = "";
 let selectedReviewClaimId = "";
 let selectedEvidenceClaimId = "";
+let selectedWorkbenchClaimId = "";
 let selectedProposalId = "";
 let selectedPublishClaimId = "";
+let selectedWorkbenchSources = [];
 let reviewQueueRows = [];
 let evidenceQueueRows = [];
+let workbenchRows = [];
 let proposalRows = [];
 let publishQueueRows = [];
+let selectedIntakeProfileId = "";
+let intakeProfilesVersion = "";
+let intakeProfilesRows = [];
 let adminJobMetadata = null;
+const ADMIN_ONLY_TABS = new Set(["candidates", "intake-profiles", "bulk-sources", "jobs", "audit"]);
 
 function $(id) {
   return document.getElementById(id);
@@ -86,6 +96,14 @@ const RACE_STAGE_VALUES = new Set(["primary", "primary_runoff", "general", "spec
 const SOURCE_CLASS_VALUES = new Set(["primary", "secondary"]);
 const SOURCE_ORIGIN_VALUES = new Set(["candidate", "verification"]);
 const SOURCE_PROPOSAL_TYPES = new Set(["candidate_source_capture", "verification_source_suggestion"]);
+const WORKBENCH_STATE_ORDER = [
+  "Needs Evidence",
+  "Needs Review",
+  "Needs Second Reviewer",
+  "Ready to Publish",
+  "Published",
+  "Insufficient Evidence",
+];
 const BULK_ATTACH_EXAMPLE = {
   approval_token: "paste-approval-token-here",
   items: [
@@ -140,6 +158,10 @@ function parsePublishDualControlError(err, action) {
 
 function parseCandidateDualControlError(err, action) {
   return parseDualControlError(err, "candidate_dual_control_required", action || "candidate_update", "Dual-control blocked");
+}
+
+function parseIntakeProfileDualControlError(err, action) {
+  return parseDualControlError(err, "intake_profile_dual_control_required", action || "intake_profile_update", "Dual-control blocked");
 }
 
 function parseEvaluationDualControlError(err) {
@@ -202,10 +224,29 @@ async function apiRequest(path, { method = "GET", body = null, requireAuth = tru
 }
 
 function showWorkspace(show) {
-  const authCard = $("auth-card");
   const workspace = $("admin-workspace");
-  if (authCard) authCard.hidden = show;
   if (workspace) workspace.hidden = !show;
+}
+
+function showSignedInControls(show) {
+  const authForm = $("auth-form");
+  const approvalPanel = $("approval-panel");
+  if (authForm) authForm.hidden = show;
+  if (approvalPanel) approvalPanel.hidden = !show;
+}
+
+function syncWorkbenchPublishVisibility() {
+  const publishForm = $("workbench-publish-form");
+  if (publishForm) {
+    publishForm.hidden = !isAdminIdentity();
+  }
+  if (!isAdminIdentity()) {
+    setStatus("workbench-publish-status", "Publish actions are admin-only. Reviewers can complete evidence and evaluation steps.");
+    return;
+  }
+  if (($("workbench-publish-status")?.textContent || "").includes("admin-only")) {
+    setStatus("workbench-publish-status", "");
+  }
 }
 
 function clearSession() {
@@ -213,26 +254,112 @@ function clearSession() {
   identity = null;
   stopWorkerHealthAutoRefresh();
   localStorage.removeItem(AUTH_STORAGE_KEY);
+  showSignedInControls(false);
   showWorkspace(false);
+  const approvalReviewerId = $("approval-reviewer-id");
+  if (approvalReviewerId) approvalReviewerId.value = "";
+  const approvalExpiresAt = $("approval-expires-at");
+  if (approvalExpiresAt) approvalExpiresAt.value = "";
+  const approvalTokenValue = $("approval-token-value");
+  if (approvalTokenValue) approvalTokenValue.value = "";
+  setTabVisibilityForRole("admin");
+  syncWorkbenchPublishVisibility();
+  setStatus("approval-token-status", "");
   setStatus("auth-status", "Signed out.");
+}
+
+function setTabVisibilityForRole(role) {
+  const isAdmin = role === "admin";
+  const tabs = Array.from(document.querySelectorAll(".tab"));
+  tabs.forEach((tab) => {
+    const tabName = tab.dataset.tab || "";
+    tab.hidden = !isAdmin && ADMIN_ONLY_TABS.has(tabName);
+  });
+}
+
+function getWorkspaceLoadersForRole(role) {
+  const sharedLoaders = [loadWorkbench, loadReviewQueue, loadEvidenceQueue, loadProposalList, loadPublishQueue];
+  if (role === "admin") {
+    return [loadCandidateList, loadIntakeProfiles, ...sharedLoaders, loadJobsList, loadAuditList];
+  }
+  return sharedLoaders;
 }
 
 async function verifyAdminIdentity() {
   if (!authToken) return false;
   const me = await apiRequest(API_AUTH_ME_URL, { requireAuth: true });
-  if (me?.role !== "admin") {
-    clearSession();
-    setStatus("auth-status", "Account is authenticated but not admin. Use an admin role account.", "bad");
-    return false;
-  }
-
   identity = me;
+  setTabVisibilityForRole(me?.role || "reviewer");
+  syncWorkbenchPublishVisibility();
+  showSignedInControls(true);
   const label = $("identity-label");
   const role = $("identity-role");
-  if (label) label.textContent = `Signed in as ${me.reviewer_id}`;
-  if (role) role.textContent = me.role;
+  if (label) label.textContent = `Signed in as ${me?.reviewer_id || "reviewer"}`;
+  if (role) role.textContent = me?.role || "unknown";
   showWorkspace(true);
+  const activeTab = document.querySelector(".tab.is-active");
+  if (!activeTab || activeTab.hidden) {
+    const firstVisibleTab = document.querySelector(".tab:not([hidden])");
+    if (firstVisibleTab) {
+      setActiveTab(firstVisibleTab.dataset.tab || "workbench");
+    }
+  }
   return true;
+}
+
+async function copyApprovalToken() {
+  const token = $("approval-token-value")?.value.trim() || "";
+  if (!token) {
+    setStatus("approval-token-status", "No approval token is available to copy.", "bad");
+    return;
+  }
+
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(token);
+    } else {
+      const field = $("approval-token-value");
+      if (field) {
+        field.select();
+        document.execCommand("copy");
+      }
+    }
+    setStatus("approval-token-status", "Approval token copied.", "ok");
+  } catch (_err) {
+    setStatus("approval-token-status", "Clipboard copy failed. Copy the token manually from the field.", "bad");
+  }
+}
+
+async function requestApprovalToken(event) {
+  event.preventDefault();
+  if (!authToken) {
+    setStatus("approval-token-status", "Sign in first to request an approval token.", "bad");
+    return;
+  }
+
+  const action = "intake_profile_mutation";
+  try {
+    setStatus("approval-token-status", "Requesting approval token...");
+    const response = await apiRequest(API_AUTH_APPROVAL_TOKEN_URL, {
+      method: "POST",
+      body: { action },
+      requireAuth: true,
+    });
+    const reviewerField = $("approval-reviewer-id");
+    if (reviewerField) reviewerField.value = response?.approval_reviewer_id || "";
+    const expiresField = $("approval-expires-at");
+    if (expiresField) expiresField.value = response?.expires_at || "";
+    const token = response?.approval_token || "";
+    const tokenField = $("approval-token-value");
+    if (tokenField) tokenField.value = token;
+    setStatus(
+      "approval-token-status",
+      `Issued for ${response?.approval_reviewer_id || "the signed-in reviewer"}; expires ${formatDateTime(response?.expires_at) || "soon"}.`,
+      "ok"
+    );
+  } catch (err) {
+    setStatus("approval-token-status", parseApiError(err, "Failed to request approval token."), "bad");
+  }
 }
 
 function setActiveTab(tabName) {
@@ -241,7 +368,7 @@ function setActiveTab(tabName) {
     button.classList.toggle("is-active", isActive);
   });
 
-  ["candidates", "review", "evidence", "bulk-sources", "proposals", "publish", "jobs", "audit"].forEach((name) => {
+  ["candidates", "intake-profiles", "workbench", "review", "evidence", "bulk-sources", "proposals", "publish", "jobs", "audit"].forEach((name) => {
     const panel = $(`tab-${name}`);
     if (panel) panel.hidden = name !== tabName;
   });
@@ -250,6 +377,10 @@ function setActiveTab(tabName) {
     startWorkerHealthAutoRefresh();
   } else {
     stopWorkerHealthAutoRefresh();
+  }
+
+  if (tabName === "workbench") {
+    syncWorkbenchPublishVisibility();
   }
 }
 
@@ -498,6 +629,233 @@ async function createCandidate(event) {
   } catch (err) {
     const dualControlMessage = parseCandidateDualControlError(err, "candidate_create");
     setStatus("candidate-create-status", dualControlMessage || parseApiError(err, "Failed to create candidate."), "bad");
+  }
+}
+
+function formatIntakeProfileBatchList(profile) {
+  const batches = Array.isArray(profile?.statement_batches) ? profile.statement_batches : [];
+  return batches.length ? batches.join(", ") : "none";
+}
+
+function formatJsonObject(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return "{}";
+  return JSON.stringify(value, null, 2);
+}
+
+function parseJsonObjectField(text, fieldName) {
+  const raw = String(text || "").trim();
+  if (!raw) return { value: {}, error: null };
+  const parsed = parseJsonTextarea(raw, fieldName);
+  if (parsed.error) return parsed;
+  if (!parsed.value || typeof parsed.value !== "object" || Array.isArray(parsed.value)) {
+    return { value: null, error: `${fieldName} must be a JSON object.` };
+  }
+  return { value: parsed.value, error: null };
+}
+
+function renderIntakeProfileList(rows) {
+  const list = $("intake-profiles-list");
+  if (!list) return;
+  if (!rows.length) {
+    list.innerHTML = `<p class="status-text">No race profiles found.</p>`;
+    return;
+  }
+
+  list.innerHTML = rows
+    .map((row) => {
+      const selected = row.profile_id === selectedIntakeProfileId ? "is-selected" : "";
+      return `
+        <button type="button" class="row-btn ${selected}" data-intake-profile-id="${escapeHtml(row.profile_id)}">
+          <strong>${escapeHtml(row.label)}</strong>
+          <span class="row-meta">${escapeHtml(row.profile_id)} | ${escapeHtml(row.state)} | ${escapeHtml(row.office)} | ${escapeHtml(row.race_stage)}</span>
+          <span class="row-meta">statement batches: ${escapeHtml(formatIntakeProfileBatchList(row))}</span>
+        </button>
+      `;
+    })
+    .join("");
+
+  list.querySelectorAll(".row-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.intakeProfileId;
+      if (!id) return;
+      selectedIntakeProfileId = id;
+      populateIntakeProfileForm(intakeProfilesRows.find((row) => row.profile_id === id) || null);
+      renderIntakeProfileList(rows);
+      setStatus("intake-profiles-status", `Selected ${id}.`, "ok");
+    });
+  });
+}
+
+function clearIntakeProfileForm() {
+  [
+    "intake-profile-id",
+    "intake-profile-approval-token",
+    "intake-profile-label",
+    "intake-profile-state",
+    "intake-profile-office",
+    "intake-profile-cycle",
+    "intake-profile-stage",
+    "intake-profile-roster-module",
+    "intake-profile-statement-batches",
+    "intake-profile-admin-jobs",
+  ].forEach((id) => {
+    const el = $(id);
+    if (!el) return;
+    if (el.type === "checkbox") {
+      el.checked = false;
+    } else {
+      el.value = "";
+    }
+  });
+}
+
+function populateIntakeProfileForm(profile) {
+  if (!profile) {
+    clearIntakeProfileForm();
+    return;
+  }
+  $("intake-profile-id").value = profile.profile_id || "";
+  $("intake-profile-approval-token").value = "";
+  $("intake-profile-label").value = profile.label || "";
+  $("intake-profile-state").value = profile.state || "";
+  $("intake-profile-office").value = profile.office || "";
+  $("intake-profile-cycle").value = profile.election_cycle ?? "";
+  $("intake-profile-stage").value = profile.race_stage || "";
+  $("intake-profile-roster-module").value = profile.roster_seed_module || "";
+  $("intake-profile-statement-batches").value = formatJsonObject(profile.statement_batch_modules);
+  $("intake-profile-admin-jobs").value = formatJsonObject(profile.admin_job_modules);
+}
+
+async function loadIntakeProfiles() {
+  try {
+    setStatus("intake-profiles-status", "Loading race profiles...");
+    const response = await apiRequest(API_ADMIN_INTAKE_PROFILES_URL);
+    intakeProfilesVersion = response?.version || "";
+    intakeProfilesRows = Array.isArray(response?.profiles) ? response.profiles : [];
+    setStatus(
+      "intake-profiles-version",
+      intakeProfilesVersion ? `Config version: ${intakeProfilesVersion}` : "Config version unavailable.",
+      intakeProfilesVersion ? "ok" : ""
+    );
+    renderIntakeProfileList(intakeProfilesRows);
+    if (intakeProfilesRows.length) {
+      const selected = intakeProfilesRows.find((row) => row.profile_id === selectedIntakeProfileId) || intakeProfilesRows[0];
+      selectedIntakeProfileId = selected.profile_id;
+      populateIntakeProfileForm(selected);
+      setStatus("intake-profiles-status", `Loaded ${intakeProfilesRows.length} race profiles.`, "ok");
+    } else {
+      selectedIntakeProfileId = "";
+      clearIntakeProfileForm();
+      setStatus("intake-profiles-status", "No race profiles found.", "bad");
+    }
+  } catch (err) {
+    intakeProfilesRows = [];
+    selectedIntakeProfileId = "";
+    renderIntakeProfileList([]);
+    clearIntakeProfileForm();
+    setStatus("intake-profiles-status", parseApiError(err, "Failed to load race profiles."), "bad");
+  }
+}
+
+function buildIntakeProfilePayload(prefix, { includeProfileId = false } = {}) {
+  const payload = {
+    approval_token: normalizeOptionalText($(`${prefix}-approval-token`).value) || "",
+    label: normalizeOptionalText($(`${prefix}-label`).value) || "",
+    state: normalizeOptionalText($(`${prefix}-state`).value) || "",
+    office: normalizeOptionalText($(`${prefix}-office`).value) || "",
+    election_cycle: normalizeOptionalInt($(`${prefix}-cycle`).value),
+    race_stage: normalizeOptionalText($(`${prefix}-stage`).value) || "",
+    roster_seed_module: normalizeOptionalText($(`${prefix}-roster-module`).value) || "",
+  };
+  if (includeProfileId) {
+    payload.profile_id = normalizeOptionalText($(`${prefix}-id`).value) || "";
+  }
+
+  const statementBatches = parseJsonObjectField($(`${prefix}-statement-batches`).value, "Statement Batch Modules");
+  if (statementBatches.error) return { payload: null, error: statementBatches.error };
+  const adminJobs = parseJsonObjectField($(`${prefix}-admin-jobs`).value, "Admin Job Modules");
+  if (adminJobs.error) return { payload: null, error: adminJobs.error };
+
+  payload.statement_batch_modules = statementBatches.value;
+  payload.admin_job_modules = adminJobs.value;
+  return { payload, error: null };
+}
+
+async function saveIntakeProfile(event) {
+  event.preventDefault();
+  if (!selectedIntakeProfileId) {
+    setStatus("intake-profile-edit-status", "Select a race profile first.", "bad");
+    return;
+  }
+
+  const parsed = buildIntakeProfilePayload("intake-profile");
+  if (parsed.error) {
+    setStatus("intake-profile-edit-status", parsed.error, "bad");
+    return;
+  }
+  if (!parsed.payload.approval_token) {
+    setStatus("intake-profile-edit-status", "Approval token is required.", "bad");
+    return;
+  }
+  const requiredFields = ["label", "state", "office", "race_stage", "roster_seed_module"];
+  for (const field of requiredFields) {
+    if (!parsed.payload[field]) {
+      setStatus("intake-profile-edit-status", `${field.replace(/_/g, " ")} cannot be empty.`, "bad");
+      return;
+    }
+  }
+  if (!parsed.payload.election_cycle) {
+    setStatus("intake-profile-edit-status", "Election cycle cannot be empty.", "bad");
+    return;
+  }
+
+  try {
+    setStatus("intake-profile-edit-status", "Saving race profile...");
+    const response = await apiRequest(`${API_ADMIN_INTAKE_PROFILES_URL}/${encodeURIComponent(selectedIntakeProfileId)}`, {
+      method: "PATCH",
+      body: parsed.payload,
+    });
+    intakeProfilesVersion = response?.version || intakeProfilesVersion;
+    intakeProfilesRows = Array.isArray(response?.profiles) ? response.profiles : intakeProfilesRows;
+    const selected = intakeProfilesRows.find((row) => row.profile_id === selectedIntakeProfileId) || null;
+    populateIntakeProfileForm(selected);
+    renderIntakeProfileList(intakeProfilesRows);
+    setStatus("intake-profile-edit-status", "Race profile saved.", "ok");
+    await loadAdminJobMetadata();
+  } catch (err) {
+    const dualControlMessage = parseIntakeProfileDualControlError(err, "intake_profile_update");
+    setStatus("intake-profile-edit-status", dualControlMessage || parseApiError(err, "Failed to save race profile."), "bad");
+  }
+}
+
+async function createIntakeProfile(event) {
+  event.preventDefault();
+  const parsed = buildIntakeProfilePayload("intake-profile-create", { includeProfileId: true });
+  if (parsed.error) {
+    setStatus("intake-profile-create-status", parsed.error, "bad");
+    return;
+  }
+  if (!parsed.payload.approval_token) {
+    setStatus("intake-profile-create-status", "Approval token is required.", "bad");
+    return;
+  }
+
+  try {
+    setStatus("intake-profile-create-status", "Creating race profile...");
+    const response = await apiRequest(API_ADMIN_INTAKE_PROFILES_URL, {
+      method: "POST",
+      body: parsed.payload,
+    });
+    intakeProfilesVersion = response?.version || intakeProfilesVersion;
+    intakeProfilesRows = Array.isArray(response?.profiles) ? response.profiles : intakeProfilesRows;
+    selectedIntakeProfileId = parsed.payload.profile_id;
+    populateIntakeProfileForm(intakeProfilesRows.find((row) => row.profile_id === selectedIntakeProfileId) || null);
+    renderIntakeProfileList(intakeProfilesRows);
+    setStatus("intake-profile-create-status", `Created ${parsed.payload.profile_id}.`, "ok");
+    await loadAdminJobMetadata();
+  } catch (err) {
+    const dualControlMessage = parseIntakeProfileDualControlError(err, "intake_profile_create");
+    setStatus("intake-profile-create-status", dualControlMessage || parseApiError(err, "Failed to create race profile."), "bad");
   }
 }
 
@@ -899,6 +1257,414 @@ async function loadAuditDetail(eventId) {
   } catch (err) {
     renderJsonDetail("audit-detail-json", "audit-detail-empty", null);
     setStatus("audit-list-status", parseApiError(err, "Failed to load audit detail."), "bad");
+  }
+}
+
+function _workbenchRowTone(row) {
+  if (row.is_published) return "row-tone-ok";
+  if (row.reviewer_state === "Insufficient Evidence") return "row-tone-low";
+  if (row.publish_gate_passed) return "row-tone-ok";
+  if (row.reviewer_state === "Needs Evidence") return "row-tone-bad";
+  return "row-tone-mixed";
+}
+
+function renderWorkbenchList(rows) {
+  const list = $("workbench-list");
+  if (!list) return;
+  if (!rows.length) {
+    list.innerHTML = `<p class="status-text">No Workbench claims matched the current filters.</p>`;
+    return;
+  }
+
+  const grouped = new Map();
+  WORKBENCH_STATE_ORDER.forEach((state) => grouped.set(state, []));
+  rows.forEach((row) => {
+    const state = String(row.reviewer_state || "");
+    if (!grouped.has(state)) grouped.set(state, []);
+    grouped.get(state).push(row);
+  });
+
+  list.innerHTML = Array.from(grouped.entries())
+    .filter((entry) => entry[1].length > 0)
+    .map(([state, stateRows]) => {
+      const items = stateRows
+        .map((row) => {
+          const selected = String(row.claim_id) === selectedWorkbenchClaimId ? "is-selected" : "";
+          const verdict = row.latest_verdict || "none";
+          const tone = _workbenchRowTone(row);
+          return `
+            <button type="button" class="row-btn ${selected}" data-claim-id="${escapeHtml(row.claim_id)}">
+              <strong>${escapeHtml(row.issue_tag || "Unlabeled issue")}</strong>
+              <span class="row-meta ${tone}">${escapeHtml(row.candidate_name)} | ${escapeHtml(verdict)} | claim ${escapeHtml(shortId(row.claim_id))}</span>
+              <span class="row-meta">Verification P/S ${escapeHtml(String(row.verification_primary_count))}/${escapeHtml(String(row.verification_secondary_count))} | publish gate ${row.publish_gate_passed ? "passed" : "blocked"}</span>
+            </button>
+          `;
+        })
+        .join("");
+      return `<section class="workbench-state-group"><h4 class="workbench-state-heading">${escapeHtml(state)} (${stateRows.length})</h4>${items}</section>`;
+    })
+    .join("");
+
+  list.querySelectorAll(".row-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const claimId = btn.dataset.claimId;
+      if (!claimId) return;
+      selectWorkbenchClaim(claimId);
+      renderWorkbenchList(rows);
+    });
+  });
+}
+
+function renderWorkbenchChecklist(row) {
+  const itemsEl = $("workbench-checklist-items");
+  if (!itemsEl) return;
+  const checklist = Array.isArray(row?.checklist) ? row.checklist : [];
+  itemsEl.innerHTML = checklist
+    .map((item) => {
+      const state = item.passed ? "pass" : item.blocking ? "blocked" : "informational";
+      const tone = item.passed ? "ok" : item.blocking ? "bad" : "";
+      return `<li class="${tone}">${escapeHtml(state)}: ${escapeHtml(item.label)} (${escapeHtml(item.code)})</li>`;
+    })
+    .join("");
+}
+
+function renderWorkbenchRawFailures(row) {
+  const show = !!$("workbench-show-raw-failures")?.checked;
+  const pre = $("workbench-raw-failures");
+  if (!pre) return;
+  if (!show) {
+    pre.hidden = true;
+    pre.textContent = "";
+    return;
+  }
+  pre.hidden = false;
+  pre.textContent = JSON.stringify(row?.publish_gate_failures || [], null, 2);
+}
+
+function _workbenchHandoffGuidance(row) {
+  if (!row) return "";
+  if (row.second_reviewer_action === "publish_handoff") {
+    return "Publish handoff required: a different reviewer/admin must execute publish/unpublish than the reviewer tied to approval.";
+  }
+  if (row.second_reviewer_action === "overwrite_handoff") {
+    return "Evaluation overwrite path requires a second reviewer/admin approval token.";
+  }
+  return "No second-reviewer handoff is currently indicated.";
+}
+
+function isAdminIdentity() {
+  return identity?.role === "admin";
+}
+
+function renderWorkbenchDetail(row) {
+  const detail = $("workbench-detail");
+  const empty = $("workbench-detail-empty");
+  if (!detail || !empty) return;
+  if (!row) {
+    detail.hidden = true;
+    empty.hidden = false;
+    selectedWorkbenchSources = [];
+    renderWorkbenchSourcesList([]);
+    setStatus("workbench-sources-list-status", "");
+    return;
+  }
+
+  detail.hidden = false;
+  empty.hidden = true;
+  setStatus(
+    "workbench-context-status",
+    `${row.candidate_name} (${row.candidate_party || "Unlisted"}) | ${row.candidate_office || "Unspecified office"} | ${row.reviewer_state}`
+  );
+  setStatus("workbench-claim-text", row.claim_text || "");
+  const statementLink = $("workbench-statement-link");
+  if (statementLink) {
+    statementLink.href = row.statement_source_url || "#";
+    statementLink.textContent = row.statement_source_url || "open source link";
+  }
+  setStatus(
+    "workbench-evidence-summary",
+    `Verification sources: ${row.verification_source_count} total (${row.verification_primary_count} primary / ${row.verification_secondary_count} secondary).`
+  );
+  const insufficientLabel = row.reviewer_state === "Insufficient Evidence"
+    ? "Review complete: insufficient evidence verdict is recorded and this claim is not publish-eligible."
+    : `Current reviewer-facing state: ${row.reviewer_state}.`;
+  setStatus("workbench-outcome-status", insufficientLabel, row.reviewer_state === "Insufficient Evidence" ? "ok" : "");
+  setStatus("workbench-handoff-status", _workbenchHandoffGuidance(row));
+
+  $("workbench-source-claim-id").value = String(row.claim_id);
+  $("workbench-review-claim-id").value = String(row.claim_id);
+  $("workbench-publish-claim-id").value = String(row.claim_id);
+  $("workbench-publish-action").value = row.is_published ? "unpublish" : "publish";
+  syncWorkbenchPublishVisibility();
+
+  renderWorkbenchChecklist(row);
+  renderWorkbenchRawFailures(row);
+  void loadWorkbenchSources(String(row.claim_id));
+}
+
+function selectWorkbenchClaim(claimId) {
+  const row = workbenchRows.find((item) => String(item.claim_id) === String(claimId));
+  if (!row) return;
+  selectedWorkbenchClaimId = String(claimId);
+  renderWorkbenchDetail(row);
+}
+
+async function loadWorkbench() {
+  try {
+    setStatus("workbench-list-status", "Loading Workbench...");
+    const includeNonFactCheckable = !!$("workbench-filter-include-non-fact-checkable")?.checked;
+    const workbenchState = normalizeOptionalText($("workbench-filter-reviewer-state")?.value);
+    const limit = normalizeOptionalInt($("workbench-filter-limit")?.value) || 200;
+    const params = buildRaceFilterParams("workbench-filter", {
+      include_non_fact_checkable: includeNonFactCheckable,
+      workbench_state: workbenchState,
+      limit,
+    });
+    const rows = await apiRequest(`${API_WORKBENCH_URL}?${params.toString()}`);
+    workbenchRows = rows || [];
+    renderWorkbenchList(workbenchRows);
+    if (workbenchRows.length) {
+      const keepSelected = workbenchRows.some((row) => String(row.claim_id) === selectedWorkbenchClaimId);
+      selectedWorkbenchClaimId = keepSelected ? selectedWorkbenchClaimId : String(workbenchRows[0].claim_id);
+      selectWorkbenchClaim(selectedWorkbenchClaimId);
+      renderWorkbenchList(workbenchRows);
+    } else {
+      selectedWorkbenchClaimId = "";
+      renderWorkbenchDetail(null);
+    }
+    setStatus("workbench-list-status", `Loaded ${workbenchRows.length} Workbench claims.`, "ok");
+  } catch (err) {
+    workbenchRows = [];
+    selectedWorkbenchClaimId = "";
+    renderWorkbenchList([]);
+    renderWorkbenchDetail(null);
+    setStatus("workbench-list-status", parseApiError(err, "Failed to load Workbench."), "bad");
+  } finally {
+    syncWorkbenchPublishVisibility();
+  }
+}
+
+function parseSourceAdmissionError(err) {
+  const code = err?.payload?.error?.code;
+  if (code !== "source_admission_policy_violation") return null;
+  const details = err?.payload?.error?.details || {};
+  const rejectionField = details.rejection_field ? `field ${details.rejection_field}` : "source admission policy";
+  return `Source rejected by admission policy (${rejectionField}).`;
+}
+
+function parseSourceDeleteError(err) {
+  const code = err?.payload?.error?.code;
+  if (code === "source_delete_not_allowed_for_published_claim") {
+    return "Source removal is blocked: published claims cannot have sources deleted.";
+  }
+  if (code === "source_not_found") {
+    return "Source not found for this claim. Refresh and retry.";
+  }
+  return null;
+}
+
+function renderWorkbenchSourcesList(sources) {
+  const list = $("workbench-sources-list");
+  if (!list) return;
+  if (!sources.length) {
+    list.innerHTML = `<p class="status-text">No attached sources for this claim.</p>`;
+    return;
+  }
+
+  list.innerHTML = sources
+    .map((source) => {
+      const sourceId = String(source.id || "");
+      const sourceClass = source.source_class || "unknown";
+      const sourceOrigin = source.source_origin || "unknown";
+      const publisher = source.publisher || "Unspecified publisher";
+      const url = source.url || "";
+      return `
+        <div class="row-btn" style="cursor:default;">
+          <strong>${escapeHtml(sourceClass)} / ${escapeHtml(sourceOrigin)}</strong>
+          <span class="row-meta">publisher: ${escapeHtml(publisher)} | source ${escapeHtml(shortId(sourceId))}</span>
+          <span class="row-meta"><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a></span>
+          <div class="action-row" style="margin-top:0.5rem;">
+            <button type="button" class="ghost-btn workbench-source-remove" data-source-id="${escapeHtml(sourceId)}">Remove</button>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+
+  list.querySelectorAll(".workbench-source-remove").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const sourceId = btn.dataset.sourceId;
+      if (!sourceId || !isUuid(sourceId)) return;
+      await removeWorkbenchSource(sourceId);
+    });
+  });
+}
+
+async function loadWorkbenchSources(claimId) {
+  if (!claimId || !isUuid(claimId)) {
+    selectedWorkbenchSources = [];
+    renderWorkbenchSourcesList([]);
+    setStatus("workbench-sources-list-status", "");
+    return;
+  }
+
+  try {
+    setStatus("workbench-sources-list-status", "Loading attached sources...");
+    const payload = await apiRequest(`${API_EVALUATE_BASE_URL}/${encodeURIComponent(claimId)}/sources`);
+    const selectedClaimId = String($("workbench-source-claim-id")?.value || "");
+    if (String(claimId) !== selectedClaimId) {
+      return;
+    }
+    selectedWorkbenchSources = payload?.sources || [];
+    renderWorkbenchSourcesList(selectedWorkbenchSources);
+    setStatus("workbench-sources-list-status", `Loaded ${selectedWorkbenchSources.length} sources.`, "ok");
+  } catch (err) {
+    selectedWorkbenchSources = [];
+    renderWorkbenchSourcesList([]);
+    setStatus("workbench-sources-list-status", parseApiError(err, "Failed to load sources."), "bad");
+  }
+}
+
+async function removeWorkbenchSource(sourceId) {
+  const claimId = $("workbench-source-claim-id")?.value?.trim();
+  if (!claimId || !isUuid(claimId)) {
+    setStatus("workbench-sources-list-status", "Select a valid claim first.", "bad");
+    return;
+  }
+
+  try {
+    setStatus("workbench-sources-list-status", "Removing source...");
+    const payload = await apiRequest(
+      `${API_EVALUATE_BASE_URL}/${encodeURIComponent(claimId)}/sources/${encodeURIComponent(sourceId)}`,
+      { method: "DELETE" }
+    );
+    selectedWorkbenchSources = payload?.sources || [];
+    renderWorkbenchSourcesList(selectedWorkbenchSources);
+    setStatus("workbench-sources-list-status", "Source removed.", "ok");
+    await Promise.all([loadWorkbench(), loadEvidenceQueue()]);
+  } catch (err) {
+    const deleteMessage = parseSourceDeleteError(err);
+    setStatus("workbench-sources-list-status", deleteMessage || parseApiError(err, "Source removal failed."), "bad");
+  }
+}
+
+async function submitWorkbenchSourceAttach(event) {
+  event.preventDefault();
+  const claimId = $("workbench-source-claim-id")?.value?.trim();
+  const url = $("workbench-source-url")?.value?.trim();
+  const sourceClass = $("workbench-source-class")?.value;
+  const sourceOrigin = $("workbench-source-origin")?.value;
+  const publisher = $("workbench-source-publisher")?.value?.trim();
+  const isDirectQuote = !!$("workbench-source-direct-quote")?.checked;
+
+  if (!claimId || !isUuid(claimId)) {
+    setStatus("workbench-source-status", "Select a valid claim first.", "bad");
+    return;
+  }
+  if (!url || !isHttpUrl(url)) {
+    setStatus("workbench-source-status", "A valid source URL is required.", "bad");
+    return;
+  }
+  if (!SOURCE_CLASS_VALUES.has(sourceClass)) {
+    setStatus("workbench-source-status", "Source class must be primary or secondary.", "bad");
+    return;
+  }
+  if (!SOURCE_ORIGIN_VALUES.has(sourceOrigin)) {
+    setStatus("workbench-source-status", "Source origin must be candidate or verification.", "bad");
+    return;
+  }
+
+  try {
+    setStatus("workbench-source-status", "Attaching source...");
+    await apiRequest(`${API_EVALUATE_BASE_URL}/${encodeURIComponent(claimId)}/sources`, {
+      method: "POST",
+      body: {
+        url,
+        source_class: sourceClass,
+        source_origin: sourceOrigin,
+        publisher: publisher || null,
+        is_direct_candidate_quote: isDirectQuote,
+      },
+    });
+    setStatus("workbench-source-status", "Source attached.", "ok");
+    await Promise.all([loadWorkbench(), loadEvidenceQueue(), loadWorkbenchSources(claimId)]);
+  } catch (err) {
+    const policyMessage = parseSourceAdmissionError(err);
+    setStatus("workbench-source-status", policyMessage || parseApiError(err, "Source attach failed."), "bad");
+  }
+}
+
+async function submitWorkbenchReview(event) {
+  event.preventDefault();
+  const claimId = $("workbench-review-claim-id")?.value?.trim();
+  const verdict = $("workbench-review-verdict")?.value;
+  const confidenceRaw = $("workbench-review-confidence")?.value;
+  const rationale = $("workbench-review-rationale")?.value?.trim();
+  const citationNotes = $("workbench-review-citation-notes")?.value?.trim();
+  const approvalToken = $("workbench-review-approval-token")?.value?.trim();
+
+  if (!claimId || !verdict || !confidenceRaw || !rationale) {
+    setStatus("workbench-review-submit-status", "Claim, verdict, confidence, and rationale are required.", "bad");
+    return;
+  }
+  const confidence = Number(confidenceRaw);
+  if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) {
+    setStatus("workbench-review-submit-status", "Confidence must be between 0 and 1.", "bad");
+    return;
+  }
+
+  try {
+    setStatus("workbench-review-submit-status", "Submitting evaluation...");
+    await apiRequest(`${API_EVALUATE_BASE_URL}/${encodeURIComponent(claimId)}/evaluate`, {
+      method: "POST",
+      body: {
+        verdict,
+        confidence,
+        rationale,
+        citation_notes: citationNotes || null,
+        approval_token: approvalToken || null,
+      },
+    });
+    setStatus("workbench-review-submit-status", "Evaluation saved.", "ok");
+    await Promise.all([loadWorkbench(), loadReviewQueue(), loadPublishQueue()]);
+  } catch (err) {
+    const dualControlMessage = parseEvaluationDualControlError(err);
+    setStatus("workbench-review-submit-status", dualControlMessage || parseApiError(err, "Evaluation failed."), "bad");
+  }
+}
+
+async function submitWorkbenchPublishAction(event) {
+  event.preventDefault();
+  if (!isAdminIdentity()) {
+    setStatus("workbench-publish-status", "Publish actions are admin-only.", "bad");
+    return;
+  }
+  const claimId = $("workbench-publish-claim-id")?.value?.trim();
+  const action = $("workbench-publish-action")?.value;
+  if (!claimId || !action) {
+    setStatus("workbench-publish-status", "Select a claim and publish action first.", "bad");
+    return;
+  }
+  const selectedRow = workbenchRows.find((item) => String(item.claim_id) === String(claimId));
+  if (!selectedRow) {
+    setStatus(
+      "workbench-publish-status",
+      "Selected claim is not in the current Workbench queue. Refresh and reselect.",
+      "bad"
+    );
+    return;
+  }
+
+  try {
+    setStatus("workbench-publish-status", "Submitting publish action...");
+    await apiRequest(`${API_EVALUATE_BASE_URL}/${encodeURIComponent(claimId)}/${encodeURIComponent(action)}`, {
+      method: "POST",
+    });
+    setStatus("workbench-publish-status", `Claim ${action} action completed.`, "ok");
+    await Promise.all([loadWorkbench(), loadPublishQueue(), loadAuditList()]);
+  } catch (err) {
+    const dualControlMessage = parsePublishDualControlError(err, action);
+    setStatus("workbench-publish-status", dualControlMessage || parseApiError(err, "Publish action failed."), "bad");
   }
 }
 
@@ -1592,6 +2358,15 @@ async function submitPublishAction(event) {
     setStatus("publish-action-status", "Select a claim and action first.", "bad");
     return;
   }
+  const selectedRow = publishQueueRows.find((item) => String(item.claim_id) === String(claimId));
+  if (!selectedRow) {
+    setStatus(
+      "publish-action-status",
+      "Selected claim is not in the current publish queue. Refresh and reselect.",
+      "bad"
+    );
+    return;
+  }
 
   try {
     setStatus("publish-action-status", "Submitting publish action...");
@@ -1624,17 +2399,15 @@ async function handleSignIn(event) {
     const ok = await verifyAdminIdentity();
     if (!ok) return;
 
-    setStatus("auth-status", "Admin sign-in successful.", "ok");
-    await loadAdminJobMetadata();
-    await Promise.all([
-      loadCandidateList(),
-      loadReviewQueue(),
-      loadEvidenceQueue(),
-      loadProposalList(),
-      loadPublishQueue(),
-      loadJobsList(),
-      loadAuditList(),
-    ]);
+    const role = identity?.role || "reviewer";
+    setStatus("auth-status", `${role === "admin" ? "Admin" : "Reviewer"} sign-in successful.`, "ok");
+    if (role === "admin") {
+      await loadAdminJobMetadata();
+    } else {
+      adminJobMetadata = null;
+    }
+    const loaders = getWorkspaceLoadersForRole(role);
+    await Promise.all(loaders.map((loader) => loader()));
   } catch (err) {
     setStatus("auth-status", parseApiError(err, "Sign in failed."), "bad");
   }
@@ -1642,6 +2415,8 @@ async function handleSignIn(event) {
 
 function bindEvents() {
   $("auth-form")?.addEventListener("submit", handleSignIn);
+  $("approval-token-form")?.addEventListener("submit", requestApprovalToken);
+  $("approval-token-copy")?.addEventListener("click", copyApprovalToken);
   $("sign-out")?.addEventListener("click", () => clearSession());
 
   document.querySelectorAll(".tab").forEach((tab) => {
@@ -1655,6 +2430,23 @@ function bindEvents() {
   $("reload-candidates")?.addEventListener("click", async () => loadCandidateList());
   $("candidate-edit-form")?.addEventListener("submit", saveCandidate);
   $("candidate-create-form")?.addEventListener("submit", createCandidate);
+
+  $("intake-profiles-refresh")?.addEventListener("click", async () => loadIntakeProfiles());
+  $("intake-profile-edit-form")?.addEventListener("submit", saveIntakeProfile);
+  $("intake-profile-create-form")?.addEventListener("submit", createIntakeProfile);
+
+  $("workbench-filter-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await loadWorkbench();
+  });
+  $("workbench-refresh")?.addEventListener("click", async () => loadWorkbench());
+  $("workbench-show-raw-failures")?.addEventListener("change", () => {
+    const row = workbenchRows.find((item) => String(item.claim_id) === String(selectedWorkbenchClaimId));
+    renderWorkbenchRawFailures(row || null);
+  });
+  $("workbench-source-form")?.addEventListener("submit", submitWorkbenchSourceAttach);
+  $("workbench-review-form")?.addEventListener("submit", submitWorkbenchReview);
+  $("workbench-publish-form")?.addEventListener("submit", submitWorkbenchPublishAction);
 
   $("review-filter-form")?.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -1735,23 +2527,22 @@ async function init() {
   renderBulkAttachResults(null);
 
   bindEvents();
-  setActiveTab("candidates");
+  setActiveTab("workbench");
+  showSignedInControls(false);
   showWorkspace(false);
 
   if (!authToken) return;
   try {
     const ok = await verifyAdminIdentity();
     if (!ok) return;
-    await loadAdminJobMetadata();
-    await Promise.all([
-      loadCandidateList(),
-      loadReviewQueue(),
-      loadEvidenceQueue(),
-      loadProposalList(),
-      loadPublishQueue(),
-      loadJobsList(),
-      loadAuditList(),
-    ]);
+    const role = identity?.role || "reviewer";
+    if (role === "admin") {
+      await loadAdminJobMetadata();
+    } else {
+      adminJobMetadata = null;
+    }
+    const loaders = getWorkspaceLoadersForRole(role);
+    await Promise.all(loaders.map((loader) => loader()));
   } catch (_err) {
     clearSession();
     setStatus("auth-status", "Saved token is invalid. Sign in again.", "bad");

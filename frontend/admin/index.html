@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>Civic Fact Audit Admin</title>
-  <link rel="stylesheet" href="./admin.css?v=20260512d">
+  <link rel="stylesheet" href="./admin.css?v=20260521c">
 </head>
 <body>
   <main class="admin-shell">
@@ -15,7 +15,7 @@
       <div>
         <p class="eyebrow">Staff Operations</p>
         <h1>Civic Fact Audit Admin</h1>
-        <p class="subcopy">Admin-only workspace for candidate lifecycle updates, review operations, proposal triage, publish controls, job runs, and audit trace review.</p>
+        <p class="subcopy">Admin workspace for candidate lifecycle updates, review operations, proposal triage, publish controls, job runs, and audit trace review. Reviewers can sign in here to request dual-control approval tokens.</p>
       </div>
       <div class="header-actions">
         <a class="link-btn" href="/">Public Dashboard</a>
@@ -24,12 +24,27 @@
     </header>
 
     <section id="auth-card" class="panel auth-panel">
-      <h2>Admin Sign In</h2>
+      <h2>Sign In</h2>
       <form id="auth-form" class="stack-form">
         <label>Email<input id="auth-email" type="email" autocomplete="username" required></label>
         <label>Password<input id="auth-password" type="password" autocomplete="current-password" required></label>
         <button type="submit" class="primary-btn">Sign in</button>
       </form>
+      <article id="approval-panel" class="panel" style="margin-top:1rem;" hidden>
+        <div class="panel-head"><h3>Request Approval Token</h3></div>
+        <p class="status-text">Use a second reviewer/admin account to request the short-lived dual-control token for <code>intake_profile_mutation</code>.</p>
+        <form id="approval-token-form" class="stack-form compact">
+          <label>Action<input id="approval-action" type="text" value="intake_profile_mutation" readonly></label>
+          <button type="submit" class="primary-btn">Request Token</button>
+        </form>
+        <label>Approval Reviewer ID<input id="approval-reviewer-id" type="text" readonly placeholder="Returned reviewer ID"></label>
+        <label>Expires At<input id="approval-expires-at" type="text" readonly placeholder="Returned expiration timestamp"></label>
+        <label>Approval Token<textarea id="approval-token-value" class="json-input" spellcheck="false" readonly placeholder="The issued approval token will appear here."></textarea></label>
+        <div class="action-row" style="margin-top:0.7rem;">
+          <button id="approval-token-copy" class="ghost-btn" type="button">Copy Token</button>
+        </div>
+        <p id="approval-token-status" class="status-text"></p>
+      </article>
       <p id="auth-status" class="status-text"></p>
     </section>
 
@@ -41,9 +56,11 @@
 
       <nav class="tabs" aria-label="Admin sections">
         <button type="button" class="tab is-active" data-tab="candidates">Candidates</button>
+        <button type="button" class="tab" data-tab="intake-profiles">Race Profiles</button>
+        <button type="button" class="tab" data-tab="workbench">Claim Workbench</button>
         <button type="button" class="tab" data-tab="review">Review Queue</button>
         <button type="button" class="tab" data-tab="evidence">Evidence Queue</button>
-        <button type="button" class="tab" data-tab="bulk-sources">Bulk Source Attach</button>
+        <button type="button" class="tab" data-tab="bulk-sources">Advanced: Bulk Attach</button>
         <button type="button" class="tab" data-tab="proposals">Proposal Triage</button>
         <button type="button" class="tab" data-tab="publish">Publish Controls</button>
         <button type="button" class="tab" data-tab="jobs">Jobs</button>
@@ -137,6 +154,202 @@
           </form>
           <p id="candidate-create-status" class="status-text"></p>
         </article>
+      </section>
+
+      <section class="tab-panel" id="tab-intake-profiles" hidden>
+        <div class="grid-two">
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Race Profiles</h3>
+              <button id="intake-profiles-refresh" class="ghost-btn" type="button">Refresh</button>
+            </div>
+            <p id="intake-profiles-version" class="status-text"></p>
+            <p class="status-text">Use this tab to create or edit race profiles without hand-editing the JSON config file.</p>
+            <p id="intake-profiles-status" class="status-text"></p>
+            <div id="intake-profiles-list" class="list"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head"><h3>Edit Race Profile</h3></div>
+            <form id="intake-profile-edit-form" class="stack-form" autocomplete="off">
+              <label>Profile ID<input id="intake-profile-id" type="text" readonly></label>
+              <label>Approval Token<input id="intake-profile-approval-token" type="text" placeholder="Paste dual-control approval token" required></label>
+              <label>Label<input id="intake-profile-label" type="text"></label>
+              <label>State<input id="intake-profile-state" type="text"></label>
+              <label>Office<input id="intake-profile-office" type="text"></label>
+              <label>Election Cycle<input id="intake-profile-cycle" type="number" min="1900" max="2100"></label>
+              <label>Race Stage
+                <select id="intake-profile-stage">
+                  <option value="">none</option>
+                  <option value="primary">primary</option>
+                  <option value="primary_runoff">primary_runoff</option>
+                  <option value="general">general</option>
+                  <option value="special">special</option>
+                </select>
+              </label>
+              <label>Roster Seed Module<input id="intake-profile-roster-module" type="text"></label>
+              <label>Statement Batch Modules (JSON object)
+                <textarea id="intake-profile-statement-batches" class="json-input" spellcheck="false"></textarea>
+              </label>
+              <label>Admin Job Modules (JSON object)
+                <textarea id="intake-profile-admin-jobs" class="json-input" spellcheck="false"></textarea>
+              </label>
+              <button type="submit" class="primary-btn">Save Race Profile</button>
+            </form>
+            <p id="intake-profile-edit-status" class="status-text"></p>
+          </article>
+        </div>
+
+        <article class="panel" style="margin-top:1rem;">
+          <div class="panel-head"><h3>Create Race Profile</h3></div>
+          <form id="intake-profile-create-form" class="stack-form" autocomplete="off">
+            <label>Approval Token<input id="intake-profile-create-approval-token" type="text" placeholder="Paste dual-control approval token" required></label>
+            <label>Profile ID<input id="intake-profile-create-id" type="text" placeholder="tx_2026_governor" required></label>
+            <label>Label<input id="intake-profile-create-label" type="text" required></label>
+            <label>State<input id="intake-profile-create-state" type="text" placeholder="TX" required></label>
+            <label>Office<input id="intake-profile-create-office" type="text" placeholder="Governor" required></label>
+            <label>Election Cycle<input id="intake-profile-create-cycle" type="number" min="1900" max="2100" required></label>
+            <label>Race Stage
+              <select id="intake-profile-create-stage" required>
+                <option value="">select one</option>
+                <option value="primary">primary</option>
+                <option value="primary_runoff">primary_runoff</option>
+                <option value="general">general</option>
+                <option value="special">special</option>
+              </select>
+            </label>
+            <label>Roster Seed Module<input id="intake-profile-create-roster-module" type="text" placeholder="app.scripts.ingest_tx_2026_governor_roster" required></label>
+            <label>Statement Batch Modules (JSON object)
+              <textarea id="intake-profile-create-statement-batches" class="json-input" spellcheck="false" placeholder='{"starter":"app.scripts.ingest_tx_2026_governor_statement_batch"}'></textarea>
+            </label>
+            <label>Admin Job Modules (JSON object)
+              <textarea id="intake-profile-create-admin-jobs" class="json-input" spellcheck="false" placeholder='{"extract_claims_batch":"app.scripts.extract_tx_2026_governor_claims_batch"}'></textarea>
+            </label>
+            <button type="submit" class="primary-btn">Create Race Profile</button>
+          </form>
+          <p id="intake-profile-create-status" class="status-text"></p>
+        </article>
+      </section>
+
+      <section class="tab-panel" id="tab-workbench" hidden>
+        <div class="grid-two">
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Claim Workbench Queue</h3>
+              <button id="workbench-refresh" class="ghost-btn" type="button">Refresh</button>
+            </div>
+            <form id="workbench-filter-form" class="stack-form compact">
+              <label>State<input id="workbench-filter-state" type="text" placeholder="TX"></label>
+              <label>Office<input id="workbench-filter-office" type="text" placeholder="US Senate"></label>
+              <label>Cycle<input id="workbench-filter-cycle" type="number" min="1900" max="2100"></label>
+              <label>Stage
+                <select id="workbench-filter-stage">
+                  <option value="">All stages</option>
+                  <option value="primary">primary</option>
+                  <option value="primary_runoff">primary_runoff</option>
+                  <option value="general">general</option>
+                  <option value="special">special</option>
+                </select>
+              </label>
+              <label>Reviewer State
+                <select id="workbench-filter-reviewer-state">
+                  <option value="">All states</option>
+                  <option value="Needs Evidence">Needs Evidence</option>
+                  <option value="Needs Review">Needs Review</option>
+                  <option value="Needs Second Reviewer">Needs Second Reviewer</option>
+                  <option value="Ready to Publish">Ready to Publish</option>
+                  <option value="Published">Published</option>
+                  <option value="Insufficient Evidence">Insufficient Evidence</option>
+                </select>
+              </label>
+              <label class="inline-check"><input id="workbench-filter-include-non-fact-checkable" type="checkbox"> Include non-fact-checkable</label>
+              <label>Limit<input id="workbench-filter-limit" type="number" min="1" max="1000" value="200"></label>
+              <button type="submit" class="primary-btn">Apply</button>
+            </form>
+            <p id="workbench-list-status" class="status-text"></p>
+            <div id="workbench-list" class="list"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head"><h3>Claim Workbench Detail</h3></div>
+            <p id="workbench-detail-empty" class="status-text">Select a claim from the Workbench queue.</p>
+            <div id="workbench-detail" hidden>
+              <p id="workbench-context-status" class="status-text"></p>
+              <p id="workbench-claim-text" class="status-text"></p>
+              <p class="status-text">Statement source: <a id="workbench-statement-link" href="#" target="_blank" rel="noopener noreferrer">open source link</a></p>
+              <p id="workbench-evidence-summary" class="status-text"></p>
+              <p id="workbench-outcome-status" class="status-text"></p>
+              <p id="workbench-handoff-status" class="status-text"></p>
+
+              <div class="checklist-box">
+                <h4>Publish-Readiness Checklist</h4>
+                <ul id="workbench-checklist-items" class="checklist"></ul>
+                <label class="inline-check"><input id="workbench-show-raw-failures" type="checkbox"> Show raw publish gate failure codes</label>
+                <pre id="workbench-raw-failures" class="json" hidden></pre>
+              </div>
+
+              <form id="workbench-source-form" class="stack-form compact" autocomplete="off">
+                <h4>Attach Source</h4>
+                <label>Claim ID<input id="workbench-source-claim-id" type="text" readonly required></label>
+                <label>Source URL<input id="workbench-source-url" type="url" placeholder="https://www.congress.gov/" required></label>
+                <label>Source Class
+                  <select id="workbench-source-class" required>
+                    <option value="primary">primary</option>
+                    <option value="secondary">secondary</option>
+                  </select>
+                </label>
+                <label>Source Origin
+                  <select id="workbench-source-origin" required>
+                    <option value="verification">verification</option>
+                    <option value="candidate">candidate</option>
+                  </select>
+                </label>
+                <label>Publisher<input id="workbench-source-publisher" type="text" placeholder="Congress.gov"></label>
+                <label class="inline-check"><input id="workbench-source-direct-quote" type="checkbox"> Direct candidate quote from official social channel</label>
+                <p class="status-text">Use a real neutral record or reporting source; do not leave the sample example values in place.</p>
+                <button type="submit" class="primary-btn">Attach Source</button>
+              </form>
+              <p id="workbench-source-status" class="status-text"></p>
+              <div class="checklist-box">
+                <h4>Attached Sources</h4>
+                <p id="workbench-sources-list-status" class="status-text"></p>
+                <div id="workbench-sources-list" class="list"></div>
+              </div>
+
+              <form id="workbench-review-form" class="stack-form" autocomplete="off">
+                <h4>Submit Evaluation</h4>
+                <label>Claim ID<input id="workbench-review-claim-id" type="text" readonly required></label>
+                <label>Approval Token (overwrite only)<input id="workbench-review-approval-token" type="text" placeholder="Paste dual-control approval token"></label>
+                <label>Verdict
+                  <select id="workbench-review-verdict" required>
+                    <option value="supported">supported</option>
+                    <option value="mixed">mixed</option>
+                    <option value="unsupported">unsupported</option>
+                    <option value="insufficient">insufficient</option>
+                  </select>
+                </label>
+                <label>Confidence (0-1)<input id="workbench-review-confidence" type="number" min="0" max="1" step="0.01" value="0.70" required></label>
+                <label>Rationale<textarea id="workbench-review-rationale" minlength="10" required></textarea></label>
+                <label>Citation Notes<textarea id="workbench-review-citation-notes"></textarea></label>
+                <button type="submit" class="primary-btn">Submit Evaluation</button>
+              </form>
+              <p id="workbench-review-submit-status" class="status-text"></p>
+
+              <form id="workbench-publish-form" class="stack-form compact" autocomplete="off">
+                <h4>Publish Action</h4>
+                <label>Claim ID<input id="workbench-publish-claim-id" type="text" readonly required></label>
+                <label>Action
+                  <select id="workbench-publish-action" required>
+                    <option value="publish">publish</option>
+                    <option value="unpublish">unpublish</option>
+                  </select>
+                </label>
+                <button type="submit" class="primary-btn">Execute Publish Action</button>
+              </form>
+              <p id="workbench-publish-status" class="status-text"></p>
+            </div>
+          </article>
+        </div>
       </section>
 
       <section class="tab-panel" id="tab-review" hidden>
@@ -236,6 +449,7 @@
         <div class="grid-two">
           <article class="panel">
             <div class="panel-head"><h3>Bulk Source Attach</h3></div>
+            <p class="status-text">Advanced tool: prefer Claim Workbench source attach for normal reviewer operations.</p>
             <p class="status-text">
               Payload must be a JSON object with <code>approval_token</code> and <code>items</code>. Each item requires: <code>claim_id</code>, <code>url</code>, <code>source_class</code>,
               <code>source_origin</code>, and <code>quality_score</code>.
@@ -532,6 +746,6 @@
     </section>
   </main>
 
-  <script src="./admin.js?v=20260512d"></script>
+  <script src="./admin.js?v=20260521c"></script>
 </body>
 </html>
