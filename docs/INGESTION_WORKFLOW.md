@@ -6,7 +6,7 @@ This workflow keeps race setup and statement intake reproducible and auditable.
 - Intake jobs in `POST /v1/admin/jobs` are profile-driven and now enqueue for background worker execution with retries.
 - Supported payload shapes:
   - `{"job_type":"ingest_candidate_roster","input_payload":{"profile_id":"tx_2026_senate"}}`
-  - `{"job_type":"ingest_statement_batch","input_payload":{"profile_id":"tx_2026_senate","statement_batch":"round4"}}`
+  - `{"job_type":"ingest_statement_batch","input_payload":{"profile_id":"tx_2026_senate","statement_batch":"round5"}}`
   - `{"job_type":"extract_claims_batch","input_payload":{"profile_id":"tx_2026_senate"}}`
   - `{"job_type":"backfill_claim_reviewability","input_payload":{"profile_id":"tx_2026_ag_runoff"}}`
   - `{"job_type":"generate_publish_queue_report","input_payload":{"profile_id":"tx_2026_ag_runoff"}}`
@@ -36,6 +36,7 @@ This workflow keeps race setup and statement intake reproducible and auditable.
   - `python -m app.scripts.ingest_tx_2026_statement_batch_round2`
   - `python -m app.scripts.ingest_tx_2026_statement_batch_round3`
   - `python -m app.scripts.ingest_tx_2026_statement_batch_round4`
+  - `python -m app.scripts.ingest_tx_2026_statement_batch_round5`
 - Example (Texas 2026 Attorney General runoff starter):
   - `python -m app.scripts.ingest_tx_2026_attorney_general_runoff_statement_batch --dry-run`
   - `python -m app.scripts.ingest_tx_2026_attorney_general_runoff_statement_batch`
@@ -46,6 +47,7 @@ This workflow keeps race setup and statement intake reproducible and auditable.
 - Call `POST /v1/claims/extract` per statement, or run a race-scoped batch extractor.
 - Example (Texas 2026 U.S. Senate):
   - `python -m app.scripts.extract_tx_2026_claims_batch`
+- For `tx_2026_senate`, the generic pipeline intentionally covers both `primary` and `primary_runoff` candidates so runoff statements enter the same reviewable workbench flow as the active Senate profile.
 - Keep extraction confidence and metadata for auditability.
 - Apply reviewability heuristics so slogans and campaign rhetoric do not enter evidence or human-review queues.
 - Example (Texas 2026 U.S. Senate):
@@ -89,19 +91,19 @@ Backfill non-curated evidence bundles after source attachment so compare/public 
   - current pilot: Texas 2026 U.S. Senate primary/runoff context
   - next discussions should cover which additional 2026 races matter most and are realistic to review well
 
-## Coverage-to-3 operator sequence (current profiles)
-Use this sequence for `tx_2026_senate` and `tx_2026_ag_runoff` when the goal is at least 3 published verified claims per candidate.
+## Coverage-to-5 runoff operator sequence (US Senate)
+Use this sequence for `tx_2026_senate` when the goal is at least 5 published verified claims for each runoff candidate (John Cornyn and Ken Paxton).
 
 1. Ingest approved statement batches through `POST /v1/admin/jobs`:
-   - Senate: `round4` (in addition to already-approved earlier rounds).
-   - AG runoff: `round2` (in addition to starter).
-2. Run `extract_claims_batch` then `backfill_claim_reviewability` for each profile.
-3. Run `generate_publish_queue_report` and `generate_publish_progress_report` for each profile.
+   - Senate: `round5` (in addition to already-approved earlier rounds).
+2. Run `extract_claims_batch` then `backfill_claim_reviewability`.
+3. Run `generate_publish_queue_report` and `generate_publish_progress_report`.
 4. Attach evidence with `POST /v1/claims/sources/bulk`:
    - at least one verification `primary`
    - at least one verification `secondary`
    - no partisan/advocacy verification sources
 5. Evaluate via `POST /v1/claims/{id}/evaluate` and publish via `POST /v1/claims/{id}/publish`.
-6. Run `generate_profile_claim_coverage_report` for each profile and require pass:
-   - every candidate `published_verified_claims >= 3`
-7. If any candidate fails coverage gate, keep remaining claims unpublished and continue evidence/review work until gate passes.
+6. Run `generate_profile_claim_coverage_report` and require pass:
+   - John Cornyn `published_verified_claims >= 5`
+   - Ken Paxton `published_verified_claims >= 5`
+7. If either runoff candidate fails coverage gate, keep remaining claims unpublished and continue evidence/review work until gate passes.

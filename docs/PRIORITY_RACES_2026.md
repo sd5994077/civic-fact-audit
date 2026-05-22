@@ -35,7 +35,7 @@ Profiles registered in `intake_profiles_v1.json`. Run `generate_race_stubs --pro
 
 | Profile ID | Office | State | Stage | Election Date | Rationale | Blocker |
 |---|---|---|---|---|---|---|
-| `tx_2026_governor` | Governor | TX | general | Nov 2026 | Large-state executive race; Greg Abbott up for re-election; high claim density on policy record; SOS source available; leverages existing TX infrastructure | Fill roster + statement seeds. Note: extract/backfill/report jobs run via `run_generic_pipeline` CLI only until `admin_job_modules` is populated in `intake_profiles_v1.json`. |
+| `tx_2026_governor` | Governor | TX | general | Nov 2026 | Large-state executive race; Greg Abbott up for re-election; high claim density on policy record; SOS source available; leverages existing TX infrastructure | Fill roster + statement seeds. |
 | `tx_2026_senate_general` | U.S. Senate | TX | general | Nov 2026 | General-election matchup for the TX Senate seat; runoff winner advances; profile pre-registered to avoid setup lag once runoff concludes | Await runoff result before filling roster |
 
 ### Onboarding commands (Tier 1)

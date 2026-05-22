@@ -10,7 +10,7 @@ This workflow is for review-only inventory preparation. It does not ingest candi
 - `tx_2026_ag_runoff`
 - Inventory entries are copied from current roster/statement seed scripts and remain draft until reviewer approval.
 - Coverage push adds new factual seed batches:
-  - `tx_2026_senate`: `round4`
+  - `tx_2026_senate`: `round5` (runoff-focused: Cornyn + Paxton only)
   - `tx_2026_ag_runoff`: `round2`
 
 ## Required reviewer checks before any ingestion

@@ -79,6 +79,7 @@
 - [x] Prepare current-profile candidate/source draft inventory artifact (review-only, no direct ingestion) for `tx_2026_senate` and `tx_2026_ag_runoff`.
 - [x] Add current-profile coverage-to-3 workflow support (new factual statement batches, profile-scoped progress/coverage reports, and operator runbook) for `tx_2026_senate` and `tx_2026_ag_runoff`.
 - [x] Build the power-admin workflow v1 for AI-assisted claim grouping, source suggestion, evidence-bundle approval, and final human signoff inside the dedicated admin surface.
+- [x] Ship Claim Workbench MVP (`GET /v1/claims/workbench` + `/admin` Workbench-first operator flow + checklist/handoff guidance docs) while keeping existing queues and safety gates intact.
 
 ## Near-Term Delivery Plan
 1. Shared issue frames
@@ -115,6 +116,7 @@
 - [x] Reviewer notification workflow — `reviewer_notifications` table with dedup index, `NotificationService` for enqueue/process, `EmailTransport` (smtplib) and `WebhookTransport` (urllib), background-thread dispatch after `evaluate_claim` (`claim_ready_for_publish`) and `create_proposal` (`proposal_needs_triage`), admin endpoints `GET/POST /v1/admin/notifications`, configurable via env vars (`notification_enabled`, `smtp_*`, `notification_webhook_url`).
 
 ## Phase 8 - Priority Race Expansion
-- [ ] Onboard the next priority race(s) using the existing config-first intake profiles and `/admin/` operator workspace, without introducing new admin-console architecture.
-- [ ] Keep the rollout aligned with `docs/PRIORITY_RACES_2026.md` and the reusable race-profile onboarding playbook.
-- [ ] Expand public-facing reporting and performance tuning only where new race volume creates a measurable need.
+- [x] Add admin-console race-profile CRUD so intake profiles can be created and edited without hand-editing JSON.
+- [x] Onboard the next priority race(s) using the existing config-first intake profiles and `/admin/` operator workspace, without introducing new admin-console architecture. (`tx_2026_governor` onboarding executed on May 19, 2026)
+- [x] Keep the rollout aligned with `docs/PRIORITY_RACES_2026.md` and the reusable race-profile onboarding playbook. (`tx_2026_governor` executed via scripted roster + statement batches + generic pipeline + profile-scoped diagnostics)
+- [x] Expand public-facing reporting and performance tuning only where new race volume creates a measurable need. (Added `GET /v1/public/race-summary` and `claims(is_published, published_at)` performance index for higher-volume published-claim reads across multiple races.)
