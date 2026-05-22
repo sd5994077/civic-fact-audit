@@ -30,18 +30,29 @@ class RosterEntry:
     source_url: str
 
 
-# TODO: Add one RosterEntry per candidate. Remove this example entry.
+SOURCE_CHECKED_AT = datetime(2026, 5, 19, 12, 0, tzinfo=timezone.utc)
+
 ROSTER: list[RosterEntry] = [
-    # RosterEntry(
-    #     name='Candidate Full Name',
-    #     party='Democratic',  # or 'Republican', 'Independent', None
-    #     office='Governor',
-    #     state='TX',
-    #     election_cycle=2026,
-    #     race_stage=RaceStage.general,
-    #     roster_status='filed_confirmed',  # e.g. filed_confirmed, runoff_reported
-    #     source_url='https://sos.example.gov/candidates/race',
-    # ),
+    RosterEntry(
+        name='Greg Abbott',
+        party='Republican',
+        office='Governor',
+        state='TX',
+        election_cycle=2026,
+        race_stage=RaceStage.general,
+        roster_status='general_nominee_reported',
+        source_url='https://newtools.cira.state.tx.us/upload/page/10714/docs/2026%20Primary/OFFICIAL%20RESULTS%20-%20REPUBLICAN%20PRIMARY.pdf',
+    ),
+    RosterEntry(
+        name='Gina Hinojosa',
+        party='Democratic',
+        office='Governor',
+        state='TX',
+        election_cycle=2026,
+        race_stage=RaceStage.general,
+        roster_status='general_nominee_reported',
+        source_url='https://newtools.cira.state.tx.us/upload/page/10714/docs/2026%20Primary/Official%20Results%20Democratic%20Primary.pdf',
+    ),
 ]
 
 
@@ -68,11 +79,11 @@ def main() -> None:
     get_engine()
     db = SessionLocal()
     try:
-        checked_at = datetime.now(timezone.utc)
-        created, updated = CandidateService.upsert_roster_candidates(db, _to_upserts(ROSTER, checked_at))
+        created, updated = CandidateService.upsert_roster_candidates(db, _to_upserts(ROSTER, SOURCE_CHECKED_AT))
         print(
             f'Ingested "Texas 2026 Governor" roster entries. '
-            f'created={created} updated={updated} total={len(ROSTER)}'
+            f'created={created} updated={updated} total={len(ROSTER)} '
+            f'source_checked_at={SOURCE_CHECKED_AT.isoformat()}'
         )
         for entry in ROSTER:
             print(f'  {entry.name} ({entry.race_stage}): {entry.source_url} [{entry.roster_status}]')

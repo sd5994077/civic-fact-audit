@@ -1,4 +1,4 @@
-const { test } = require("@playwright/test");
+const { test, expect } = require("@playwright/test");
 const fs = require("fs");
 const http = require("http");
 const path = require("path");
@@ -67,13 +67,15 @@ async function startFrontendStaticServer(frontendRoot) {
   };
 }
 
-test("cfa filters smoke", async ({ page }) => {
+test("cfa filters smoke", async ({ page, request }) => {
   let localServer = null;
   const webUrl = process.env.CFA_WEB_URL || "";
   if (!webUrl) {
     localServer = await startFrontendStaticServer(path.resolve(__dirname, "../frontend"));
   }
   const baseUrl = webUrl || localServer.baseUrl;
+
+  const apiUrl = process.env.CFA_API_URL || "http://localhost:8000";
 
   try {
     await page.goto(`${baseUrl}/`, { waitUntil: "networkidle" });
@@ -110,12 +112,35 @@ test("cfa filters smoke", async ({ page }) => {
   console.log('STAGE_OPTIONS_AFTER_2026', JSON.stringify(stageOptionsAfterRace));
 
     if (stageOptionsAfterRace.some((s) => s.startsWith("primary_runoff|"))) {
+      const shouldRequireApi = Boolean(webUrl || process.env.CFA_API_URL);
+      let runoffApi = null;
+      try {
+        runoffApi = await request.get(
+          `${apiUrl}/v1/compare?state=TX&office=US%20Senate&election_cycle=2026&stage=primary_runoff`
+        );
+      } catch (_err) {
+        runoffApi = null;
+      }
+
+      if (shouldRequireApi) {
+        expect(runoffApi && runoffApi.ok()).toBeTruthy();
+      }
+      if (runoffApi && runoffApi.ok()) {
+        const runoffPayload = await runoffApi.json();
+        const runoffCandidates = Array.isArray(runoffPayload?.candidates) ? runoffPayload.candidates.length : 0;
+        expect(runoffCandidates).toBeGreaterThanOrEqual(2);
+      }
+
       await page.selectOption("#filter-stage", "primary_runoff");
       await page.click('button[type="submit"]');
       await page.waitForTimeout(700);
       const t = (await page.locator("#panel-title").innerText()).trim();
       const c = await page.locator("#issue-list .issue-row").count();
-    console.log('RUNOFF_RESULT', t, c);
+      console.log("RUNOFF_RESULT", t, c);
+      if (webUrl) {
+        expect(t.toLowerCase()).not.toContain("not enough candidates");
+        expect(c).toBeGreaterThan(0);
+      }
   }
 
     if (stageOptionsAfterRace.some((s) => s.startsWith("primary|"))) {
