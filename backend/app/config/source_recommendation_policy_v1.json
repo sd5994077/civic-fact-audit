@@ -1,0 +1,69 @@
+{
+  "version": "source_recommendation_policy_v1",
+  "default_limit": 6,
+  "templates": [
+    {
+      "id": "tx_senate_congress_primary",
+      "source_class": "primary",
+      "publisher": "Congress.gov",
+      "url_template": "https://www.congress.gov/search?q={query}",
+      "rationale": "Federal legislative record search for vote, bill, and hearing references tied to the claim.",
+      "priority": 10,
+      "state": "TX",
+      "office": "us senate"
+    },
+    {
+      "id": "tx_senate_voteview_primary",
+      "source_class": "primary",
+      "publisher": "UCLA Voteview",
+      "url_template": "https://voteview.com/search?q={query}",
+      "rationale": "Roll-call data and historical vote alignment for U.S. Senate members.",
+      "priority": 20,
+      "state": "TX",
+      "office": "us senate",
+      "issue_tags": ["voting_record", "democracy_and_rule_of_law"]
+    },
+    {
+      "id": "tx_leg_budget_primary",
+      "source_class": "primary",
+      "publisher": "Texas Legislative Budget Board",
+      "url_template": "https://www.lbb.texas.gov/SearchResults.aspx?k={query}",
+      "rationale": "State budget and fiscal record source when claim references Texas funding or appropriations.",
+      "priority": 30,
+      "state": "TX"
+    },
+    {
+      "id": "courtlistener_primary",
+      "source_class": "primary",
+      "publisher": "CourtListener",
+      "url_template": "https://www.courtlistener.com/?q={query}",
+      "rationale": "Court filing index for litigation-related claims, useful as primary legal-record discovery.",
+      "priority": 40
+    },
+    {
+      "id": "ap_secondary",
+      "source_class": "secondary",
+      "publisher": "Associated Press",
+      "url_template": "https://apnews.com/search?q={query}",
+      "rationale": "Independent reporting to corroborate timeline and context after primary record review.",
+      "priority": 60
+    },
+    {
+      "id": "reuters_secondary",
+      "source_class": "secondary",
+      "publisher": "Reuters",
+      "url_template": "https://www.reuters.com/site-search/?query={query}",
+      "rationale": "Independent corroborating coverage with transparent sourcing and neutral tone expectations.",
+      "priority": 70
+    },
+    {
+      "id": "texas_tribune_secondary",
+      "source_class": "secondary",
+      "publisher": "The Texas Tribune",
+      "url_template": "https://www.texastribune.org/search/?q={query}",
+      "rationale": "Texas-focused secondary context for state-level policy and election coverage.",
+      "priority": 80,
+      "state": "TX"
+    }
+  ]
+}

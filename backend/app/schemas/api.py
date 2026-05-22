@@ -232,6 +232,25 @@ class SourceListResponse(BaseModel):
     sources: list[SourceRead]
 
 
+class SourceRecommendationRead(BaseModel):
+    template_id: str
+    rank: int = Field(ge=1)
+    source_class: SourceClass
+    source_origin: SourceOrigin
+    url: str
+    publisher: str
+    rationale: str
+
+
+class SourceRecommendationResponse(BaseModel):
+    claim_id: uuid.UUID
+    policy_version: str
+    verification_primary_count: int = Field(ge=0)
+    verification_secondary_count: int = Field(ge=0)
+    missing_source_classes: list[SourceClass] = Field(default_factory=list)
+    recommendations: list[SourceRecommendationRead] = Field(default_factory=list)
+
+
 class BulkSourceAttachItem(BaseModel):
     claim_id: uuid.UUID
     url: HttpUrl

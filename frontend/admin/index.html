@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>Civic Fact Audit Admin</title>
-  <link rel="stylesheet" href="./admin.css?v=20260521c">
+  <link rel="stylesheet" href="./admin.css?v=20260522a">
 </head>
 <body>
   <main class="admin-shell">
@@ -310,6 +310,15 @@
                 <button type="submit" class="primary-btn">Attach Source</button>
               </form>
               <p id="workbench-source-status" class="status-text"></p>
+              <div class="checklist-box">
+                <div class="panel-head">
+                  <h4>Suggested Verification Links</h4>
+                  <button id="workbench-recommendations-refresh" class="ghost-btn" type="button">Refresh Suggestions</button>
+                </div>
+                <p class="status-text">Suggestions are neutral starting points only. Verify relevance before attaching.</p>
+                <p id="workbench-recommendations-status" class="status-text"></p>
+                <div id="workbench-recommendations-list" class="list"></div>
+              </div>
               <div class="checklist-box">
                 <h4>Attached Sources</h4>
                 <p id="workbench-sources-list-status" class="status-text"></p>
@@ -746,6 +755,6 @@
     </section>
   </main>
 
-  <script src="./admin.js?v=20260521c"></script>
+  <script src="./admin.js?v=20260522a"></script>
 </body>
 </html>

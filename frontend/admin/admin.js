@@ -28,6 +28,7 @@ let selectedWorkbenchClaimId = "";
 let selectedProposalId = "";
 let selectedPublishClaimId = "";
 let selectedWorkbenchSources = [];
+let selectedWorkbenchRecommendations = [];
 let reviewQueueRows = [];
 let evidenceQueueRows = [];
 let workbenchRows = [];
@@ -1364,8 +1365,11 @@ function renderWorkbenchDetail(row) {
     detail.hidden = true;
     empty.hidden = false;
     selectedWorkbenchSources = [];
+    selectedWorkbenchRecommendations = [];
     renderWorkbenchSourcesList([]);
+    renderWorkbenchRecommendationsList([]);
     setStatus("workbench-sources-list-status", "");
+    setStatus("workbench-recommendations-status", "");
     return;
   }
 
@@ -1399,7 +1403,8 @@ function renderWorkbenchDetail(row) {
 
   renderWorkbenchChecklist(row);
   renderWorkbenchRawFailures(row);
-  void loadWorkbenchSources(String(row.claim_id));
+  const claimId = String(row.claim_id);
+  void Promise.all([loadWorkbenchSources(claimId), loadWorkbenchSourceRecommendations(claimId)]);
 }
 
 function selectWorkbenchClaim(claimId) {
@@ -1500,6 +1505,44 @@ function renderWorkbenchSourcesList(sources) {
   });
 }
 
+function renderWorkbenchRecommendationsList(recommendations) {
+  const list = $("workbench-recommendations-list");
+  if (!list) return;
+  if (!recommendations.length) {
+    list.innerHTML = `<p class="status-text">No recommendations available for this claim yet.</p>`;
+    return;
+  }
+
+  list.innerHTML = recommendations
+    .map((item, index) => {
+      const sourceClass = item.source_class || "unknown";
+      const publisher = item.publisher || "Unspecified publisher";
+      const url = item.url || "";
+      const rationale = item.rationale || "";
+      return `
+        <div class="row-btn" style="cursor:default;">
+          <strong>#${index + 1} ${escapeHtml(sourceClass)} verification</strong>
+          <span class="row-meta">publisher: ${escapeHtml(publisher)} | template ${escapeHtml(item.template_id || "n/a")}</span>
+          <span class="row-meta"><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a></span>
+          <span class="row-meta">${escapeHtml(rationale)}</span>
+          <div class="action-row" style="margin-top:0.5rem;">
+            <button type="button" class="ghost-btn workbench-recommendation-use" data-recommendation-index="${index}">Attach This Source</button>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+
+  list.querySelectorAll(".workbench-recommendation-use").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const index = Number(btn.dataset.recommendationIndex);
+      if (!Number.isInteger(index) || index < 0 || index >= selectedWorkbenchRecommendations.length) return;
+      const recommendation = selectedWorkbenchRecommendations[index];
+      await attachWorkbenchRecommendedSource(recommendation);
+    });
+  });
+}
+
 async function loadWorkbenchSources(claimId) {
   if (!claimId || !isUuid(claimId)) {
     selectedWorkbenchSources = [];
@@ -1522,6 +1565,82 @@ async function loadWorkbenchSources(claimId) {
     selectedWorkbenchSources = [];
     renderWorkbenchSourcesList([]);
     setStatus("workbench-sources-list-status", parseApiError(err, "Failed to load sources."), "bad");
+  }
+}
+
+async function loadWorkbenchSourceRecommendations(claimId) {
+  if (!claimId || !isUuid(claimId)) {
+    selectedWorkbenchRecommendations = [];
+    renderWorkbenchRecommendationsList([]);
+    setStatus("workbench-recommendations-status", "");
+    return;
+  }
+
+  try {
+    setStatus("workbench-recommendations-status", "Loading suggested verification links...");
+    const payload = await apiRequest(`${API_EVALUATE_BASE_URL}/${encodeURIComponent(claimId)}/source-recommendations`);
+    const selectedClaimId = String($("workbench-source-claim-id")?.value || "");
+    if (String(claimId) !== selectedClaimId) {
+      return;
+    }
+    selectedWorkbenchRecommendations = payload?.recommendations || [];
+    renderWorkbenchRecommendationsList(selectedWorkbenchRecommendations);
+    const missingClasses = payload?.missing_source_classes || [];
+    const coverageMessage = `Coverage now: ${payload?.verification_primary_count ?? 0} primary / ${payload?.verification_secondary_count ?? 0} secondary.`;
+    const missingMessage = missingClasses.length
+      ? ` Missing: ${missingClasses.join(", ")}.`
+      : " Minimum verification classes are currently satisfied.";
+    setStatus(
+      "workbench-recommendations-status",
+      `Loaded ${selectedWorkbenchRecommendations.length} suggestions. ${coverageMessage}${missingMessage}`,
+      "ok"
+    );
+  } catch (err) {
+    selectedWorkbenchRecommendations = [];
+    renderWorkbenchRecommendationsList([]);
+    setStatus("workbench-recommendations-status", parseApiError(err, "Failed to load recommendations."), "bad");
+  }
+}
+
+async function attachWorkbenchRecommendedSource(recommendation) {
+  const claimId = $("workbench-source-claim-id")?.value?.trim();
+  if (!claimId || !isUuid(claimId)) {
+    setStatus("workbench-recommendations-status", "Select a valid claim first.", "bad");
+    return;
+  }
+  const url = String(recommendation?.url || "").trim();
+  const sourceClass = recommendation?.source_class;
+  const publisher = recommendation?.publisher || null;
+  if (!isHttpUrl(url) || !SOURCE_CLASS_VALUES.has(sourceClass)) {
+    setStatus("workbench-recommendations-status", "Recommendation payload is invalid. Refresh suggestions and retry.", "bad");
+    return;
+  }
+  try {
+    setStatus("workbench-recommendations-status", "Attaching suggested source...");
+    await apiRequest(`${API_EVALUATE_BASE_URL}/${encodeURIComponent(claimId)}/sources`, {
+      method: "POST",
+      body: {
+        url,
+        source_class: sourceClass,
+        source_origin: "verification",
+        publisher,
+        is_direct_candidate_quote: false,
+      },
+    });
+    setStatus("workbench-recommendations-status", "Suggested source attached.", "ok");
+    await Promise.all([
+      loadWorkbench(),
+      loadEvidenceQueue(),
+      loadWorkbenchSources(claimId),
+      loadWorkbenchSourceRecommendations(claimId),
+    ]);
+  } catch (err) {
+    const policyMessage = parseSourceAdmissionError(err);
+    setStatus(
+      "workbench-recommendations-status",
+      policyMessage || parseApiError(err, "Failed to attach suggested source."),
+      "bad"
+    );
   }
 }
 
@@ -1587,7 +1706,7 @@ async function submitWorkbenchSourceAttach(event) {
       },
     });
     setStatus("workbench-source-status", "Source attached.", "ok");
-    await Promise.all([loadWorkbench(), loadEvidenceQueue(), loadWorkbenchSources(claimId)]);
+    await Promise.all([loadWorkbench(), loadEvidenceQueue(), loadWorkbenchSources(claimId), loadWorkbenchSourceRecommendations(claimId)]);
   } catch (err) {
     const policyMessage = parseSourceAdmissionError(err);
     setStatus("workbench-source-status", policyMessage || parseApiError(err, "Source attach failed."), "bad");
@@ -2445,6 +2564,10 @@ function bindEvents() {
     renderWorkbenchRawFailures(row || null);
   });
   $("workbench-source-form")?.addEventListener("submit", submitWorkbenchSourceAttach);
+  $("workbench-recommendations-refresh")?.addEventListener("click", async () => {
+    const claimId = $("workbench-source-claim-id")?.value?.trim();
+    await loadWorkbenchSourceRecommendations(claimId || "");
+  });
   $("workbench-review-form")?.addEventListener("submit", submitWorkbenchReview);
   $("workbench-publish-form")?.addEventListener("submit", submitWorkbenchPublishAction);
 

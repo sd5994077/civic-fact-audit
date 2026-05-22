@@ -86,6 +86,83 @@ def test_list_sources_requires_reviewer_or_admin_auth() -> None:
     app.dependency_overrides.clear()
 
 
+def test_source_recommendations_requires_reviewer_or_admin_auth() -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides.pop(require_reviewer_or_admin, None)
+    client = TestClient(app)
+    response = client.get(f'/v1/claims/{uuid.uuid4()}/source-recommendations')
+    assert response.status_code == 401
+    app.dependency_overrides.clear()
+
+
+def test_source_recommendations_allows_reviewer_auth(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[require_reviewer_or_admin] = _override_reviewer
+    claim_id = uuid.uuid4()
+
+    from app.models.enums import SourceClass, SourceOrigin
+
+    captured: dict[str, object] = {}
+
+    def _fake_get_recommendations(_db, *, claim_id, limit=None):  # type: ignore[no-untyped-def]
+        captured['claim_id'] = claim_id
+        captured['limit'] = limit
+        return {
+            'claim_id': claim_id,
+            'policy_version': 'source_recommendation_policy_v1',
+            'verification_primary_count': 0,
+            'verification_secondary_count': 1,
+            'missing_source_classes': [SourceClass.primary],
+            'recommendations': [
+                {
+                    'template_id': 'tx_senate_congress_primary',
+                    'rank': 1,
+                    'source_class': SourceClass.primary,
+                    'source_origin': SourceOrigin.verification,
+                    'url': 'https://www.congress.gov/search?q=example',
+                    'publisher': 'Congress.gov',
+                    'rationale': 'Neutral record search.',
+                }
+            ],
+        }
+
+    monkeypatch.setattr('app.api.v1.claims.SourceRecommendationService.get_recommendations', _fake_get_recommendations)
+
+    client = TestClient(app)
+    response = client.get(f'/v1/claims/{claim_id}/source-recommendations?limit=5')
+    assert response.status_code == 200
+    body = response.json()
+    assert body['claim_id'] == str(claim_id)
+    assert body['policy_version'] == 'source_recommendation_policy_v1'
+    assert body['verification_primary_count'] == 0
+    assert body['verification_secondary_count'] == 1
+    assert body['missing_source_classes'] == ['primary']
+    assert len(body['recommendations']) == 1
+    assert body['recommendations'][0]['source_origin'] == 'verification'
+    assert captured['claim_id'] == claim_id
+    assert captured['limit'] == 5
+    app.dependency_overrides.clear()
+
+
+def test_source_recommendations_returns_404_when_claim_missing(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[require_reviewer_or_admin] = _override_reviewer
+    claim_id = uuid.uuid4()
+
+    def _fake_get_recommendations(_db, *, claim_id, limit=None):  # type: ignore[no-untyped-def]
+        _ = limit
+        raise AppError('claim_not_found', 'Claim does not exist.', status_code=404, details={'claim_id': str(claim_id)})
+
+    monkeypatch.setattr('app.api.v1.claims.SourceRecommendationService.get_recommendations', _fake_get_recommendations)
+
+    client = TestClient(app)
+    response = client.get(f'/v1/claims/{claim_id}/source-recommendations')
+    assert response.status_code == 404
+    body = response.json()
+    assert body['error']['code'] == 'claim_not_found'
+    app.dependency_overrides.clear()
+
+
 def test_list_sources_allows_reviewer_auth(monkeypatch) -> None:
     app.dependency_overrides[get_db] = _override_db
     app.dependency_overrides[require_reviewer_or_admin] = _override_reviewer
@@ -214,8 +291,13 @@ def test_openapi_includes_claim_source_routes_and_methods() -> None:
     paths = schema.get('paths', {})
     claim_sources_path = '/v1/claims/{claim_id}/sources'
     claim_source_path = '/v1/claims/{claim_id}/sources/{source_id}'
+    recommendation_path = '/v1/claims/{claim_id}/source-recommendations'
     assert claim_sources_path in paths
     assert claim_source_path in paths
+    assert recommendation_path in paths
     assert 'post' in paths[claim_sources_path]
     assert 'get' in paths[claim_sources_path]
     assert 'delete' in paths[claim_source_path]
+    assert 'get' in paths[recommendation_path]
+    recommendation_responses = paths[recommendation_path]['get'].get('responses', {})
+    assert '429' in recommendation_responses

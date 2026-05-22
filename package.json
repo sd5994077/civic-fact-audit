@@ -8,8 +8,8 @@
     "test": "tests"
   },
   "scripts": {
-    "test": "playwright test tests/playwright_smoke.spec.cjs tests/playwright_admin_smoke.spec.cjs --reporter=line",
-    "test:smoke": "playwright test tests/playwright_smoke.spec.cjs tests/playwright_admin_smoke.spec.cjs --reporter=line",
+    "test": "playwright test tests/playwright_smoke.spec.cjs tests/playwright_admin_smoke.spec.cjs tests/playwright_admin_workbench_recommendations.spec.cjs --reporter=line",
+    "test:smoke": "playwright test tests/playwright_smoke.spec.cjs tests/playwright_admin_smoke.spec.cjs tests/playwright_admin_workbench_recommendations.spec.cjs --reporter=line",
     "test:all": "playwright test --reporter=line"
   },
   "repository": {
