@@ -58,6 +58,7 @@ class EvaluationService:
         election_cycle: int | None,
         race_stage: RaceStage | None,
         require_minimum_evidence: bool,
+        include_non_fact_checkable: bool = False,
         exclude_published: bool = False,
     ):
         eligible = SourceService._eligible_for_verification_calculations_predicate()
@@ -145,7 +146,6 @@ class EvaluationService:
                     latest_eval_ranked.c.row_num == 1,
                 ),
             )
-            .where(EvaluationService._fact_checkable_predicate())
             .group_by(
                 Claim.id,
                 Claim.claim_text,
@@ -173,6 +173,9 @@ class EvaluationService:
             )
             .order_by(Statement.published_at.desc(), Candidate.name.asc())
         )
+
+        if not include_non_fact_checkable:
+            query = query.where(EvaluationService._fact_checkable_predicate())
 
         filters: list[object] = []
         if state is not None:
@@ -202,6 +205,7 @@ class EvaluationService:
         election_cycle: int | None = None,
         race_stage: RaceStage | None = None,
         require_minimum_evidence: bool = True,
+        include_non_fact_checkable: bool = False,
         exclude_published: bool = False,
         limit: int = 200,
     ) -> list[dict[str, object]]:
@@ -213,6 +217,7 @@ class EvaluationService:
                     election_cycle=election_cycle,
                     race_stage=race_stage,
                     require_minimum_evidence=require_minimum_evidence,
+                    include_non_fact_checkable=include_non_fact_checkable,
                     exclude_published=exclude_published,
                 ).limit(limit)
             )

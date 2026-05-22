@@ -16,12 +16,18 @@ from app.db.database import SessionLocal, get_engine
 from app.models.entities import Candidate, Claim, Statement
 from app.models.enums import RaceStage
 from app.services.claim_extraction_service import ClaimExtractionService
+from app.scripts.pipeline_helpers import RaceContext, build_candidate_filter
 
 MAX_CLAIMS_PER_STATEMENT = 5
-TARGET_STATE = 'TX'
-TARGET_OFFICE = 'US Senate'
-TARGET_ELECTION_CYCLE = 2026
-TARGET_STAGES: tuple[RaceStage, ...] = (RaceStage.primary, RaceStage.primary_runoff)
+TARGET_CONTEXT = RaceContext(
+    profile_id='tx_2026_senate',
+    label='Texas 2026 U.S. Senate',
+    state='tx',
+    office='us senate',
+    election_cycle=2026,
+    race_stage=RaceStage.primary,
+)
+TARGET_CANDIDATE_FILTER = build_candidate_filter(TARGET_CONTEXT)
 
 
 def _query_unextracted_statement_ids() -> Select[tuple[uuid.UUID]]:
@@ -35,10 +41,7 @@ def _query_unextracted_statement_ids() -> Select[tuple[uuid.UUID]]:
         .join(Candidate, Candidate.id == Statement.candidate_id)
         .outerjoin(claim_counts, claim_counts.c.statement_id == Statement.id)
         .where(
-            func.lower(Candidate.state) == TARGET_STATE.lower(),
-            func.lower(Candidate.office) == TARGET_OFFICE.lower(),
-            Candidate.election_cycle == TARGET_ELECTION_CYCLE,
-            Candidate.race_stage.in_(TARGET_STAGES),
+            *TARGET_CANDIDATE_FILTER,
             func.coalesce(claim_counts.c.claim_count, 0) == 0,
         )
         .order_by(Statement.published_at.asc())

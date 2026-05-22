@@ -1,5 +1,5 @@
 {
-  "version": "intake_profiles_v4_2026_05_13",
+  "version": "intake_profiles_v6_2026_05_19",
   "profiles": [
     {
       "profile_id": "tx_2026_senate",
@@ -13,7 +13,8 @@
         "starter": "app.scripts.ingest_tx_2026_statement_batch",
         "round2": "app.scripts.ingest_tx_2026_statement_batch_round2",
         "round3": "app.scripts.ingest_tx_2026_statement_batch_round3",
-        "round4": "app.scripts.ingest_tx_2026_statement_batch_round4"
+        "round4": "app.scripts.ingest_tx_2026_statement_batch_round4",
+        "round5": "app.scripts.ingest_tx_2026_statement_batch_round5"
       },
       "admin_job_modules": {
         "extract_claims_batch": "app.scripts.extract_tx_2026_claims_batch",
@@ -54,7 +55,13 @@
       "statement_batch_modules": {
         "starter": "app.scripts.ingest_tx_2026_governor_statement_batch"
       },
-      "admin_job_modules": {}
+      "admin_job_modules": {
+        "extract_claims_batch": "app.scripts.extract_tx_2026_governor_claims_batch",
+        "backfill_claim_reviewability": "app.scripts.backfill_tx_2026_governor_claim_reviewability",
+        "generate_publish_queue_report": "app.scripts.generate_tx_2026_governor_publish_queue_report",
+        "generate_publish_progress_report": "app.scripts.generate_tx_2026_governor_publish_progress_report",
+        "generate_profile_claim_coverage_report": "app.scripts.generate_tx_2026_governor_claim_coverage_report"
+      }
     },
     {
       "profile_id": "tx_2026_senate_general",

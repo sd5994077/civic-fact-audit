@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -32,28 +33,47 @@ class StatementSeed:
     source_url: str
     statement_text: str
     published_at: datetime
-    note: str
 
 
-# TODO: Replace with a fixed ISO datetime string once capture date is known,
-# e.g. datetime(2026, 5, 14, 0, 0, 0, tzinfo=timezone.utc)
-CAPTURED_AT = datetime(2026, 5, 14, 0, 0, 0, tzinfo=timezone.utc)
+SOURCE_CHECKED_AT = datetime(2026, 5, 19, 12, 0, tzinfo=timezone.utc)
+_DISALLOWED_GENERIC_SOURCE_PATHS = frozenset({'', '/', '/press/', '/speeches/', '/issues/', '/news/'})
 
-# TODO: Add one StatementSeed per statement. Remove this example entry.
 SEEDS: list[StatementSeed] = [
-    # StatementSeed(
-    #     candidate_name='Candidate Full Name',
-    #     office='Governor',
-    #     state='TX',
-    #     election_cycle=2026,
-    #     race_stage=RaceStage.general,
-    #     source_type=StatementSourceType.press_release,
-    #     source_url='https://candidate.example.com/page',
-    #     statement_text='Exact verbatim quote from the source.',
-    #     published_at=CAPTURED_AT,
-    #     note='Brief note on where this was found.',
-    # ),
+    StatementSeed(
+        candidate_name='Greg Abbott',
+        office='Governor',
+        state='TX',
+        election_cycle=2026,
+        race_stage=RaceStage.general,
+        source_type=StatementSourceType.press_release,
+        source_url='https://www.gregabbott.com/governor-abbott-announces-bid-for-re-election-in-houston/',
+        statement_text='Governor Abbott Announces Bid for Re-Election in Houston',
+        published_at=datetime(2025, 11, 9, 0, 0, tzinfo=timezone.utc),
+    ),
+    StatementSeed(
+        candidate_name='Gina Hinojosa',
+        office='Governor',
+        state='TX',
+        election_cycle=2026,
+        race_stage=RaceStage.general,
+        source_type=StatementSourceType.press_release,
+        source_url='https://ginafortexas.com/2025/10/rep-gina-hinojosa-launches-campaign-for-governor-of-texas/',
+        statement_text='Rep. Gina Hinojosa Launches Campaign for Governor of Texas',
+        published_at=datetime(2025, 10, 15, 0, 0, tzinfo=timezone.utc),
+    ),
 ]
+
+
+def _validate_source_url(url: str) -> None:
+    parsed = urlparse(url.strip())
+    path = parsed.path.strip().lower()
+    if not parsed.scheme or not parsed.netloc:
+        raise ValueError(f'Invalid source_url: {url}')
+    if path in _DISALLOWED_GENERIC_SOURCE_PATHS:
+        raise ValueError(
+            f'Generic landing-page source_url is not allowed for statement capture: {url}. '
+            'Use a claim-level URL.'
+        )
 
 
 def ingest_batch(db: Session, seeds: list[StatementSeed]) -> tuple[int, int, int]:
@@ -62,6 +82,8 @@ def ingest_batch(db: Session, seeds: list[StatementSeed]) -> tuple[int, int, int
     duplicate = 0
 
     for seed in seeds:
+        _validate_source_url(seed.source_url)
+
         candidate = db.execute(
             select(Candidate).where(
                 Candidate.name == seed.candidate_name,
@@ -73,7 +95,7 @@ def ingest_batch(db: Session, seeds: list[StatementSeed]) -> tuple[int, int, int
         ).scalar_one_or_none()
 
         if candidate is None:
-            print(f'[MISSING candidate] {seed.candidate_name} — run roster script first')
+            print(f'[MISSING candidate] {seed.candidate_name} - run roster script first')
             missing_candidate += 1
             continue
 
@@ -96,7 +118,6 @@ def ingest_batch(db: Session, seeds: list[StatementSeed]) -> tuple[int, int, int
                 source_url=seed.source_url,
                 statement_text=seed.statement_text,
                 published_at=seed.published_at,
-                note=seed.note,
             )
         )
         created += 1
@@ -114,7 +135,7 @@ def main() -> None:
         created, missing, dup = ingest_batch(db, SEEDS)
         print(
             f"'Texas 2026 Governor' statement batch complete. "
-            f"created={created} missing_candidate={missing} duplicate={dup}"
+            f'created={created} missing_candidate={missing} duplicate={dup}'
         )
     finally:
         db.close()

@@ -21,6 +21,8 @@ from app.services.claim_extraction_service import ClaimExtractionService
 from app.services.claim_reviewability_service import ClaimReviewabilityService
 
 MAX_CLAIMS_PER_STATEMENT = 5
+TX_2026_SENATE_PROFILE_ID = 'tx_2026_senate'
+TX_2026_SENATE_STAGES: tuple[RaceStage, ...] = (RaceStage.primary, RaceStage.primary_runoff)
 
 
 @dataclass(frozen=True)
@@ -51,12 +53,19 @@ def race_context_from_profile(profile: IntakeProfile) -> RaceContext:
     )
 
 
+def candidate_stages_for_context(ctx: RaceContext) -> tuple[RaceStage, ...]:
+    if ctx.profile_id == TX_2026_SENATE_PROFILE_ID and ctx.race_stage == RaceStage.primary:
+        return TX_2026_SENATE_STAGES
+    return (ctx.race_stage,)
+
+
 def build_candidate_filter(ctx: RaceContext) -> tuple[object, ...]:
+    stages = candidate_stages_for_context(ctx)
     return (
         func.lower(Candidate.state) == ctx.state,
         func.lower(Candidate.office) == ctx.office,
         Candidate.election_cycle == ctx.election_cycle,
-        Candidate.race_stage == ctx.race_stage,
+        Candidate.race_stage.in_(stages) if len(stages) > 1 else Candidate.race_stage == stages[0],
     )
 
 
