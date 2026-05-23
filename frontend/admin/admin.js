@@ -1398,7 +1398,14 @@ function renderWorkbenchDetail(row) {
   $("workbench-source-claim-id").value = String(row.claim_id);
   $("workbench-review-claim-id").value = String(row.claim_id);
   $("workbench-publish-claim-id").value = String(row.claim_id);
-  $("workbench-publish-action").value = row.is_published ? "unpublish" : "publish";
+  const publishActionEl = $("workbench-publish-action");
+  if (publishActionEl) publishActionEl.value = row.is_published ? "unpublish" : "publish";
+  setStatus(
+    "workbench-publish-hint",
+    row.is_published
+      ? "Current state: published. Default action is unpublish; after unpublish, the selector will flip back to publish."
+      : "Current state: unpublished. Default action is publish; after publish, the selector will flip back to unpublish."
+  );
   syncWorkbenchPublishVisibility();
 
   renderWorkbenchChecklist(row);
@@ -1519,12 +1526,21 @@ function renderWorkbenchRecommendationsList(recommendations) {
       const publisher = item.publisher || "Unspecified publisher";
       const url = item.url || "";
       const rationale = item.rationale || "";
+      const validationBits = [];
+      if (item.validation_status) validationBits.push(`status: ${item.validation_status}`);
+      if (item.http_status) validationBits.push(`http ${item.http_status}`);
+      if (typeof item.topic_overlap_score === "number") validationBits.push(`topic score ${item.topic_overlap_score}`);
+      const validationNote = item.validation_note || "";
+      const pageTitle = item.page_title || "";
       return `
         <div class="row-btn" style="cursor:default;">
           <strong>#${index + 1} ${escapeHtml(sourceClass)} verification</strong>
           <span class="row-meta">publisher: ${escapeHtml(publisher)} | template ${escapeHtml(item.template_id || "n/a")}</span>
           <span class="row-meta"><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a></span>
           <span class="row-meta">${escapeHtml(rationale)}</span>
+          ${validationBits.length ? `<span class="row-meta">validation: ${escapeHtml(validationBits.join(" | "))}</span>` : ""}
+          ${pageTitle ? `<span class="row-meta">title: ${escapeHtml(pageTitle)}</span>` : ""}
+          ${validationNote ? `<span class="row-meta">${escapeHtml(validationNote)}</span>` : ""}
           <div class="action-row" style="margin-top:0.5rem;">
             <button type="button" class="ghost-btn workbench-recommendation-use" data-recommendation-index="${index}">Attach This Source</button>
           </div>
@@ -1562,6 +1578,10 @@ async function loadWorkbenchSources(claimId) {
     renderWorkbenchSourcesList(selectedWorkbenchSources);
     setStatus("workbench-sources-list-status", `Loaded ${selectedWorkbenchSources.length} sources.`, "ok");
   } catch (err) {
+    const selectedClaimId = String($("workbench-source-claim-id")?.value || "");
+    if (String(claimId) !== selectedClaimId) {
+      return;
+    }
     selectedWorkbenchSources = [];
     renderWorkbenchSourcesList([]);
     setStatus("workbench-sources-list-status", parseApiError(err, "Failed to load sources."), "bad");
@@ -1596,6 +1616,10 @@ async function loadWorkbenchSourceRecommendations(claimId) {
       "ok"
     );
   } catch (err) {
+    const selectedClaimId = String($("workbench-source-claim-id")?.value || "");
+    if (String(claimId) !== selectedClaimId) {
+      return;
+    }
     selectedWorkbenchRecommendations = [];
     renderWorkbenchRecommendationsList([]);
     setStatus("workbench-recommendations-status", parseApiError(err, "Failed to load recommendations."), "bad");
@@ -1760,6 +1784,7 @@ async function submitWorkbenchPublishAction(event) {
   }
   const claimId = $("workbench-publish-claim-id")?.value?.trim();
   const action = $("workbench-publish-action")?.value;
+  const submitBtn = document.querySelector("#workbench-publish-form button[type='submit']");
   if (!claimId || !action) {
     setStatus("workbench-publish-status", "Select a claim and publish action first.", "bad");
     return;
@@ -1776,14 +1801,24 @@ async function submitWorkbenchPublishAction(event) {
 
   try {
     setStatus("workbench-publish-status", "Submitting publish action...");
+    if (submitBtn) submitBtn.disabled = true;
     await apiRequest(`${API_EVALUATE_BASE_URL}/${encodeURIComponent(claimId)}/${encodeURIComponent(action)}`, {
       method: "POST",
     });
-    setStatus("workbench-publish-status", `Claim ${action} action completed.`, "ok");
+    const nextAction = action === "publish" ? "unpublish" : "publish";
+    const actionEl = $("workbench-publish-action");
+    if (actionEl) actionEl.value = nextAction;
+    setStatus(
+      "workbench-publish-status",
+      `Claim ${action} action completed. Next action defaults to ${nextAction}.`,
+      "ok"
+    );
     await Promise.all([loadWorkbench(), loadPublishQueue(), loadAuditList()]);
   } catch (err) {
     const dualControlMessage = parsePublishDualControlError(err, action);
     setStatus("workbench-publish-status", dualControlMessage || parseApiError(err, "Publish action failed."), "bad");
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
   }
 }
 

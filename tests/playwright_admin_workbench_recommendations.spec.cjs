@@ -1,54 +1,9 @@
 const { test, expect } = require("@playwright/test");
-const fs = require("fs");
-const http = require("http");
 const path = require("path");
+const { startFrontendStaticServer } = require("./helpers/frontend_static_server.cjs");
 
 const CLAIM_ID = "89949aa0-1f75-481b-9449-6ee4f45f5b3b";
 const CANDIDATE_ID = "aaaaaaaa-1111-4444-9999-bbbbbbbbbbbb";
-
-function contentTypeFor(filePath) {
-  if (filePath.endsWith(".html")) return "text/html; charset=utf-8";
-  if (filePath.endsWith(".js")) return "application/javascript; charset=utf-8";
-  if (filePath.endsWith(".css")) return "text/css; charset=utf-8";
-  if (filePath.endsWith(".svg")) return "image/svg+xml";
-  if (filePath.endsWith(".png")) return "image/png";
-  return "application/octet-stream";
-}
-
-async function startFrontendStaticServer(frontendRoot) {
-  const server = http.createServer((req, res) => {
-    const urlPath = (req.url || "/").split("?")[0];
-    let relativePath = decodeURIComponent(urlPath);
-    if (relativePath === "/") relativePath = "/index.html";
-    if (relativePath === "/admin") relativePath = "/admin/index.html";
-    if (relativePath === "/admin/") relativePath = "/admin/index.html";
-
-    const fullPath = path.resolve(frontendRoot, `.${relativePath}`);
-    const normalizedRoot = path.resolve(frontendRoot);
-    if (!fullPath.startsWith(normalizedRoot)) {
-      res.writeHead(403);
-      res.end("Forbidden");
-      return;
-    }
-
-    fs.readFile(fullPath, (err, data) => {
-      if (err) {
-        res.writeHead(404);
-        res.end("Not found");
-        return;
-      }
-      res.writeHead(200, { "Content-Type": contentTypeFor(fullPath) });
-      res.end(data);
-    });
-  });
-
-  await new Promise((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolve);
-  });
-  const address = server.address();
-  return { server, baseUrl: `http://127.0.0.1:${address.port}` };
-}
 
 function buildChecklist(secondaryPresent) {
   return [
