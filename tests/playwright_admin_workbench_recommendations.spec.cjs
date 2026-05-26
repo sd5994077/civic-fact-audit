@@ -215,3 +215,116 @@ test("workbench suggestions attach flow for claim 89949aa0-1f75-481b-9449-6ee4f4
     await new Promise((resolve) => localServer.server.close(resolve));
   }
 });
+
+test("workbench discovery-only suggestion hides attach action", async ({ page }) => {
+  const localServer = await startFrontendStaticServer(path.resolve(__dirname, "../frontend"));
+  const now = "2026-05-22T12:00:00Z";
+  const statementUrl = "https://www.johncornyn.com/on-the-issues/";
+  const discoveryUrl = "https://www.usaspending.gov/search/?q=operation+lone+star";
+
+  try {
+    await page.route("**/api/v1/**", async (route) => {
+      const req = route.request();
+      const method = req.method();
+      const url = new URL(req.url());
+      const endpoint = `${method} ${url.pathname}`;
+      const json = (body, status = 200) =>
+        route.fulfill({
+          status,
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+      if (endpoint === "POST /api/v1/auth/login") {
+        return json({ access_token: "fake-admin-token", token_type: "bearer", reviewer_id: "admin@local", role: "admin" });
+      }
+      if (endpoint === "GET /api/v1/auth/me") return json({ reviewer_id: "admin@local", role: "admin" });
+      if (endpoint === "GET /api/v1/candidates") return json([]);
+      if (endpoint === "GET /api/v1/admin/intake-profiles") return json({ version: "v1", profiles: [] });
+      if (endpoint === "GET /api/v1/claims/review-queue") return json([]);
+      if (endpoint === "GET /api/v1/claims/evidence-queue") return json([]);
+      if (endpoint === "GET /api/v1/claims/proposals") return json([]);
+      if (endpoint === "GET /api/v1/claims/publish-queue") return json([]);
+      if (endpoint === "GET /api/v1/admin/jobs/metadata") {
+        return json({ allowlist_version: "v1", intake_profile_version: "v1", synchronous_execution: true, jobs: [], intake_profiles: [] });
+      }
+      if (endpoint === "GET /api/v1/admin/jobs") return json([]);
+      if (endpoint === "GET /api/v1/admin/audit-events") return json([]);
+      if (endpoint === "GET /api/v1/claims/workbench") {
+        return json([
+          {
+            claim_id: CLAIM_ID,
+            claim_text: "Funding claim test",
+            issue_tag: "Democracy & rule of Law",
+            status: "reviewed",
+            statement_source_url: statementUrl,
+            statement_published_at: now,
+            candidate_id: CANDIDATE_ID,
+            candidate_name: "John Cornyn",
+            candidate_party: "Republican",
+            candidate_office: "US Senate",
+            candidate_state: "TX",
+            election_cycle: 2026,
+            race_stage: "primary_runoff",
+            latest_verdict: null,
+            latest_confidence: null,
+            latest_rationale: null,
+            latest_citation_notes: null,
+            latest_reviewer_id: null,
+            reviewer_state: "Needs Evidence",
+            second_reviewer_action: null,
+            verification_source_count: 0,
+            verification_primary_count: 0,
+            verification_secondary_count: 0,
+            publish_gate_passed: false,
+            publish_gate_failures: ["verification_primary_present"],
+            is_published: false,
+            checklist: buildChecklist(false),
+          },
+        ]);
+      }
+      if (endpoint === `GET /api/v1/claims/${CLAIM_ID}/sources`) return json({ claim_id: CLAIM_ID, sources: [] });
+      if (endpoint === `GET /api/v1/claims/${CLAIM_ID}/source-recommendations`) {
+        return json({
+          claim_id: CLAIM_ID,
+          policy_version: "source_recommendation_policy_v1",
+          verification_primary_count: 0,
+          verification_secondary_count: 0,
+          missing_source_classes: ["primary", "secondary"],
+          recommendations: [
+            {
+              template_id: "usaspending_primary",
+              rank: 1,
+              source_class: "primary",
+              source_origin: "verification",
+              url: discoveryUrl,
+              discovery_url: discoveryUrl,
+              evidence_url: null,
+              publisher: "USAspending.gov",
+              rationale: "Funding discovery source",
+              recommendation_role: "discovery_only",
+              validation_note: "USAspending search could not be resolved to a specific evidence record.",
+            },
+          ],
+        });
+      }
+      return json({ error: { message: `No mock for ${endpoint}` } }, 404);
+    });
+
+    await page.goto(`${localServer.baseUrl}/admin/`, { waitUntil: "networkidle" });
+    await page.fill("#auth-email", "admin@local");
+    await page.fill("#auth-password", "change-me");
+    await page.click("#auth-form button[type='submit']");
+    await expect(page.locator("#admin-workspace")).toBeVisible();
+    await page.fill("#workbench-filter-state", "TX");
+    await page.fill("#workbench-filter-office", "US Senate");
+    await page.fill("#workbench-filter-cycle", "2026");
+    await page.selectOption("#workbench-filter-stage", "primary_runoff");
+    await page.click("#workbench-filter-form button[type='submit']");
+
+    await expect(page.locator("#workbench-recommendations-list")).toContainText("Open Research Link");
+    await expect(page.locator("#workbench-recommendations-list .workbench-recommendation-use")).toHaveCount(0);
+  } finally {
+    await new Promise((resolve) => localServer.server.close(resolve));
+  }
+});

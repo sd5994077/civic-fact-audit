@@ -173,6 +173,7 @@ class EvaluationService:
             )
             .order_by(Statement.published_at.desc(), Candidate.name.asc())
         )
+        query = query.where(Candidate.is_active.is_(True))
 
         if not include_non_fact_checkable:
             query = query.where(EvaluationService._fact_checkable_predicate())

@@ -27,6 +27,15 @@ body {
     linear-gradient(180deg, #080d14, #101823 45%, #0a111a);
 }
 
+a,
+a:visited {
+  color: var(--ink);
+}
+
+a:hover {
+  color: var(--accent);
+}
+
 .admin-shell {
   max-width: 1320px;
   margin: 0 auto;
@@ -152,6 +161,23 @@ body {
   color: var(--muted);
 }
 
+.hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-left: 0.35rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ink);
+  font-size: 0.75rem;
+  line-height: 1;
+  cursor: help;
+  user-select: none;
+}
+
 .inline-check {
   display: flex !important;
   align-items: center;
@@ -168,6 +194,13 @@ input, select, textarea {
   color: var(--ink);
   border: 1px solid var(--line);
   padding: 0.55rem 0.6rem;
+}
+
+select,
+select option,
+select optgroup {
+  background: #101823;
+  color: var(--ink);
 }
 
 textarea { min-height: 84px; resize: vertical; }

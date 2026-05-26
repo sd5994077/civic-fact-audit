@@ -1,0 +1,41 @@
+# Source Recommendation Hardening Plan
+
+## Objective
+Improve Workbench `Suggested Verification Links` so reviewers can still discover useful research links while attaching only policy-safe, evidence-appropriate sources.
+
+This pass intentionally avoids LLM integration. The current system remains deterministic and policy-gated.
+
+## Current Baseline
+- Backend recommendations are template-driven with HTTP reachability + topic-overlap checks.
+- Source admission policy already blocks social and partisan/advocacy verification sources.
+- Workbench currently renders recommendations with a one-click attach affordance.
+
+## Problems Being Addressed
+- Broad search or section pages can appear as if they are direct verification evidence.
+- Topic overlap alone can overstate evidentiary quality.
+- Reviewers need clearer separation between "research helper" and "attachable evidence."
+
+## Phase 9 Scope (Current)
+1. Add backend `page_type` classification for each recommendation.
+2. Add backend `recommendation_role` classification.
+3. Keep discovery links visible; block one-click attach for non-attachable roles in Workbench.
+4. Return explicit reviewer-facing notes for research-only/rejected cases.
+
+## Out of Scope (Current)
+- No LLM source discovery/ranking in this pass.
+- No scoring-formula changes.
+- No schema migrations.
+
+## Next Slice
+1. Add deterministic evidence-anchor extraction directly from fetched content.
+2. Funding/reimbursement claims:
+   - enforce claimed amount and funding-context anchors before attachable role.
+3. Numeric voting-record claims:
+   - preserve methodology signal requirements and strengthen denominator/numerator checks.
+4. Add richer reviewer UX messaging about why a recommendation is research-only.
+
+## Acceptance Criteria
+- Workbench only shows `Attach This Source` for `recommendation_role=attachable_evidence`.
+- Discovery links remain visible with clear explanation notes.
+- Backend responses include `page_type` and `recommendation_role` for each recommendation.
+- Existing source-admission guardrails remain intact.

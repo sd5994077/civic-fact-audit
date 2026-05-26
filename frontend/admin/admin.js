@@ -1524,25 +1524,38 @@ function renderWorkbenchRecommendationsList(recommendations) {
     .map((item, index) => {
       const sourceClass = item.source_class || "unknown";
       const publisher = item.publisher || "Unspecified publisher";
-      const url = item.url || "";
+      const recommendationUrl = item.url || "";
+      const discoveryUrl = item.discovery_url || "";
+      const evidenceUrl = item.evidence_url || "";
+      const officialUrl = item.official_url || "";
+      const displayUrl = evidenceUrl || discoveryUrl || recommendationUrl;
       const rationale = item.rationale || "";
       const validationBits = [];
       if (item.validation_status) validationBits.push(`status: ${item.validation_status}`);
       if (item.http_status) validationBits.push(`http ${item.http_status}`);
       if (typeof item.topic_overlap_score === "number") validationBits.push(`topic score ${item.topic_overlap_score}`);
+      if (item.page_type) validationBits.push(`page type ${item.page_type}`);
       const validationNote = item.validation_note || "";
       const pageTitle = item.page_title || "";
+      const recommendationRole = item.recommendation_role || "discovery_only";
+      const canAttach = recommendationRole === "attachable_evidence";
+      const roleLabel = canAttach ? "Attachable evidence" : recommendationRole === "discovery_only" ? "Research link only" : recommendationRole;
       return `
         <div class="row-btn" style="cursor:default;">
           <strong>#${index + 1} ${escapeHtml(sourceClass)} verification</strong>
           <span class="row-meta">publisher: ${escapeHtml(publisher)} | template ${escapeHtml(item.template_id || "n/a")}</span>
-          <span class="row-meta"><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a></span>
+          <span class="row-meta">role: ${escapeHtml(roleLabel)}</span>
+          <span class="row-meta"><a href="${escapeHtml(displayUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(displayUrl)}</a></span>
+          ${evidenceUrl && discoveryUrl ? `<span class="row-meta">discovery: <a href="${escapeHtml(discoveryUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(discoveryUrl)}</a></span>` : ""}
+          ${officialUrl ? `<span class="row-meta">official: <a href="${escapeHtml(officialUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(officialUrl)}</a></span>` : ""}
           <span class="row-meta">${escapeHtml(rationale)}</span>
           ${validationBits.length ? `<span class="row-meta">validation: ${escapeHtml(validationBits.join(" | "))}</span>` : ""}
           ${pageTitle ? `<span class="row-meta">title: ${escapeHtml(pageTitle)}</span>` : ""}
           ${validationNote ? `<span class="row-meta">${escapeHtml(validationNote)}</span>` : ""}
           <div class="action-row" style="margin-top:0.5rem;">
-            <button type="button" class="ghost-btn workbench-recommendation-use" data-recommendation-index="${index}">Attach This Source</button>
+            ${canAttach
+              ? `<button type="button" class="ghost-btn workbench-recommendation-use" data-recommendation-index="${index}">Attach This Source</button>`
+              : `<a class="ghost-btn" href="${escapeHtml(discoveryUrl || displayUrl)}" target="_blank" rel="noopener noreferrer">Open Research Link</a>`}
           </div>
         </div>
       `;
@@ -1632,11 +1645,17 @@ async function attachWorkbenchRecommendedSource(recommendation) {
     setStatus("workbench-recommendations-status", "Select a valid claim first.", "bad");
     return;
   }
-  const url = String(recommendation?.url || "").trim();
+  const url = String(recommendation?.evidence_url || recommendation?.url || "").trim();
   const sourceClass = recommendation?.source_class;
   const publisher = recommendation?.publisher || null;
+  const recommendationRole = recommendation?.recommendation_role || "discovery_only";
   if (!isHttpUrl(url) || !SOURCE_CLASS_VALUES.has(sourceClass)) {
     setStatus("workbench-recommendations-status", "Recommendation payload is invalid. Refresh suggestions and retry.", "bad");
+    return;
+  }
+  if (recommendationRole !== "attachable_evidence") {
+    const note = String(recommendation?.validation_note || "This link is available for research only.");
+    setStatus("workbench-recommendations-status", note, "bad");
     return;
   }
   try {

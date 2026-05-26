@@ -16,6 +16,11 @@ class SourceRecommendationTemplate:
     url_template: str
     rationale: str
     priority: int
+    query_hint: str | None = None
+    supports_numeric_voting_claims: bool = False
+    requires_methodology_signals: bool = False
+    supports_funding_claims: bool = False
+    min_topic_overlap: float | None = None
     state: str | None = None
     office: str | None = None
     race_stage: str | None = None
@@ -53,6 +58,11 @@ def get_source_recommendation_policy(path: str | None = None) -> SourceRecommend
                 url_template=str(raw.get('url_template', '')).strip(),
                 rationale=str(raw.get('rationale', '')).strip(),
                 priority=int(raw.get('priority', 100)),
+                query_hint=(str(raw.get('query_hint', '')).strip() or None),
+                supports_numeric_voting_claims=bool(raw.get('supports_numeric_voting_claims', False)),
+                requires_methodology_signals=bool(raw.get('requires_methodology_signals', False)),
+                supports_funding_claims=bool(raw.get('supports_funding_claims', False)),
+                min_topic_overlap=(float(raw['min_topic_overlap']) if 'min_topic_overlap' in raw and raw['min_topic_overlap'] is not None else None),
                 state=(str(raw.get('state', '')).strip().upper() or None),
                 office=(str(raw.get('office', '')).strip().lower() or None),
                 race_stage=(str(raw.get('race_stage', '')).strip().lower() or None),

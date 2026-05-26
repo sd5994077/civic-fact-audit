@@ -120,3 +120,13 @@
 - [x] Onboard the next priority race(s) using the existing config-first intake profiles and `/admin/` operator workspace, without introducing new admin-console architecture. (`tx_2026_governor` onboarding executed on May 19, 2026)
 - [x] Keep the rollout aligned with `docs/PRIORITY_RACES_2026.md` and the reusable race-profile onboarding playbook. (`tx_2026_governor` executed via scripted roster + statement batches + generic pipeline + profile-scoped diagnostics)
 - [x] Expand public-facing reporting and performance tuning only where new race volume creates a measurable need. (Added `GET /v1/public/race-summary` and `claims(is_published, published_at)` performance index for higher-volume published-claim reads across multiple races.)
+
+## Phase 9 - Evidence-Aware Source Recommendations
+- Reference implementation plan: `docs/SOURCE_RECOMMENDATION_HARDENING_PLAN.md`
+- [x] Distinguish recommendation page types in backend validation (`search_results`, `homepage`, `section_page`, `evidence_page`, `article`, `pdf_or_report`, `unknown`).
+- [x] Add recommendation role metadata (`attachable_evidence`, `discovery_only`, `candidate_quote_only`, `rejected`) so research links stay visible without being auto-attachable evidence.
+- [x] Gate Workbench one-click attach to `attachable_evidence` recommendations only, with clear research-only explanations for discovery links.
+- [x] Add deterministic Congress.gov bill-ID resolver v1 (API-keyed) for `tx_senate_congress_primary` so explicit bill citations can resolve from research links to official bill pages.
+- [ ] Add claim-type evidence anchors to move from topic-overlap-only checks to evidence sufficiency checks (start with funding/reimbursement and numeric voting-record claims).
+- [ ] Add deterministic page-level anchor extraction from fetched content to support robust amount/methodology checks before evidence attachment.
+- [ ] Add Workbench reviewer guidance text for discovery-only vs attachable recommendations and publish-gate impact.

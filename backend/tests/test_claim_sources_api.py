@@ -72,6 +72,39 @@ def test_add_source_returns_422_for_policy_violation(monkeypatch) -> None:
     app.dependency_overrides.clear()
 
 
+def test_add_source_returns_422_for_discovery_link_not_attachable(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[require_reviewer_or_admin] = _override_reviewer
+
+    def _fake_add_source(_db, _claim_id, _payload):  # type: ignore[no-untyped-def]
+        raise AppError(
+            'source_discovery_link_not_attachable',
+            'Search page: useful for discovery, not attachable evidence.',
+            status_code=422,
+            details={'rejection_field': 'url', 'page_type': 'search_results'},
+        )
+
+    monkeypatch.setattr('app.api.v1.claims.SourceService.add_source', _fake_add_source)
+
+    client = TestClient(app)
+    response = client.post(
+        f'/v1/claims/{uuid.uuid4()}/sources',
+        json={
+            'url': 'https://www.congress.gov/search?q=example',
+            'source_class': SourceClass.primary.value,
+            'source_origin': SourceOrigin.verification.value,
+            'publisher': 'Congress.gov',
+            'quality_score': 0.5,
+            'is_direct_candidate_quote': False,
+        },
+    )
+    assert response.status_code == 422
+    body = response.json()
+    assert body['error']['code'] == 'source_discovery_link_not_attachable'
+    assert body['error']['details']['page_type'] == 'search_results'
+    app.dependency_overrides.clear()
+
+
 def test_add_source_requires_reviewer_or_admin_auth() -> None:
     app.dependency_overrides[get_db] = _override_db
     app.dependency_overrides.pop(require_reviewer_or_admin, None)

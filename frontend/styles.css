@@ -58,6 +58,10 @@ a {
   text-underline-offset: 3px;
 }
 
+a:visited {
+  color: var(--muted);
+}
+
 a:hover {
   color: var(--ink);
 }
@@ -573,6 +577,13 @@ body::before {
   background: rgba(255, 255, 255, 0.03);
   color: var(--ink);
   font: inherit;
+}
+
+.review-form select,
+.review-form select option,
+.review-form select optgroup {
+  background: #101722;
+  color: var(--ink);
 }
 
 .review-form textarea {

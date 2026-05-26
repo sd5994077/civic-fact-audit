@@ -47,6 +47,7 @@ No endpoint in this workflow may be used to produce endorsements or voting recom
 2. Attach verification evidence until at least one verification `primary` and one verification `secondary` source are present.
    - Workbench can pre-load neutral candidates from `GET /v1/claims/{claim_id}/source-recommendations`.
    - Suggestions are reviewer aids only; reviewers must still confirm relevance before attaching.
+   - Recommendations marked `discovery_only` are research links and are not one-click attachable evidence.
 3. Row moves to `Needs Review` when minimum verification evidence is present and no latest human evaluation exists.
 4. Submit evaluation via `POST /v1/claims/{claim_id}/evaluate`.
 5. If latest verdict is `insufficient`, row is treated as review-complete but non-publishable (`Insufficient Evidence`).

@@ -1,5 +1,7 @@
 import uuid
 import json
+import re
+from urllib.parse import parse_qs, urlparse
 
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.exc import IntegrityError
@@ -23,6 +25,31 @@ from app.services.evidence_bundle_service import EvidenceBundleService
 
 
 class SourceService:
+    _DISCOVERY_SECTION_PATH_PATTERN = re.compile(r'/(tag|topics?|sections?|category|categories|world|politics|us)/?$')
+    _SEARCH_QUERY_KEYS = frozenset({'q', 'query', 'k', 'term', 'search'})
+    _SEARCH_PATH_SEGMENTS = frozenset({'search', 'find', 'result', 'results'})
+
+    @staticmethod
+    def _classify_url_page_type(url: str) -> str:
+        parsed = urlparse(url.strip())
+        path = (parsed.path or '/').strip().lower()
+        query = parse_qs(parsed.query or '')
+        path_segments = [segment for segment in path.split('/') if segment]
+        has_search_path = any(
+            segment in SourceService._SEARCH_PATH_SEGMENTS
+            or segment.endswith('-search')
+            or segment.endswith('_search')
+            for segment in path_segments
+        )
+        has_search_query = any(key in SourceService._SEARCH_QUERY_KEYS for key in query.keys())
+        if path in {'', '/'} and not query:
+            return 'homepage'
+        if has_search_path or (has_search_query and not path_segments):
+            return 'search_results'
+        if SourceService._DISCOVERY_SECTION_PATH_PATTERN.search(path):
+            return 'section_page'
+        return 'content'
+
     @staticmethod
     def _normalize_reviewer_id(reviewer_id: str | None) -> str | None:
         return AuthService.normalize_reviewer_id(reviewer_id)
@@ -84,6 +111,25 @@ class SourceService:
     @staticmethod
     def validate_source_admission(payload: AddSourceRequest) -> None:
         policy = get_source_admission_policy()
+        page_type = SourceService._classify_url_page_type(str(payload.url))
+        if payload.source_origin == SourceOrigin.verification and page_type in {'search_results', 'homepage', 'section_page'}:
+            detail_message = (
+                'Search page: useful for discovery, not attachable evidence.'
+                if page_type == 'search_results'
+                else 'Homepage or section page: useful for discovery, not attachable evidence.'
+            )
+            raise AppError(
+                'source_discovery_link_not_attachable',
+                detail_message,
+                status_code=422,
+                details={
+                    'policy_version': policy.version,
+                    'rejection_field': 'url',
+                    'source_origin': payload.source_origin.value,
+                    'page_type': page_type,
+                },
+            )
+
         is_candidate_social_url = is_social_url(str(payload.url))
         if is_candidate_social_url and payload.source_origin == SourceOrigin.verification:
             raise AppError(

@@ -300,6 +300,41 @@ def test_add_source_blocks_partisan_verification_sources() -> None:
         assert exc.details['matched_rule']['field'] in {'publisher', 'domain'}
 
 
+def test_add_source_blocks_discovery_search_url_for_verification_origin() -> None:
+    claim_id = 'claim-1'
+    db = _FakeDbForAddSource(claim_id=claim_id)
+    payload = type(
+        'Payload',
+        (),
+        {
+            'url': 'https://www.congress.gov/search?q=cornyn',
+            'source_class': SourceClass.primary,
+            'source_origin': SourceOrigin.verification,
+            'publisher': 'Congress.gov',
+            'quality_score': 0.8,
+            'is_direct_candidate_quote': False,
+        },
+    )()
+
+    try:
+        SourceService.add_source(db, claim_id, payload)
+        assert False, 'Expected discovery link attach to be blocked'
+    except AppError as exc:
+        assert exc.code == 'source_discovery_link_not_attachable'
+        assert exc.details['rejection_field'] == 'url'
+        assert exc.details['page_type'] == 'search_results'
+
+
+def test_classify_url_page_type_treats_root_query_as_search() -> None:
+    page_type = SourceService._classify_url_page_type('https://www.congress.gov/?q=cornyn')
+    assert page_type == 'search_results'
+
+
+def test_classify_url_page_type_keeps_article_with_query_as_content() -> None:
+    page_type = SourceService._classify_url_page_type('https://example.com/articles/cornyn-votes?q=tracking')
+    assert page_type == 'content'
+
+
 def test_add_source_blocks_candidate_social_url_for_verification_origin() -> None:
     claim_id = 'claim-1'
     db = _FakeDbForAddSource(claim_id=claim_id)

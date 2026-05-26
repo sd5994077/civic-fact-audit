@@ -1,0 +1,75 @@
+﻿{
+    "get_sources":  {
+                        "ok":  false,
+                        "body":  "",
+                        "status":  405
+                    },
+    "partisan_attach":  {
+                            "ok":  false,
+                            "body":  "",
+                            "status":  422
+                        },
+    "candidate_no_quote":  {
+                               "ok":  true,
+                               "body":  {
+                                            "claim_id":  "89949aa0-1f75-481b-9449-6ee4f45f5b3b",
+                                            "sources":  [
+                                                            {
+                                                                "id":  "42d233a5-24be-43eb-9ae2-9e50d2310e0e",
+                                                                "claim_id":  "89949aa0-1f75-481b-9449-6ee4f45f5b3b",
+                                                                "url":  "https://www.congress.gov/",
+                                                                "source_class":  "primary",
+                                                                "source_origin":  "verification",
+                                                                "publisher":  "Congress.gov",
+                                                                "quality_score":  0.92,
+                                                                "created_at":  "2026-05-21T15:23:27.419052Z"
+                                                            },
+                                                            {
+                                                                "id":  "e4b514bc-b296-4f90-9144-9c2afbc3415a",
+                                                                "claim_id":  "89949aa0-1f75-481b-9449-6ee4f45f5b3b",
+                                                                "url":  "https://www.reuters.com/world/us/",
+                                                                "source_class":  "secondary",
+                                                                "source_origin":  "verification",
+                                                                "publisher":  "Reuters",
+                                                                "quality_score":  0.82,
+                                                                "created_at":  "2026-05-21T15:23:27.474602Z"
+                                                            },
+                                                            {
+                                                                "id":  "5904f8e6-f4a5-42c0-af12-aa7b0c6612b1",
+                                                                "claim_id":  "89949aa0-1f75-481b-9449-6ee4f45f5b3b",
+                                                                "url":  "https://x.com/JohnCornyn/status/1925538452753398012",
+                                                                "source_class":  "primary",
+                                                                "source_origin":  "verification",
+                                                                "publisher":  "X",
+                                                                "quality_score":  0.4,
+                                                                "created_at":  "2026-05-21T17:10:25.785832Z"
+                                                            }
+                                                        ]
+                                        },
+                               "status":  200
+                           },
+    "candidate_with_quote":  {
+                                 "ok":  false,
+                                 "body":  "",
+                                 "status":  409
+                             },
+    "eval_submit":  {
+                        "ok":  true,
+                        "body":  {
+                                     "id":  "c0668454-3203-4353-b822-2836cb5837ac",
+                                     "claim_id":  "89949aa0-1f75-481b-9449-6ee4f45f5b3b",
+                                     "verdict":  "supported",
+                                     "confidence":  0.81,
+                                     "rationale":  "Validated against primary legislative vote records and independent summaries.",
+                                     "citation_notes":  "Primary: Senate roll-call record. Secondary: independent outlet recap.",
+                                     "reviewer_id":  "reviewer@local",
+                                     "created_at":  "2026-05-21T17:10:25.895177Z"
+                                 },
+                        "status":  200
+                    },
+    "delete_wrong":  {
+                         "ok":  false,
+                         "body":  "",
+                         "status":  404
+                     }
+}
