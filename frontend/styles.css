@@ -58,6 +58,10 @@ a {
   text-underline-offset: 3px;
 }
 
+a:visited {
+  color: var(--muted);
+}
+
 a:hover {
   color: var(--ink);
 }
@@ -509,7 +513,7 @@ body::before {
 
 .compare-layout {
   display: grid;
-  grid-template-columns: minmax(320px, 0.9fr) minmax(0, 1.25fr);
+  grid-template-columns: minmax(300px, 0.8fr) minmax(0, 1.6fr);
   gap: 1.2rem;
 }
 
@@ -573,6 +577,13 @@ body::before {
   background: rgba(255, 255, 255, 0.03);
   color: var(--ink);
   font: inherit;
+}
+
+.review-form select,
+.review-form select option,
+.review-form select optgroup {
+  background: #101722;
+  color: var(--ink);
 }
 
 .review-form textarea {
@@ -669,8 +680,25 @@ body::before {
 
 .explanation-strip {
   display: grid;
-  grid-template-columns: repeat(var(--panel-cols, 2), minmax(0, 1fr));
+  /* Default: single card fills full width */
+  grid-template-columns: 1fr;
   gap: 1rem;
+  grid-auto-rows: 1fr;
+}
+
+/* Two cards: use two equal columns */
+.explanation-strip:has(> :nth-child(2)) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* Three or more cards: use three equal columns (caps at 3) */
+.explanation-strip:has(> :nth-child(3)) {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* If only one explanation card, make it span all columns (robust even if --panel-cols isn't set) */
+.explanation-strip > *:only-child {
+  grid-column: 1 / -1;
 }
 
 .side-by-side,
@@ -713,6 +741,7 @@ body::before {
   padding: 1rem;
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.03);
+  overflow-wrap: break-word;
 }
 
 .csr-card p {
@@ -727,6 +756,7 @@ body::before {
   padding: 1rem;
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.03);
+  width: 100%;
 }
 
 .explanation-topline {
@@ -750,7 +780,7 @@ body::before {
 
 .explanation-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 0.75rem;
 }
 
@@ -929,8 +959,6 @@ textarea:focus-visible,
   .compare-layout,
   .review-layout,
   .claim-stance-record,
-  .explanation-strip,
-  .explanation-grid,
   .side-by-side,
   .policy-diff,
   .evidence-stack,

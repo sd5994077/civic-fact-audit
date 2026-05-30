@@ -1,0 +1,333 @@
+{
+  "version": "source_recommendation_policy_v1",
+  "default_limit": 12,
+  "templates": [
+    {
+      "id": "tx_senate_congress_primary",
+      "source_class": "primary",
+      "source_category": "primary_record",
+      "publisher": "Congress.gov",
+      "url_template": "https://www.congress.gov/search?q={query}",
+      "rationale": "Federal legislative record search for vote, bill, and hearing references tied to the claim.",
+      "priority": 10,
+      "query_hint": "roll call vote presidential support senate record",
+      "supports_numeric_voting_claims": true,
+      "supports_funding_claims": true,
+      "min_topic_overlap": 0.2,
+      "state": "TX",
+      "office": "us senate"
+    },
+    {
+      "id": "tx_senate_voteview_primary",
+      "source_class": "primary",
+      "source_category": "primary_record",
+      "publisher": "UCLA Voteview",
+      "url_template": "https://voteview.com/search?q={query}",
+      "rationale": "Roll-call data and historical vote alignment for U.S. Senate members.",
+      "priority": 20,
+      "query_hint": "presidential support score roll call methodology senate",
+      "supports_numeric_voting_claims": true,
+      "requires_methodology_signals": true,
+      "min_topic_overlap": 0.2,
+      "state": "TX",
+      "office": "us senate",
+      "issue_tags": ["voting_record", "democracy_and_rule_of_law"]
+    },
+    {
+      "id": "usaspending_primary",
+      "source_class": "primary",
+      "source_category": "primary_record",
+      "publisher": "USAspending.gov",
+      "url_template": "https://www.usaspending.gov/search/?q={query}",
+      "rationale": "Federal spending database search to locate reimbursements, grants, and obligations tied to the claim.",
+      "priority": 25,
+      "supports_funding_claims": true,
+      "min_topic_overlap": 0.25,
+      "state": "TX"
+    },
+    {
+      "id": "federal_register_primary",
+      "source_class": "primary",
+      "source_category": "primary_record",
+      "publisher": "Federal Register",
+      "url_template": "https://www.federalregister.gov/documents/search?conditions%5Bterm%5D={query}",
+      "rationale": "Official notices and rules can document reimbursement programs and allocation terms.",
+      "priority": 28,
+      "query_hint": "reimbursement program Texas border operation",
+      "supports_funding_claims": true,
+      "min_topic_overlap": 0.2,
+      "state": "TX"
+    },
+    {
+      "id": "tx_leg_budget_primary",
+      "source_class": "primary",
+      "source_category": "primary_record",
+      "publisher": "Texas Legislative Budget Board",
+      "url_template": "https://www.lbb.texas.gov/SearchResults.aspx?k={query}",
+      "rationale": "State budget and fiscal record source when claim references Texas funding or appropriations.",
+      "priority": 30,
+      "supports_funding_claims": true,
+      "issue_tags": ["budget", "spending", "funding", "border", "immigration"],
+      "state": "TX"
+    },
+    {
+      "id": "fec_primary",
+      "source_class": "primary",
+      "source_category": "primary_record",
+      "publisher": "Federal Election Commission",
+      "url_template": "https://www.fec.gov/data/search/?q={query}",
+      "rationale": "Campaign-finance filings and committee records for donation and spending claims.",
+      "priority": 35,
+      "issue_tags": ["campaign_finance", "elections", "democracy_and_elections"]
+    },
+    {
+      "id": "courtlistener_primary",
+      "source_class": "primary",
+      "source_category": "primary_record",
+      "publisher": "CourtListener",
+      "url_template": "https://www.courtlistener.com/?q={query}",
+      "rationale": "Court filing index for litigation-related claims, useful as primary legal-record discovery.",
+      "priority": 40,
+      "issue_tags": ["lawsuit", "legal", "court", "litigation", "criminal_justice"]
+    },
+    {
+      "id": "sec_edgar_primary",
+      "source_class": "primary",
+      "source_category": "primary_record",
+      "publisher": "SEC EDGAR",
+      "url_template": "https://www.sec.gov/edgar/search/#/q={query}",
+      "rationale": "Corporate and securities filings when claims depend on issuer disclosures.",
+      "priority": 45,
+      "issue_tags": ["economy", "corporate", "markets", "financial_disclosure"]
+    },
+    {
+      "id": "ap_secondary",
+      "source_class": "secondary",
+      "source_category": "secondary_news",
+      "publisher": "Associated Press",
+      "url_template": "https://apnews.com/search?q={query}",
+      "rationale": "Independent reporting to corroborate timeline and context after primary record review.",
+      "priority": 60,
+      "min_topic_overlap": 0.2
+    },
+    {
+      "id": "reuters_secondary",
+      "source_class": "secondary",
+      "source_category": "secondary_news",
+      "publisher": "Reuters",
+      "url_template": "https://www.reuters.com/site-search/?query={query}",
+      "rationale": "Independent corroborating coverage with transparent sourcing and neutral tone expectations.",
+      "priority": 70,
+      "min_topic_overlap": 0.2
+    },
+    {
+      "id": "texas_tribune_secondary",
+      "source_class": "secondary",
+      "source_category": "secondary_news",
+      "publisher": "The Texas Tribune",
+      "url_template": "https://www.texastribune.org/search/?q={query}",
+      "rationale": "Texas-focused secondary context for state-level policy and election coverage.",
+      "priority": 80,
+      "min_topic_overlap": 0.2,
+      "state": "TX"
+    },
+    {
+      "id": "npr_secondary",
+      "source_class": "secondary",
+      "source_category": "secondary_news",
+      "publisher": "NPR",
+      "url_template": "https://www.npr.org/search?query={query}",
+      "rationale": "National explanatory reporting for policy context and timeline corroboration.",
+      "priority": 85,
+      "min_topic_overlap": 0.2
+    },
+    {
+      "id": "pbs_newshour_secondary",
+      "source_class": "secondary",
+      "source_category": "secondary_news",
+      "publisher": "PBS NewsHour",
+      "url_template": "https://www.pbs.org/newshour/search-results?q={query}",
+      "rationale": "Public-service reporting used as secondary context after primary record checks.",
+      "priority": 90,
+      "min_topic_overlap": 0.2
+    },
+    {
+      "id": "propublica_secondary",
+      "source_class": "secondary",
+      "source_category": "secondary_news",
+      "publisher": "ProPublica",
+      "url_template": "https://www.propublica.org/search?q={query}",
+      "rationale": "Investigative reporting that can provide corroborating context for accountability claims.",
+      "priority": 95,
+      "min_topic_overlap": 0.2
+    },
+    {
+      "id": "bbc_secondary",
+      "source_class": "secondary",
+      "source_category": "secondary_news",
+      "publisher": "BBC News",
+      "url_template": "https://www.bbc.co.uk/search?q={query}",
+      "rationale": "International context reporting for high-visibility policy or geopolitical claims.",
+      "priority": 100,
+      "min_topic_overlap": 0.2
+    },
+    {
+      "id": "marshall_project_secondary",
+      "source_class": "secondary",
+      "source_category": "secondary_news",
+      "publisher": "The Marshall Project",
+      "url_template": "https://www.themarshallproject.org/search?q={query}",
+      "rationale": "Criminal-justice reporting context for court, prison, and enforcement claims.",
+      "priority": 105,
+      "min_topic_overlap": 0.2,
+      "issue_tags": ["criminal_justice", "public_safety", "lawsuit", "legal", "court", "litigation"]
+    },
+    {
+      "id": "ballotpedia_civic",
+      "source_class": "secondary",
+      "source_category": "civic_research",
+      "publisher": "Ballotpedia",
+      "url_template": "https://ballotpedia.org/wiki/index.php?search={query}",
+      "rationale": "Election and candidate encyclopedia context for office history and ballot mechanics.",
+      "priority": 110,
+      "min_topic_overlap": 0.2,
+      "issue_tags": ["elections", "democracy_and_elections", "democracy_and_rule_of_law", "voting_record"]
+    },
+    {
+      "id": "vote_smart_civic",
+      "source_class": "secondary",
+      "source_category": "civic_research",
+      "publisher": "Vote Smart",
+      "url_template": "https://justfacts.votesmart.org/search?query={query}",
+      "rationale": "Candidate profile and voting-history context sourced for civic reference.",
+      "priority": 115,
+      "min_topic_overlap": 0.2,
+      "issue_tags": ["voting_record", "elections", "democracy_and_elections"]
+    },
+    {
+      "id": "opensecrets_civic",
+      "source_class": "secondary",
+      "source_category": "civic_research",
+      "publisher": "OpenSecrets",
+      "url_template": "https://www.opensecrets.org/search?q={query}",
+      "rationale": "Campaign finance and lobbying context for donor and spending claims.",
+      "priority": 120,
+      "min_topic_overlap": 0.2,
+      "issue_tags": ["campaign_finance", "elections", "democracy_and_elections"]
+    },
+    {
+      "id": "pew_civic",
+      "source_class": "secondary",
+      "source_category": "civic_research",
+      "publisher": "Pew Research Center",
+      "url_template": "https://www.pewresearch.org/?s={query}",
+      "rationale": "Public-opinion and demographic context for trend and polling claims.",
+      "priority": 125,
+      "min_topic_overlap": 0.2,
+      "issue_tags": ["economy", "healthcare", "education", "immigration", "public_safety", "foreign_policy", "energy"]
+    },
+    {
+      "id": "crs_civic",
+      "source_class": "secondary",
+      "source_category": "civic_research",
+      "publisher": "Congressional Research Service",
+      "url_template": "https://crsreports.congress.gov/search/#/0?termsToSearch={query}",
+      "rationale": "Legislative and policy background context from Congressional Research Service reports.",
+      "priority": 130,
+      "min_topic_overlap": 0.2,
+      "issue_tags": ["voting_record", "budget", "spending", "funding", "foreign_policy", "energy", "healthcare"]
+    },
+    {
+      "id": "kff_civic",
+      "source_class": "secondary",
+      "source_category": "civic_research",
+      "publisher": "KFF",
+      "url_template": "https://www.kff.org/search/?s={query}",
+      "rationale": "Health-policy context for Medicare, Medicaid, ACA, and coverage claims.",
+      "priority": 135,
+      "min_topic_overlap": 0.2,
+      "issue_tags": ["healthcare"]
+    },
+    {
+      "id": "tax_policy_center_civic",
+      "source_class": "secondary",
+      "source_category": "civic_research",
+      "publisher": "Tax Policy Center",
+      "url_template": "https://www.taxpolicycenter.org/search?keys={query}",
+      "rationale": "Tax-distribution and revenue-analysis context for fiscal policy claims.",
+      "priority": 140,
+      "min_topic_overlap": 0.2,
+      "issue_tags": ["economy", "budget", "spending", "funding", "taxation"]
+    },
+    {
+      "id": "factcheck_org_fact_check",
+      "source_class": "secondary",
+      "source_category": "fact_check",
+      "publisher": "FactCheck.org",
+      "url_template": "https://www.factcheck.org/?s={query}",
+      "rationale": "Nonpartisan fact-checking analysis for claim verification and context.",
+      "priority": 150,
+      "min_topic_overlap": 0.2
+    },
+    {
+      "id": "politifact_fact_check",
+      "source_class": "secondary",
+      "source_category": "fact_check",
+      "publisher": "PolitiFact",
+      "url_template": "https://www.politifact.com/search/?q={query}",
+      "rationale": "Rated fact-check source for supporting evidence and reasoning review.",
+      "priority": 160,
+      "min_topic_overlap": 0.2
+    },
+    {
+      "id": "snopes_fact_check",
+      "source_class": "secondary",
+      "source_category": "fact_check",
+      "publisher": "Snopes",
+      "url_template": "https://www.snopes.com/?s={query}",
+      "rationale": "Verification resource for viral rumors, hoaxes, memes, and quote attribution.",
+      "priority": 170,
+      "min_topic_overlap": 0.2
+    },
+    {
+      "id": "reuters_fact_check",
+      "source_class": "secondary",
+      "source_category": "fact_check",
+      "publisher": "Reuters Fact Check",
+      "url_template": "https://www.reuters.com/fact-check/?query={query}",
+      "rationale": "Fact-check vertical for social-media, visual, and misinformation claims.",
+      "priority": 175,
+      "min_topic_overlap": 0.2
+    },
+    {
+      "id": "ap_fact_check",
+      "source_class": "secondary",
+      "source_category": "fact_check",
+      "publisher": "AP Fact Check",
+      "url_template": "https://apnews.com/search?q=AP+Fact+Check+{query}",
+      "rationale": "Fact-check reporting that evaluates claims from public officials and campaigns.",
+      "priority": 180,
+      "min_topic_overlap": 0.2
+    },
+    {
+      "id": "lead_stories_fact_check",
+      "source_class": "secondary",
+      "source_category": "fact_check",
+      "publisher": "Lead Stories",
+      "url_template": "https://leadstories.com/?s={query}",
+      "rationale": "Supplemental misinformation checks for viral online claim circulation.",
+      "priority": 190,
+      "min_topic_overlap": 0.2
+    },
+    {
+      "id": "rumorguard_fact_check",
+      "source_class": "secondary",
+      "source_category": "fact_check",
+      "publisher": "RumorGuard",
+      "url_template": "https://newslit.org/rumorguard/?s={query}",
+      "rationale": "Supporting misinformation analysis with credibility indicators and follow-up references.",
+      "priority": 200,
+      "min_topic_overlap": 0.2
+    }
+  ]
+}

@@ -46,6 +46,7 @@ def test_build_review_queue_query_has_race_filters_and_minimum_evidence_having()
     assert 'lower(candidates.office)' in compiled
     assert 'candidates.election_cycle =' in compiled
     assert 'candidates.race_stage =' in compiled
+    assert 'candidates.is_active IS true' in compiled
     assert 'claims.fact_checkable' in compiled
     assert 'sources.source_origin' in compiled
     assert 'sources.source_class' in compiled
@@ -64,6 +65,19 @@ def test_build_review_queue_query_without_minimum_evidence_has_no_having() -> No
 
     compiled = str(query)
     assert 'HAVING' not in compiled
+
+
+def test_build_review_queue_query_include_non_fact_checkable_omits_fact_checkable_filter() -> None:
+    query = EvaluationService._build_review_queue_query(
+        state=None,
+        office=None,
+        election_cycle=None,
+        race_stage=None,
+        require_minimum_evidence=False,
+        include_non_fact_checkable=True,
+    )
+    compiled = str(query)
+    assert 'claims.fact_checkable IS true' not in compiled
 
 
 def test_build_review_queue_query_exclude_published_adds_where_clause() -> None:

@@ -41,6 +41,7 @@ class AuthService:
         'candidate_mutation',
         'evaluation_overwrite',
         'bulk_attach_verification_sources',
+        'intake_profile_mutation',
     }
     _DUAL_CONTROL_TTL_SECONDS = 15 * 60
 

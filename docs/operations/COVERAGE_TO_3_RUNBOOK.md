@@ -1,20 +1,18 @@
-# Coverage-to-3 Runbook (Current Profiles)
+# Coverage-to-5 Runoff Runbook (US Senate)
 
 Scope:
 - `tx_2026_senate`
-- `tx_2026_ag_runoff`
 
 Goal:
-- each candidate must reach `published_verified_claims >= 3`
+- each runoff candidate must reach `published_verified_claims >= 5`
 
 ## Admin-job sequence
 1. `POST /v1/admin/jobs` with `job_type=ingest_statement_batch`
-- senate batch: `round4`
-- ag runoff batch: `round2`
-2. `POST /v1/admin/jobs` with `job_type=extract_claims_batch` per profile.
-3. `POST /v1/admin/jobs` with `job_type=backfill_claim_reviewability` per profile.
-4. `POST /v1/admin/jobs` with `job_type=generate_publish_queue_report` per profile.
-5. `POST /v1/admin/jobs` with `job_type=generate_publish_progress_report` per profile.
+- senate batch: `round5`
+2. `POST /v1/admin/jobs` with `job_type=extract_claims_batch`.
+3. `POST /v1/admin/jobs` with `job_type=backfill_claim_reviewability`.
+4. `POST /v1/admin/jobs` with `job_type=generate_publish_queue_report`.
+5. `POST /v1/admin/jobs` with `job_type=generate_publish_progress_report`.
 
 ## Evidence + review sequence
 1. Pull queue: `GET /v1/claims/evidence-queue`.
@@ -30,7 +28,9 @@ Run profile report jobs:
 - `job_type=generate_profile_claim_coverage_report`
 
 Pass condition:
-- every candidate in the profile has `published_verified_claims >= 3`
+- runoff candidates in this profile have:
+- John Cornyn `published_verified_claims >= 5`
+- Ken Paxton `published_verified_claims >= 5`
 
 Failure handling:
 - do not publish additional claims solely to force count if evidence policy fails

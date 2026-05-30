@@ -194,7 +194,7 @@ def test_get_admin_job_metadata_success(monkeypatch) -> None:
                     'office': 'US Senate',
                     'election_cycle': 2026,
                     'race_stage': 'primary',
-                    'statement_batches': ['starter', 'round2', 'round3', 'round4'],
+                    'statement_batches': ['starter', 'round2', 'round3', 'round4', 'round5'],
                 }
             ],
         }

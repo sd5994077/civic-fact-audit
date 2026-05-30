@@ -25,6 +25,7 @@ services:
       POSTGRES_DB: civic_fact_audit
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+      CONGRESS_API_KEY: ${CONGRESS_API_KEY:-}
     ports:
       - "8000:8000"
 

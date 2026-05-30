@@ -232,6 +232,53 @@ class SourceListResponse(BaseModel):
     sources: list[SourceRead]
 
 
+class SourceRecommendationRead(BaseModel):
+    template_id: str
+    rank: int = Field(ge=1)
+    source_class: SourceClass
+    source_category: Literal['primary_record', 'civic_research', 'fact_check', 'secondary_news']
+    source_origin: SourceOrigin
+    url: str
+    publisher: str
+    rationale: str
+    validation_status: str | None = None
+    http_status: int | None = Field(default=None, ge=100, le=599)
+    final_url: str | None = None
+    page_title: str | None = None
+    topic_overlap_score: float | None = Field(default=None, ge=0, le=1)
+    validation_note: str | None = None
+    page_type: Literal[
+        'search_results',
+        'homepage',
+        'section_page',
+        'evidence_page',
+        'article',
+        'pdf_or_report',
+        'no_results',
+        'unknown',
+    ] | None = None
+    recommendation_role: Literal[
+        'discovery_only',
+        'attachable_evidence',
+        'candidate_quote_only',
+        'rejected',
+    ] = 'attachable_evidence'
+    discovery_url: str | None = None
+    evidence_url: str | None = None
+    official_url: str | None = None
+    matched_anchors: list[str] = Field(default_factory=list)
+    missing_anchors: list[str] = Field(default_factory=list)
+
+
+class SourceRecommendationResponse(BaseModel):
+    claim_id: uuid.UUID
+    policy_version: str
+    verification_primary_count: int = Field(ge=0)
+    verification_secondary_count: int = Field(ge=0)
+    missing_source_classes: list[SourceClass] = Field(default_factory=list)
+    recommendations: list[SourceRecommendationRead] = Field(default_factory=list)
+
+
 class BulkSourceAttachItem(BaseModel):
     claim_id: uuid.UUID
     url: HttpUrl

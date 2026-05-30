@@ -1,0 +1,2233 @@
+﻿[
+    {
+        "claim_id":  "89949aa0-1f75-481b-9449-6ee4f45f5b3b",
+        "claim_text":  "In Trump\u0027s first term, Senator Cornyn had a stronger pro-Trump voting record than 95 out of 100 Senators and voted with Trump over 92% of the time.",
+        "issue_tag":  null,
+        "status":  "draft",
+        "statement_source_url":  "https://www.johncornyn.com/on-the-issues/",
+        "statement_published_at":  "2026-05-21T08:59:07.907016Z",
+        "candidate_id":  "15e9b302-9eb9-4bea-97b6-97d1e4813ab5",
+        "candidate_name":  "John Cornyn",
+        "candidate_party":  "Republican",
+        "candidate_office":  "US Senate",
+        "candidate_state":  "TX",
+        "election_cycle":  2026,
+        "race_stage":  "primary_runoff",
+        "fact_checkable":  true,
+        "is_published":  false,
+        "published_at":  null,
+        "published_by_reviewer_id":  null,
+        "reviewer_state":  "Needs Review",
+        "second_reviewer_action":  null,
+        "primary_source_count":  1,
+        "secondary_source_count":  1,
+        "candidate_source_count":  0,
+        "verification_source_count":  2,
+        "verification_primary_count":  1,
+        "verification_secondary_count":  1,
+        "latest_verdict":  null,
+        "latest_confidence":  null,
+        "latest_rationale":  null,
+        "latest_citation_notes":  null,
+        "latest_reviewer_id":  null,
+        "latest_evaluated_at":  null,
+        "publish_gate_passed":  false,
+        "publish_gate_failures":  [
+                                      "latest_verdict_must_be_supported_mixed_or_unsupported",
+                                      "latest_rationale_required",
+                                      "latest_citation_notes_required"
+                                  ],
+        "checklist":  [
+                          {
+                              "code":  "fact_checkable",
+                              "label":  "Claim is fact-checkable",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_verdict_publishable",
+                              "label":  "Latest verdict is publishable (supported/mixed/unsupported)",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_rationale_present",
+                              "label":  "Latest rationale is present",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_citation_notes_present",
+                              "label":  "Latest citation notes are present",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_primary_present",
+                              "label":  "Verification primary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_secondary_present",
+                              "label":  "Verification secondary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "moderation_clear",
+                              "label":  "Latest evaluation is moderation-policy clean",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "dual_control_ready_for_publish",
+                              "label":  "Publish handoff has a different applying reviewer",
+                              "passed":  false,
+                              "blocking":  false
+                          }
+                      ]
+    },
+    {
+        "claim_id":  "b07bff23-3a1e-4228-af3a-150573eca210",
+        "claim_text":  "Senator Cornyn delivered more than $11 billion in federal reimbursements for Texas\u0027 Operation Lone Star.",
+        "issue_tag":  null,
+        "status":  "draft",
+        "statement_source_url":  "https://www.johncornyn.com/the-cornyn-trump-record/",
+        "statement_published_at":  "2026-05-21T08:59:07.907016Z",
+        "candidate_id":  "15e9b302-9eb9-4bea-97b6-97d1e4813ab5",
+        "candidate_name":  "John Cornyn",
+        "candidate_party":  "Republican",
+        "candidate_office":  "US Senate",
+        "candidate_state":  "TX",
+        "election_cycle":  2026,
+        "race_stage":  "primary_runoff",
+        "fact_checkable":  true,
+        "is_published":  false,
+        "published_at":  null,
+        "published_by_reviewer_id":  null,
+        "reviewer_state":  "Needs Review",
+        "second_reviewer_action":  null,
+        "primary_source_count":  1,
+        "secondary_source_count":  1,
+        "candidate_source_count":  0,
+        "verification_source_count":  2,
+        "verification_primary_count":  1,
+        "verification_secondary_count":  1,
+        "latest_verdict":  null,
+        "latest_confidence":  null,
+        "latest_rationale":  null,
+        "latest_citation_notes":  null,
+        "latest_reviewer_id":  null,
+        "latest_evaluated_at":  null,
+        "publish_gate_passed":  false,
+        "publish_gate_failures":  [
+                                      "latest_verdict_must_be_supported_mixed_or_unsupported",
+                                      "latest_rationale_required",
+                                      "latest_citation_notes_required"
+                                  ],
+        "checklist":  [
+                          {
+                              "code":  "fact_checkable",
+                              "label":  "Claim is fact-checkable",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_verdict_publishable",
+                              "label":  "Latest verdict is publishable (supported/mixed/unsupported)",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_rationale_present",
+                              "label":  "Latest rationale is present",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_citation_notes_present",
+                              "label":  "Latest citation notes are present",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_primary_present",
+                              "label":  "Verification primary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_secondary_present",
+                              "label":  "Verification secondary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "moderation_clear",
+                              "label":  "Latest evaluation is moderation-policy clean",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "dual_control_ready_for_publish",
+                              "label":  "Publish handoff has a different applying reviewer",
+                              "passed":  false,
+                              "blocking":  false
+                          }
+                      ]
+    },
+    {
+        "claim_id":  "1e2ef1c8-cf0a-488f-a065-dd9066db630f",
+        "claim_text":  "As Texas\u0027 51st Attorney General, Ken Paxton has been on the front lines of the most important legal fights in the country.",
+        "issue_tag":  null,
+        "status":  "draft",
+        "statement_source_url":  "https://www.kenpaxton.com/about",
+        "statement_published_at":  "2026-05-21T08:59:07.907016Z",
+        "candidate_id":  "96173268-2c97-451c-89e5-584b60099747",
+        "candidate_name":  "Ken Paxton",
+        "candidate_party":  "Republican",
+        "candidate_office":  "US Senate",
+        "candidate_state":  "TX",
+        "election_cycle":  2026,
+        "race_stage":  "primary_runoff",
+        "fact_checkable":  false,
+        "is_published":  false,
+        "published_at":  null,
+        "published_by_reviewer_id":  null,
+        "reviewer_state":  "Needs Evidence",
+        "second_reviewer_action":  null,
+        "primary_source_count":  0,
+        "secondary_source_count":  0,
+        "candidate_source_count":  0,
+        "verification_source_count":  0,
+        "verification_primary_count":  0,
+        "verification_secondary_count":  0,
+        "latest_verdict":  null,
+        "latest_confidence":  null,
+        "latest_rationale":  null,
+        "latest_citation_notes":  null,
+        "latest_reviewer_id":  null,
+        "latest_evaluated_at":  null,
+        "publish_gate_passed":  false,
+        "publish_gate_failures":  [
+                                      "claim_not_fact_checkable",
+                                      "latest_verdict_must_be_supported_mixed_or_unsupported",
+                                      "latest_rationale_required",
+                                      "latest_citation_notes_required",
+                                      "verification_primary_source_required",
+                                      "verification_secondary_source_required"
+                                  ],
+        "checklist":  [
+                          {
+                              "code":  "fact_checkable",
+                              "label":  "Claim is fact-checkable",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_verdict_publishable",
+                              "label":  "Latest verdict is publishable (supported/mixed/unsupported)",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_rationale_present",
+                              "label":  "Latest rationale is present",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_citation_notes_present",
+                              "label":  "Latest citation notes are present",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_primary_present",
+                              "label":  "Verification primary source is attached",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_secondary_present",
+                              "label":  "Verification secondary source is attached",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "moderation_clear",
+                              "label":  "Latest evaluation is moderation-policy clean",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "dual_control_ready_for_publish",
+                              "label":  "Publish handoff has a different applying reviewer",
+                              "passed":  false,
+                              "blocking":  false
+                          }
+                      ]
+    },
+    {
+        "claim_id":  "a9a32a8e-2fbc-4525-817b-4ca72ec2fafe",
+        "claim_text":  "Before entering public service, he spent 14 years building his own law firm in McKinney, Texas.",
+        "issue_tag":  null,
+        "status":  "draft",
+        "statement_source_url":  "https://www.kenpaxton.com/about",
+        "statement_published_at":  "2026-05-21T08:59:07.907016Z",
+        "candidate_id":  "96173268-2c97-451c-89e5-584b60099747",
+        "candidate_name":  "Ken Paxton",
+        "candidate_party":  "Republican",
+        "candidate_office":  "US Senate",
+        "candidate_state":  "TX",
+        "election_cycle":  2026,
+        "race_stage":  "primary_runoff",
+        "fact_checkable":  true,
+        "is_published":  false,
+        "published_at":  null,
+        "published_by_reviewer_id":  null,
+        "reviewer_state":  "Needs Review",
+        "second_reviewer_action":  null,
+        "primary_source_count":  1,
+        "secondary_source_count":  1,
+        "candidate_source_count":  0,
+        "verification_source_count":  2,
+        "verification_primary_count":  1,
+        "verification_secondary_count":  1,
+        "latest_verdict":  null,
+        "latest_confidence":  null,
+        "latest_rationale":  null,
+        "latest_citation_notes":  null,
+        "latest_reviewer_id":  null,
+        "latest_evaluated_at":  null,
+        "publish_gate_passed":  false,
+        "publish_gate_failures":  [
+                                      "latest_verdict_must_be_supported_mixed_or_unsupported",
+                                      "latest_rationale_required",
+                                      "latest_citation_notes_required"
+                                  ],
+        "checklist":  [
+                          {
+                              "code":  "fact_checkable",
+                              "label":  "Claim is fact-checkable",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_verdict_publishable",
+                              "label":  "Latest verdict is publishable (supported/mixed/unsupported)",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_rationale_present",
+                              "label":  "Latest rationale is present",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_citation_notes_present",
+                              "label":  "Latest citation notes are present",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_primary_present",
+                              "label":  "Verification primary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_secondary_present",
+                              "label":  "Verification secondary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "moderation_clear",
+                              "label":  "Latest evaluation is moderation-policy clean",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "dual_control_ready_for_publish",
+                              "label":  "Publish handoff has a different applying reviewer",
+                              "passed":  false,
+                              "blocking":  false
+                          }
+                      ]
+    },
+    {
+        "claim_id":  "1c1f3200-3893-4cc2-b324-ba80747a5d77",
+        "claim_text":  "Senator John Cornyn helped deliver the largest tax cut in American history by securing passage of President Trump\u0027s landmark Tax Cuts and Jobs Act.",
+        "issue_tag":  null,
+        "status":  "draft",
+        "statement_source_url":  "https://www.johncornyn.com/the-cornyn-trump-record/",
+        "statement_published_at":  "2026-05-21T08:58:03.172523Z",
+        "candidate_id":  "15e9b302-9eb9-4bea-97b6-97d1e4813ab5",
+        "candidate_name":  "John Cornyn",
+        "candidate_party":  "Republican",
+        "candidate_office":  "US Senate",
+        "candidate_state":  "TX",
+        "election_cycle":  2026,
+        "race_stage":  "primary_runoff",
+        "fact_checkable":  true,
+        "is_published":  false,
+        "published_at":  null,
+        "published_by_reviewer_id":  null,
+        "reviewer_state":  "Needs Review",
+        "second_reviewer_action":  null,
+        "primary_source_count":  1,
+        "secondary_source_count":  1,
+        "candidate_source_count":  0,
+        "verification_source_count":  2,
+        "verification_primary_count":  1,
+        "verification_secondary_count":  1,
+        "latest_verdict":  null,
+        "latest_confidence":  null,
+        "latest_rationale":  null,
+        "latest_citation_notes":  null,
+        "latest_reviewer_id":  null,
+        "latest_evaluated_at":  null,
+        "publish_gate_passed":  false,
+        "publish_gate_failures":  [
+                                      "latest_verdict_must_be_supported_mixed_or_unsupported",
+                                      "latest_rationale_required",
+                                      "latest_citation_notes_required"
+                                  ],
+        "checklist":  [
+                          {
+                              "code":  "fact_checkable",
+                              "label":  "Claim is fact-checkable",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_verdict_publishable",
+                              "label":  "Latest verdict is publishable (supported/mixed/unsupported)",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_rationale_present",
+                              "label":  "Latest rationale is present",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_citation_notes_present",
+                              "label":  "Latest citation notes are present",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_primary_present",
+                              "label":  "Verification primary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_secondary_present",
+                              "label":  "Verification secondary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "moderation_clear",
+                              "label":  "Latest evaluation is moderation-policy clean",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "dual_control_ready_for_publish",
+                              "label":  "Publish handoff has a different applying reviewer",
+                              "passed":  false,
+                              "blocking":  false
+                          }
+                      ]
+    },
+    {
+        "claim_id":  "ab2b43c4-2c67-47fc-858f-7e77a4a0de96",
+        "claim_text":  "In Trump\u0027s first term, Senator Cornyn had a stronger pro-Trump voting record than 95 out of 100 Senators and voted with Trump over 92% of the time.",
+        "issue_tag":  null,
+        "status":  "draft",
+        "statement_source_url":  "https://www.johncornyn.com/on-the-issues/",
+        "statement_published_at":  "2026-05-21T08:58:03.172523Z",
+        "candidate_id":  "15e9b302-9eb9-4bea-97b6-97d1e4813ab5",
+        "candidate_name":  "John Cornyn",
+        "candidate_party":  "Republican",
+        "candidate_office":  "US Senate",
+        "candidate_state":  "TX",
+        "election_cycle":  2026,
+        "race_stage":  "primary_runoff",
+        "fact_checkable":  true,
+        "is_published":  false,
+        "published_at":  null,
+        "published_by_reviewer_id":  null,
+        "reviewer_state":  "Needs Review",
+        "second_reviewer_action":  null,
+        "primary_source_count":  1,
+        "secondary_source_count":  1,
+        "candidate_source_count":  0,
+        "verification_source_count":  2,
+        "verification_primary_count":  1,
+        "verification_secondary_count":  1,
+        "latest_verdict":  null,
+        "latest_confidence":  null,
+        "latest_rationale":  null,
+        "latest_citation_notes":  null,
+        "latest_reviewer_id":  null,
+        "latest_evaluated_at":  null,
+        "publish_gate_passed":  false,
+        "publish_gate_failures":  [
+                                      "latest_verdict_must_be_supported_mixed_or_unsupported",
+                                      "latest_rationale_required",
+                                      "latest_citation_notes_required"
+                                  ],
+        "checklist":  [
+                          {
+                              "code":  "fact_checkable",
+                              "label":  "Claim is fact-checkable",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_verdict_publishable",
+                              "label":  "Latest verdict is publishable (supported/mixed/unsupported)",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_rationale_present",
+                              "label":  "Latest rationale is present",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_citation_notes_present",
+                              "label":  "Latest citation notes are present",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_primary_present",
+                              "label":  "Verification primary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_secondary_present",
+                              "label":  "Verification secondary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "moderation_clear",
+                              "label":  "Latest evaluation is moderation-policy clean",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "dual_control_ready_for_publish",
+                              "label":  "Publish handoff has a different applying reviewer",
+                              "passed":  false,
+                              "blocking":  false
+                          }
+                      ]
+    },
+    {
+        "claim_id":  "563b6313-95e5-44a2-802e-e7a8628037f1",
+        "claim_text":  "Before becoming Attorney General, Paxton served in the Texas House and Senate.",
+        "issue_tag":  null,
+        "status":  "draft",
+        "statement_source_url":  "https://www.kenpaxton.com/about",
+        "statement_published_at":  "2026-05-21T08:58:03.172523Z",
+        "candidate_id":  "96173268-2c97-451c-89e5-584b60099747",
+        "candidate_name":  "Ken Paxton",
+        "candidate_party":  "Republican",
+        "candidate_office":  "US Senate",
+        "candidate_state":  "TX",
+        "election_cycle":  2026,
+        "race_stage":  "primary_runoff",
+        "fact_checkable":  false,
+        "is_published":  false,
+        "published_at":  null,
+        "published_by_reviewer_id":  null,
+        "reviewer_state":  "Needs Evidence",
+        "second_reviewer_action":  null,
+        "primary_source_count":  0,
+        "secondary_source_count":  0,
+        "candidate_source_count":  0,
+        "verification_source_count":  0,
+        "verification_primary_count":  0,
+        "verification_secondary_count":  0,
+        "latest_verdict":  null,
+        "latest_confidence":  null,
+        "latest_rationale":  null,
+        "latest_citation_notes":  null,
+        "latest_reviewer_id":  null,
+        "latest_evaluated_at":  null,
+        "publish_gate_passed":  false,
+        "publish_gate_failures":  [
+                                      "claim_not_fact_checkable",
+                                      "latest_verdict_must_be_supported_mixed_or_unsupported",
+                                      "latest_rationale_required",
+                                      "latest_citation_notes_required",
+                                      "verification_primary_source_required",
+                                      "verification_secondary_source_required"
+                                  ],
+        "checklist":  [
+                          {
+                              "code":  "fact_checkable",
+                              "label":  "Claim is fact-checkable",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_verdict_publishable",
+                              "label":  "Latest verdict is publishable (supported/mixed/unsupported)",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_rationale_present",
+                              "label":  "Latest rationale is present",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_citation_notes_present",
+                              "label":  "Latest citation notes are present",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_primary_present",
+                              "label":  "Verification primary source is attached",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_secondary_present",
+                              "label":  "Verification secondary source is attached",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "moderation_clear",
+                              "label":  "Latest evaluation is moderation-policy clean",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "dual_control_ready_for_publish",
+                              "label":  "Publish handoff has a different applying reviewer",
+                              "passed":  false,
+                              "blocking":  false
+                          }
+                      ]
+    },
+    {
+        "claim_id":  "b3cd0a93-809c-4d33-b24a-0a1a1528e9fe",
+        "claim_text":  "from Baylor University, and later received his law degree from the University of Virginia School of Law.",
+        "issue_tag":  null,
+        "status":  "draft",
+        "statement_source_url":  "https://www.kenpaxton.com/about",
+        "statement_published_at":  "2026-05-21T08:58:03.172523Z",
+        "candidate_id":  "96173268-2c97-451c-89e5-584b60099747",
+        "candidate_name":  "Ken Paxton",
+        "candidate_party":  "Republican",
+        "candidate_office":  "US Senate",
+        "candidate_state":  "TX",
+        "election_cycle":  2026,
+        "race_stage":  "primary_runoff",
+        "fact_checkable":  false,
+        "is_published":  false,
+        "published_at":  null,
+        "published_by_reviewer_id":  null,
+        "reviewer_state":  "Needs Evidence",
+        "second_reviewer_action":  null,
+        "primary_source_count":  0,
+        "secondary_source_count":  0,
+        "candidate_source_count":  0,
+        "verification_source_count":  0,
+        "verification_primary_count":  0,
+        "verification_secondary_count":  0,
+        "latest_verdict":  null,
+        "latest_confidence":  null,
+        "latest_rationale":  null,
+        "latest_citation_notes":  null,
+        "latest_reviewer_id":  null,
+        "latest_evaluated_at":  null,
+        "publish_gate_passed":  false,
+        "publish_gate_failures":  [
+                                      "claim_not_fact_checkable",
+                                      "latest_verdict_must_be_supported_mixed_or_unsupported",
+                                      "latest_rationale_required",
+                                      "latest_citation_notes_required",
+                                      "verification_primary_source_required",
+                                      "verification_secondary_source_required"
+                                  ],
+        "checklist":  [
+                          {
+                              "code":  "fact_checkable",
+                              "label":  "Claim is fact-checkable",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_verdict_publishable",
+                              "label":  "Latest verdict is publishable (supported/mixed/unsupported)",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_rationale_present",
+                              "label":  "Latest rationale is present",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_citation_notes_present",
+                              "label":  "Latest citation notes are present",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_primary_present",
+                              "label":  "Verification primary source is attached",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_secondary_present",
+                              "label":  "Verification secondary source is attached",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "moderation_clear",
+                              "label":  "Latest evaluation is moderation-policy clean",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "dual_control_ready_for_publish",
+                              "label":  "Publish handoff has a different applying reviewer",
+                              "passed":  false,
+                              "blocking":  false
+                          }
+                      ]
+    },
+    {
+        "claim_id":  "237b0828-6925-4e52-8cbf-e06346f16a1a",
+        "claim_text":  "Paxton earned his B.A.",
+        "issue_tag":  null,
+        "status":  "draft",
+        "statement_source_url":  "https://www.kenpaxton.com/about",
+        "statement_published_at":  "2026-05-21T08:58:03.172523Z",
+        "candidate_id":  "96173268-2c97-451c-89e5-584b60099747",
+        "candidate_name":  "Ken Paxton",
+        "candidate_party":  "Republican",
+        "candidate_office":  "US Senate",
+        "candidate_state":  "TX",
+        "election_cycle":  2026,
+        "race_stage":  "primary_runoff",
+        "fact_checkable":  false,
+        "is_published":  false,
+        "published_at":  null,
+        "published_by_reviewer_id":  null,
+        "reviewer_state":  "Needs Evidence",
+        "second_reviewer_action":  null,
+        "primary_source_count":  0,
+        "secondary_source_count":  0,
+        "candidate_source_count":  0,
+        "verification_source_count":  0,
+        "verification_primary_count":  0,
+        "verification_secondary_count":  0,
+        "latest_verdict":  null,
+        "latest_confidence":  null,
+        "latest_rationale":  null,
+        "latest_citation_notes":  null,
+        "latest_reviewer_id":  null,
+        "latest_evaluated_at":  null,
+        "publish_gate_passed":  false,
+        "publish_gate_failures":  [
+                                      "claim_not_fact_checkable",
+                                      "latest_verdict_must_be_supported_mixed_or_unsupported",
+                                      "latest_rationale_required",
+                                      "latest_citation_notes_required",
+                                      "verification_primary_source_required",
+                                      "verification_secondary_source_required"
+                                  ],
+        "checklist":  [
+                          {
+                              "code":  "fact_checkable",
+                              "label":  "Claim is fact-checkable",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_verdict_publishable",
+                              "label":  "Latest verdict is publishable (supported/mixed/unsupported)",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_rationale_present",
+                              "label":  "Latest rationale is present",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_citation_notes_present",
+                              "label":  "Latest citation notes are present",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_primary_present",
+                              "label":  "Verification primary source is attached",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_secondary_present",
+                              "label":  "Verification secondary source is attached",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "moderation_clear",
+                              "label":  "Latest evaluation is moderation-policy clean",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "dual_control_ready_for_publish",
+                              "label":  "Publish handoff has a different applying reviewer",
+                              "passed":  false,
+                              "blocking":  false
+                          }
+                      ]
+    },
+    {
+        "claim_id":  "a1a796fe-128a-45cd-b30d-ebe252ea57bc",
+        "claim_text":  "Cornyn authored the Justice for Victims of Trafficking Act that became law in 2015.",
+        "issue_tag":  null,
+        "status":  "draft",
+        "statement_source_url":  "https://www.johncornyn.com/the-cornyn-trump-record/",
+        "statement_published_at":  "2026-05-14T12:00:00Z",
+        "candidate_id":  "15e9b302-9eb9-4bea-97b6-97d1e4813ab5",
+        "candidate_name":  "John Cornyn",
+        "candidate_party":  "Republican",
+        "candidate_office":  "US Senate",
+        "candidate_state":  "TX",
+        "election_cycle":  2026,
+        "race_stage":  "primary_runoff",
+        "fact_checkable":  true,
+        "is_published":  false,
+        "published_at":  null,
+        "published_by_reviewer_id":  null,
+        "reviewer_state":  "Needs Review",
+        "second_reviewer_action":  null,
+        "primary_source_count":  1,
+        "secondary_source_count":  1,
+        "candidate_source_count":  0,
+        "verification_source_count":  2,
+        "verification_primary_count":  1,
+        "verification_secondary_count":  1,
+        "latest_verdict":  null,
+        "latest_confidence":  null,
+        "latest_rationale":  null,
+        "latest_citation_notes":  null,
+        "latest_reviewer_id":  null,
+        "latest_evaluated_at":  null,
+        "publish_gate_passed":  false,
+        "publish_gate_failures":  [
+                                      "latest_verdict_must_be_supported_mixed_or_unsupported",
+                                      "latest_rationale_required",
+                                      "latest_citation_notes_required"
+                                  ],
+        "checklist":  [
+                          {
+                              "code":  "fact_checkable",
+                              "label":  "Claim is fact-checkable",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_verdict_publishable",
+                              "label":  "Latest verdict is publishable (supported/mixed/unsupported)",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_rationale_present",
+                              "label":  "Latest rationale is present",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_citation_notes_present",
+                              "label":  "Latest citation notes are present",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_primary_present",
+                              "label":  "Verification primary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_secondary_present",
+                              "label":  "Verification secondary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "moderation_clear",
+                              "label":  "Latest evaluation is moderation-policy clean",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "dual_control_ready_for_publish",
+                              "label":  "Publish handoff has a different applying reviewer",
+                              "passed":  false,
+                              "blocking":  false
+                          }
+                      ]
+    },
+    {
+        "claim_id":  "379bf7f5-f9c4-45a1-9b4a-d21709d2ff77",
+        "claim_text":  "Iran has increased uranium enrichment levels beyond prior agreement limits.",
+        "issue_tag":  null,
+        "status":  "draft",
+        "statement_source_url":  "https://x.com/JohnCornyn",
+        "statement_published_at":  "2026-05-14T12:00:00Z",
+        "candidate_id":  "15e9b302-9eb9-4bea-97b6-97d1e4813ab5",
+        "candidate_name":  "John Cornyn",
+        "candidate_party":  "Republican",
+        "candidate_office":  "US Senate",
+        "candidate_state":  "TX",
+        "election_cycle":  2026,
+        "race_stage":  "primary_runoff",
+        "fact_checkable":  true,
+        "is_published":  false,
+        "published_at":  null,
+        "published_by_reviewer_id":  null,
+        "reviewer_state":  "Needs Review",
+        "second_reviewer_action":  null,
+        "primary_source_count":  1,
+        "secondary_source_count":  1,
+        "candidate_source_count":  0,
+        "verification_source_count":  2,
+        "verification_primary_count":  1,
+        "verification_secondary_count":  1,
+        "latest_verdict":  null,
+        "latest_confidence":  null,
+        "latest_rationale":  null,
+        "latest_citation_notes":  null,
+        "latest_reviewer_id":  null,
+        "latest_evaluated_at":  null,
+        "publish_gate_passed":  false,
+        "publish_gate_failures":  [
+                                      "latest_verdict_must_be_supported_mixed_or_unsupported",
+                                      "latest_rationale_required",
+                                      "latest_citation_notes_required"
+                                  ],
+        "checklist":  [
+                          {
+                              "code":  "fact_checkable",
+                              "label":  "Claim is fact-checkable",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_verdict_publishable",
+                              "label":  "Latest verdict is publishable (supported/mixed/unsupported)",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_rationale_present",
+                              "label":  "Latest rationale is present",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_citation_notes_present",
+                              "label":  "Latest citation notes are present",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_primary_present",
+                              "label":  "Verification primary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_secondary_present",
+                              "label":  "Verification secondary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "moderation_clear",
+                              "label":  "Latest evaluation is moderation-policy clean",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "dual_control_ready_for_publish",
+                              "label":  "Publish handoff has a different applying reviewer",
+                              "passed":  false,
+                              "blocking":  false
+                          }
+                      ]
+    },
+    {
+        "claim_id":  "dafc4ec4-9730-4457-b46b-16d2d3d964c3",
+        "claim_text":  "Cornyn served as Texas Attorney General before joining the U.S.",
+        "issue_tag":  null,
+        "status":  "draft",
+        "statement_source_url":  "https://www.johncornyn.com/the-cornyn-trump-record/",
+        "statement_published_at":  "2026-05-14T12:00:00Z",
+        "candidate_id":  "15e9b302-9eb9-4bea-97b6-97d1e4813ab5",
+        "candidate_name":  "John Cornyn",
+        "candidate_party":  "Republican",
+        "candidate_office":  "US Senate",
+        "candidate_state":  "TX",
+        "election_cycle":  2026,
+        "race_stage":  "primary_runoff",
+        "fact_checkable":  false,
+        "is_published":  false,
+        "published_at":  null,
+        "published_by_reviewer_id":  null,
+        "reviewer_state":  "Needs Evidence",
+        "second_reviewer_action":  null,
+        "primary_source_count":  0,
+        "secondary_source_count":  0,
+        "candidate_source_count":  0,
+        "verification_source_count":  0,
+        "verification_primary_count":  0,
+        "verification_secondary_count":  0,
+        "latest_verdict":  null,
+        "latest_confidence":  null,
+        "latest_rationale":  null,
+        "latest_citation_notes":  null,
+        "latest_reviewer_id":  null,
+        "latest_evaluated_at":  null,
+        "publish_gate_passed":  false,
+        "publish_gate_failures":  [
+                                      "claim_not_fact_checkable",
+                                      "latest_verdict_must_be_supported_mixed_or_unsupported",
+                                      "latest_rationale_required",
+                                      "latest_citation_notes_required",
+                                      "verification_primary_source_required",
+                                      "verification_secondary_source_required"
+                                  ],
+        "checklist":  [
+                          {
+                              "code":  "fact_checkable",
+                              "label":  "Claim is fact-checkable",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_verdict_publishable",
+                              "label":  "Latest verdict is publishable (supported/mixed/unsupported)",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_rationale_present",
+                              "label":  "Latest rationale is present",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_citation_notes_present",
+                              "label":  "Latest citation notes are present",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_primary_present",
+                              "label":  "Verification primary source is attached",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_secondary_present",
+                              "label":  "Verification secondary source is attached",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "moderation_clear",
+                              "label":  "Latest evaluation is moderation-policy clean",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "dual_control_ready_for_publish",
+                              "label":  "Publish handoff has a different applying reviewer",
+                              "passed":  false,
+                              "blocking":  false
+                          }
+                      ]
+    },
+    {
+        "claim_id":  "3f6a6a60-58dc-4107-a55c-12bbb5103c6a",
+        "claim_text":  "Texas and other states filed lawsuits challenging federal border policies during the Biden administration.",
+        "issue_tag":  null,
+        "status":  "draft",
+        "statement_source_url":  "https://x.com/KenPaxtonTX",
+        "statement_published_at":  "2026-05-14T12:00:00Z",
+        "candidate_id":  "96173268-2c97-451c-89e5-584b60099747",
+        "candidate_name":  "Ken Paxton",
+        "candidate_party":  "Republican",
+        "candidate_office":  "US Senate",
+        "candidate_state":  "TX",
+        "election_cycle":  2026,
+        "race_stage":  "primary_runoff",
+        "fact_checkable":  true,
+        "is_published":  false,
+        "published_at":  null,
+        "published_by_reviewer_id":  null,
+        "reviewer_state":  "Needs Review",
+        "second_reviewer_action":  null,
+        "primary_source_count":  1,
+        "secondary_source_count":  1,
+        "candidate_source_count":  0,
+        "verification_source_count":  2,
+        "verification_primary_count":  1,
+        "verification_secondary_count":  1,
+        "latest_verdict":  null,
+        "latest_confidence":  null,
+        "latest_rationale":  null,
+        "latest_citation_notes":  null,
+        "latest_reviewer_id":  null,
+        "latest_evaluated_at":  null,
+        "publish_gate_passed":  false,
+        "publish_gate_failures":  [
+                                      "latest_verdict_must_be_supported_mixed_or_unsupported",
+                                      "latest_rationale_required",
+                                      "latest_citation_notes_required"
+                                  ],
+        "checklist":  [
+                          {
+                              "code":  "fact_checkable",
+                              "label":  "Claim is fact-checkable",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_verdict_publishable",
+                              "label":  "Latest verdict is publishable (supported/mixed/unsupported)",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_rationale_present",
+                              "label":  "Latest rationale is present",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_citation_notes_present",
+                              "label":  "Latest citation notes are present",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_primary_present",
+                              "label":  "Verification primary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_secondary_present",
+                              "label":  "Verification secondary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "moderation_clear",
+                              "label":  "Latest evaluation is moderation-policy clean",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "dual_control_ready_for_publish",
+                              "label":  "Publish handoff has a different applying reviewer",
+                              "passed":  false,
+                              "blocking":  false
+                          }
+                      ]
+    },
+    {
+        "claim_id":  "d1358e93-a6d0-4200-8a9d-51ba26500b8d",
+        "claim_text":  "Paxton was elected Texas Attorney General in 2014.",
+        "issue_tag":  null,
+        "status":  "draft",
+        "statement_source_url":  "https://www.kenpaxton.com/about",
+        "statement_published_at":  "2026-05-14T12:00:00Z",
+        "candidate_id":  "96173268-2c97-451c-89e5-584b60099747",
+        "candidate_name":  "Ken Paxton",
+        "candidate_party":  "Republican",
+        "candidate_office":  "US Senate",
+        "candidate_state":  "TX",
+        "election_cycle":  2026,
+        "race_stage":  "primary_runoff",
+        "fact_checkable":  true,
+        "is_published":  false,
+        "published_at":  null,
+        "published_by_reviewer_id":  null,
+        "reviewer_state":  "Needs Review",
+        "second_reviewer_action":  null,
+        "primary_source_count":  1,
+        "secondary_source_count":  1,
+        "candidate_source_count":  0,
+        "verification_source_count":  2,
+        "verification_primary_count":  1,
+        "verification_secondary_count":  1,
+        "latest_verdict":  null,
+        "latest_confidence":  null,
+        "latest_rationale":  null,
+        "latest_citation_notes":  null,
+        "latest_reviewer_id":  null,
+        "latest_evaluated_at":  null,
+        "publish_gate_passed":  false,
+        "publish_gate_failures":  [
+                                      "latest_verdict_must_be_supported_mixed_or_unsupported",
+                                      "latest_rationale_required",
+                                      "latest_citation_notes_required"
+                                  ],
+        "checklist":  [
+                          {
+                              "code":  "fact_checkable",
+                              "label":  "Claim is fact-checkable",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_verdict_publishable",
+                              "label":  "Latest verdict is publishable (supported/mixed/unsupported)",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_rationale_present",
+                              "label":  "Latest rationale is present",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_citation_notes_present",
+                              "label":  "Latest citation notes are present",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_primary_present",
+                              "label":  "Verification primary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_secondary_present",
+                              "label":  "Verification secondary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "moderation_clear",
+                              "label":  "Latest evaluation is moderation-policy clean",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "dual_control_ready_for_publish",
+                              "label":  "Publish handoff has a different applying reviewer",
+                              "passed":  false,
+                              "blocking":  false
+                          }
+                      ]
+    },
+    {
+        "claim_id":  "56f22718-b7f7-4691-8c17-9c57025e921f",
+        "claim_text":  "Paxton previously served in the Texas House and the Texas Senate.",
+        "issue_tag":  null,
+        "status":  "draft",
+        "statement_source_url":  "https://www.kenpaxton.com/about",
+        "statement_published_at":  "2026-05-14T12:00:00Z",
+        "candidate_id":  "96173268-2c97-451c-89e5-584b60099747",
+        "candidate_name":  "Ken Paxton",
+        "candidate_party":  "Republican",
+        "candidate_office":  "US Senate",
+        "candidate_state":  "TX",
+        "election_cycle":  2026,
+        "race_stage":  "primary_runoff",
+        "fact_checkable":  false,
+        "is_published":  false,
+        "published_at":  null,
+        "published_by_reviewer_id":  null,
+        "reviewer_state":  "Needs Evidence",
+        "second_reviewer_action":  null,
+        "primary_source_count":  0,
+        "secondary_source_count":  0,
+        "candidate_source_count":  0,
+        "verification_source_count":  0,
+        "verification_primary_count":  0,
+        "verification_secondary_count":  0,
+        "latest_verdict":  null,
+        "latest_confidence":  null,
+        "latest_rationale":  null,
+        "latest_citation_notes":  null,
+        "latest_reviewer_id":  null,
+        "latest_evaluated_at":  null,
+        "publish_gate_passed":  false,
+        "publish_gate_failures":  [
+                                      "claim_not_fact_checkable",
+                                      "latest_verdict_must_be_supported_mixed_or_unsupported",
+                                      "latest_rationale_required",
+                                      "latest_citation_notes_required",
+                                      "verification_primary_source_required",
+                                      "verification_secondary_source_required"
+                                  ],
+        "checklist":  [
+                          {
+                              "code":  "fact_checkable",
+                              "label":  "Claim is fact-checkable",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_verdict_publishable",
+                              "label":  "Latest verdict is publishable (supported/mixed/unsupported)",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_rationale_present",
+                              "label":  "Latest rationale is present",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_citation_notes_present",
+                              "label":  "Latest citation notes are present",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_primary_present",
+                              "label":  "Verification primary source is attached",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_secondary_present",
+                              "label":  "Verification secondary source is attached",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "moderation_clear",
+                              "label":  "Latest evaluation is moderation-policy clean",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "dual_control_ready_for_publish",
+                              "label":  "Publish handoff has a different applying reviewer",
+                              "passed":  false,
+                              "blocking":  false
+                          }
+                      ]
+    },
+    {
+        "claim_id":  "1175270b-6caf-4b16-aca0-3ec5e233ed3e",
+        "claim_text":  "John Cornyn Fights for Texas.",
+        "issue_tag":  "Campaign Messaging",
+        "status":  "reviewed",
+        "statement_source_url":  "https://www.johncornyn.com/",
+        "statement_published_at":  "2026-04-21T12:00:00Z",
+        "candidate_id":  "15e9b302-9eb9-4bea-97b6-97d1e4813ab5",
+        "candidate_name":  "John Cornyn",
+        "candidate_party":  "Republican",
+        "candidate_office":  "US Senate",
+        "candidate_state":  "TX",
+        "election_cycle":  2026,
+        "race_stage":  "primary_runoff",
+        "fact_checkable":  false,
+        "is_published":  false,
+        "published_at":  null,
+        "published_by_reviewer_id":  null,
+        "reviewer_state":  "Insufficient Evidence",
+        "second_reviewer_action":  null,
+        "primary_source_count":  1,
+        "secondary_source_count":  1,
+        "candidate_source_count":  0,
+        "verification_source_count":  2,
+        "verification_primary_count":  1,
+        "verification_secondary_count":  1,
+        "latest_verdict":  "insufficient",
+        "latest_confidence":  0.4,
+        "latest_rationale":  "Provisional bootstrap review: claim requires evidence attachment and human verification.",
+        "latest_citation_notes":  "Pending primary + independent secondary source review.",
+        "latest_reviewer_id":  "tx_2026_bootstrap_reviewer",
+        "latest_evaluated_at":  "2026-04-21T15:48:26.262569Z",
+        "publish_gate_passed":  false,
+        "publish_gate_failures":  [
+                                      "claim_not_fact_checkable",
+                                      "latest_verdict_must_be_supported_mixed_or_unsupported"
+                                  ],
+        "checklist":  [
+                          {
+                              "code":  "fact_checkable",
+                              "label":  "Claim is fact-checkable",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_verdict_publishable",
+                              "label":  "Latest verdict is publishable (supported/mixed/unsupported)",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_rationale_present",
+                              "label":  "Latest rationale is present",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_citation_notes_present",
+                              "label":  "Latest citation notes are present",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_primary_present",
+                              "label":  "Verification primary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_secondary_present",
+                              "label":  "Verification secondary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "moderation_clear",
+                              "label":  "Latest evaluation is moderation-policy clean",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "dual_control_ready_for_publish",
+                              "label":  "Publish handoff has a different applying reviewer",
+                              "passed":  true,
+                              "blocking":  false
+                          }
+                      ]
+    },
+    {
+        "claim_id":  "2ac3a930-1f21-4132-bbe9-4dd527ba72b3",
+        "claim_text":  "Helped confirm all three of President Trumpâs Supreme Court Justices â Neil Gorsuch, Brett Kavanaugh, and Amy Coney Barrett.",
+        "issue_tag":  "Democracy \u0026 Rule of Law",
+        "status":  "reviewed",
+        "statement_source_url":  "https://www.johncornyn.com/the-cornyn-trump-record/",
+        "statement_published_at":  "2026-04-21T12:00:00Z",
+        "candidate_id":  "15e9b302-9eb9-4bea-97b6-97d1e4813ab5",
+        "candidate_name":  "John Cornyn",
+        "candidate_party":  "Republican",
+        "candidate_office":  "US Senate",
+        "candidate_state":  "TX",
+        "election_cycle":  2026,
+        "race_stage":  "primary_runoff",
+        "fact_checkable":  true,
+        "is_published":  true,
+        "published_at":  "2026-05-11T17:47:54.798171Z",
+        "published_by_reviewer_id":  "reviewer@local",
+        "reviewer_state":  "Published",
+        "second_reviewer_action":  "overwrite_handoff",
+        "primary_source_count":  3,
+        "secondary_source_count":  1,
+        "candidate_source_count":  0,
+        "verification_source_count":  4,
+        "verification_primary_count":  3,
+        "verification_secondary_count":  1,
+        "latest_verdict":  "supported",
+        "latest_confidence":  0.9,
+        "latest_rationale":  "Supreme Court Confirmations: Cornyn, as a senior member of the Senate Judiciary Committee, supported the confirmations of Neil Gorsuch, Brett Kavanaugh, and Amy Coney Barrett.Judiciary Focus: He has been part of a broader Republican effort to seat conservative judges to influence the federal judiciary.2025/2026 Context: Recent reports indicate that while maintaining his conservative voting record, Cornyn has sought to avoid direct involvement in personal, intra-party conflicts surrounding legal figures like Leonard Leo, stating, âI\u0027m not going to get involved in those personality conflictsâ.No Active Social Media: The prompt indicates there is no active social media post linked to this specific, high-level overview",
+        "latest_citation_notes":  "https://www.nbcnews.com/politics/2024-election/trump-will-name-conservative-judges-may-even-pick-majority-supreme-cou-rcna179130",
+        "latest_reviewer_id":  "reviewer@local",
+        "latest_evaluated_at":  "2026-05-11T18:41:34.303415Z",
+        "publish_gate_passed":  true,
+        "publish_gate_failures":  [
+
+                                  ],
+        "checklist":  [
+                          {
+                              "code":  "fact_checkable",
+                              "label":  "Claim is fact-checkable",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_verdict_publishable",
+                              "label":  "Latest verdict is publishable (supported/mixed/unsupported)",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_rationale_present",
+                              "label":  "Latest rationale is present",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_citation_notes_present",
+                              "label":  "Latest citation notes are present",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_primary_present",
+                              "label":  "Verification primary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_secondary_present",
+                              "label":  "Verification secondary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "moderation_clear",
+                              "label":  "Latest evaluation is moderation-policy clean",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "dual_control_ready_for_publish",
+                              "label":  "Publish handoff has a different applying reviewer",
+                              "passed":  false,
+                              "blocking":  false
+                          }
+                      ]
+    },
+    {
+        "claim_id":  "921d8ae0-dc7e-4091-b8e0-4167e2eeb2e7",
+        "claim_text":  "Heâs sued the Biden administration over 100 times.",
+        "issue_tag":  "Democracy \u0026 Rule of Law",
+        "status":  "published",
+        "statement_source_url":  "https://www.kenpaxton.com/about",
+        "statement_published_at":  "2026-04-21T12:00:00Z",
+        "candidate_id":  "96173268-2c97-451c-89e5-584b60099747",
+        "candidate_name":  "Ken Paxton",
+        "candidate_party":  "Republican",
+        "candidate_office":  "US Senate",
+        "candidate_state":  "TX",
+        "election_cycle":  2026,
+        "race_stage":  "primary_runoff",
+        "fact_checkable":  true,
+        "is_published":  true,
+        "published_at":  "2026-05-11T17:47:54.809232Z",
+        "published_by_reviewer_id":  "reviewer@local",
+        "reviewer_state":  "Published",
+        "second_reviewer_action":  "overwrite_handoff",
+        "primary_source_count":  2,
+        "secondary_source_count":  1,
+        "candidate_source_count":  0,
+        "verification_source_count":  3,
+        "verification_primary_count":  2,
+        "verification_secondary_count":  1,
+        "latest_verdict":  "supported",
+        "latest_confidence":  0.82,
+        "latest_rationale":  "The cited Texas AG releases identify a 100th lawsuit milestone and additional subsequent litigation, which supports the claim that lawsuits exceeded 100.",
+        "latest_citation_notes":  "Primary sources are Texas AG release pages documenting the 100th filing and a later lawsuit; secondary reporting corroborates the milestone.",
+        "latest_reviewer_id":  "reviewer@local",
+        "latest_evaluated_at":  "2026-05-11T17:47:54.801879Z",
+        "publish_gate_passed":  true,
+        "publish_gate_failures":  [
+
+                                  ],
+        "checklist":  [
+                          {
+                              "code":  "fact_checkable",
+                              "label":  "Claim is fact-checkable",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_verdict_publishable",
+                              "label":  "Latest verdict is publishable (supported/mixed/unsupported)",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_rationale_present",
+                              "label":  "Latest rationale is present",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_citation_notes_present",
+                              "label":  "Latest citation notes are present",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_primary_present",
+                              "label":  "Verification primary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_secondary_present",
+                              "label":  "Verification secondary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "moderation_clear",
+                              "label":  "Latest evaluation is moderation-policy clean",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "dual_control_ready_for_publish",
+                              "label":  "Publish handoff has a different applying reviewer",
+                              "passed":  false,
+                              "blocking":  false
+                          }
+                      ]
+    },
+    {
+        "claim_id":  "b7f7b17c-8607-44fb-a585-d651a4e76caf",
+        "claim_text":  "In an asymmetrical war, Iran seeks an edge with its dis-information war.",
+        "issue_tag":  "Foreign Policy",
+        "status":  "reviewed",
+        "statement_source_url":  "https://x.com/JohnCornyn/status/2038257392652100008",
+        "statement_published_at":  "2026-03-29T12:00:00Z",
+        "candidate_id":  "15e9b302-9eb9-4bea-97b6-97d1e4813ab5",
+        "candidate_name":  "John Cornyn",
+        "candidate_party":  "Republican",
+        "candidate_office":  "US Senate",
+        "candidate_state":  "TX",
+        "election_cycle":  2026,
+        "race_stage":  "primary_runoff",
+        "fact_checkable":  false,
+        "is_published":  false,
+        "published_at":  null,
+        "published_by_reviewer_id":  null,
+        "reviewer_state":  "Insufficient Evidence",
+        "second_reviewer_action":  null,
+        "primary_source_count":  1,
+        "secondary_source_count":  1,
+        "candidate_source_count":  0,
+        "verification_source_count":  2,
+        "verification_primary_count":  1,
+        "verification_secondary_count":  1,
+        "latest_verdict":  "insufficient",
+        "latest_confidence":  0.4,
+        "latest_rationale":  "Provisional bootstrap review: claim requires evidence attachment and human verification.",
+        "latest_citation_notes":  "Pending primary + independent secondary source review.",
+        "latest_reviewer_id":  "tx_2026_bootstrap_reviewer",
+        "latest_evaluated_at":  "2026-04-21T15:48:26.262569Z",
+        "publish_gate_passed":  false,
+        "publish_gate_failures":  [
+                                      "claim_not_fact_checkable",
+                                      "latest_verdict_must_be_supported_mixed_or_unsupported"
+                                  ],
+        "checklist":  [
+                          {
+                              "code":  "fact_checkable",
+                              "label":  "Claim is fact-checkable",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_verdict_publishable",
+                              "label":  "Latest verdict is publishable (supported/mixed/unsupported)",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_rationale_present",
+                              "label":  "Latest rationale is present",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_citation_notes_present",
+                              "label":  "Latest citation notes are present",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_primary_present",
+                              "label":  "Verification primary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_secondary_present",
+                              "label":  "Verification secondary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "moderation_clear",
+                              "label":  "Latest evaluation is moderation-policy clean",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "dual_control_ready_for_publish",
+                              "label":  "Publish handoff has a different applying reviewer",
+                              "passed":  true,
+                              "blocking":  false
+                          }
+                      ]
+    },
+    {
+        "claim_id":  "c5ccf5c6-118b-4d72-8fdc-94106134e2fb",
+        "claim_text":  "Primary runoff context: Cornyn argued Paxton was a risky nominee while seeking a fifth Senate term.",
+        "issue_tag":  "Campaign Messaging",
+        "status":  "reviewed",
+        "statement_source_url":  "https://www.houstonchronicle.com/politics/election/2026/article/senate-republican-primary-results-21318098.php",
+        "statement_published_at":  "2026-03-04T12:00:00Z",
+        "candidate_id":  "15e9b302-9eb9-4bea-97b6-97d1e4813ab5",
+        "candidate_name":  "John Cornyn",
+        "candidate_party":  "Republican",
+        "candidate_office":  "US Senate",
+        "candidate_state":  "TX",
+        "election_cycle":  2026,
+        "race_stage":  "primary_runoff",
+        "fact_checkable":  false,
+        "is_published":  false,
+        "published_at":  null,
+        "published_by_reviewer_id":  null,
+        "reviewer_state":  "Insufficient Evidence",
+        "second_reviewer_action":  null,
+        "primary_source_count":  1,
+        "secondary_source_count":  1,
+        "candidate_source_count":  0,
+        "verification_source_count":  2,
+        "verification_primary_count":  1,
+        "verification_secondary_count":  1,
+        "latest_verdict":  "insufficient",
+        "latest_confidence":  0.4,
+        "latest_rationale":  "Provisional bootstrap review: claim requires evidence attachment and human verification.",
+        "latest_citation_notes":  "Pending primary + independent secondary source review.",
+        "latest_reviewer_id":  "tx_2026_bootstrap_reviewer",
+        "latest_evaluated_at":  "2026-04-21T15:48:26.262569Z",
+        "publish_gate_passed":  false,
+        "publish_gate_failures":  [
+                                      "claim_not_fact_checkable",
+                                      "latest_verdict_must_be_supported_mixed_or_unsupported"
+                                  ],
+        "checklist":  [
+                          {
+                              "code":  "fact_checkable",
+                              "label":  "Claim is fact-checkable",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_verdict_publishable",
+                              "label":  "Latest verdict is publishable (supported/mixed/unsupported)",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_rationale_present",
+                              "label":  "Latest rationale is present",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_citation_notes_present",
+                              "label":  "Latest citation notes are present",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_primary_present",
+                              "label":  "Verification primary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_secondary_present",
+                              "label":  "Verification secondary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "moderation_clear",
+                              "label":  "Latest evaluation is moderation-policy clean",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "dual_control_ready_for_publish",
+                              "label":  "Publish handoff has a different applying reviewer",
+                              "passed":  true,
+                              "blocking":  false
+                          }
+                      ]
+    },
+    {
+        "claim_id":  "1355846f-eed3-42f9-85db-3f786eeb66f5",
+        "claim_text":  "Primary runoff context: Paxton framed the race as a change mandate against Washington incumbency.",
+        "issue_tag":  "Campaign Messaging",
+        "status":  "reviewed",
+        "statement_source_url":  "https://www.houstonchronicle.com/politics/election/2026/article/senate-republican-primary-results-21318098.php",
+        "statement_published_at":  "2026-03-04T12:00:00Z",
+        "candidate_id":  "96173268-2c97-451c-89e5-584b60099747",
+        "candidate_name":  "Ken Paxton",
+        "candidate_party":  "Republican",
+        "candidate_office":  "US Senate",
+        "candidate_state":  "TX",
+        "election_cycle":  2026,
+        "race_stage":  "primary_runoff",
+        "fact_checkable":  false,
+        "is_published":  false,
+        "published_at":  null,
+        "published_by_reviewer_id":  null,
+        "reviewer_state":  "Insufficient Evidence",
+        "second_reviewer_action":  null,
+        "primary_source_count":  1,
+        "secondary_source_count":  1,
+        "candidate_source_count":  0,
+        "verification_source_count":  2,
+        "verification_primary_count":  1,
+        "verification_secondary_count":  1,
+        "latest_verdict":  "insufficient",
+        "latest_confidence":  0.4,
+        "latest_rationale":  "Provisional bootstrap review: claim requires evidence attachment and human verification.",
+        "latest_citation_notes":  "Pending primary + independent secondary source review.",
+        "latest_reviewer_id":  "tx_2026_bootstrap_reviewer",
+        "latest_evaluated_at":  "2026-04-21T15:48:26.262569Z",
+        "publish_gate_passed":  false,
+        "publish_gate_failures":  [
+                                      "claim_not_fact_checkable",
+                                      "latest_verdict_must_be_supported_mixed_or_unsupported"
+                                  ],
+        "checklist":  [
+                          {
+                              "code":  "fact_checkable",
+                              "label":  "Claim is fact-checkable",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_verdict_publishable",
+                              "label":  "Latest verdict is publishable (supported/mixed/unsupported)",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_rationale_present",
+                              "label":  "Latest rationale is present",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_citation_notes_present",
+                              "label":  "Latest citation notes are present",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_primary_present",
+                              "label":  "Verification primary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_secondary_present",
+                              "label":  "Verification secondary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "moderation_clear",
+                              "label":  "Latest evaluation is moderation-policy clean",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "dual_control_ready_for_publish",
+                              "label":  "Publish handoff has a different applying reviewer",
+                              "passed":  true,
+                              "blocking":  false
+                          }
+                      ]
+    },
+    {
+        "claim_id":  "1bfbc01c-1537-46e4-acc4-499091b6528a",
+        "claim_text":  "Senate run themes at a Tyler stop.",
+        "issue_tag":  "Campaign Messaging",
+        "status":  "reviewed",
+        "statement_source_url":  "https://www.youtube.com/watch?v=cT2fv0ZsfVo",
+        "statement_published_at":  "2026-02-19T12:00:00Z",
+        "candidate_id":  "96173268-2c97-451c-89e5-584b60099747",
+        "candidate_name":  "Ken Paxton",
+        "candidate_party":  "Republican",
+        "candidate_office":  "US Senate",
+        "candidate_state":  "TX",
+        "election_cycle":  2026,
+        "race_stage":  "primary_runoff",
+        "fact_checkable":  false,
+        "is_published":  false,
+        "published_at":  null,
+        "published_by_reviewer_id":  null,
+        "reviewer_state":  "Insufficient Evidence",
+        "second_reviewer_action":  null,
+        "primary_source_count":  1,
+        "secondary_source_count":  1,
+        "candidate_source_count":  0,
+        "verification_source_count":  2,
+        "verification_primary_count":  1,
+        "verification_secondary_count":  1,
+        "latest_verdict":  "insufficient",
+        "latest_confidence":  0.4,
+        "latest_rationale":  "Provisional bootstrap review: claim requires evidence attachment and human verification.",
+        "latest_citation_notes":  "Pending primary + independent secondary source review.",
+        "latest_reviewer_id":  "tx_2026_bootstrap_reviewer",
+        "latest_evaluated_at":  "2026-04-21T15:48:26.262569Z",
+        "publish_gate_passed":  false,
+        "publish_gate_failures":  [
+                                      "claim_not_fact_checkable",
+                                      "latest_verdict_must_be_supported_mixed_or_unsupported"
+                                  ],
+        "checklist":  [
+                          {
+                              "code":  "fact_checkable",
+                              "label":  "Claim is fact-checkable",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_verdict_publishable",
+                              "label":  "Latest verdict is publishable (supported/mixed/unsupported)",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_rationale_present",
+                              "label":  "Latest rationale is present",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_citation_notes_present",
+                              "label":  "Latest citation notes are present",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_primary_present",
+                              "label":  "Verification primary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_secondary_present",
+                              "label":  "Verification secondary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "moderation_clear",
+                              "label":  "Latest evaluation is moderation-policy clean",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "dual_control_ready_for_publish",
+                              "label":  "Publish handoff has a different applying reviewer",
+                              "passed":  true,
+                              "blocking":  false
+                          }
+                      ]
+    },
+    {
+        "claim_id":  "7f23624c-0149-4249-ba9c-0972fad5cd57",
+        "claim_text":  "Campaign stop event in Tyler, Texas in support of U.S.",
+        "issue_tag":  "Campaign Messaging",
+        "status":  "reviewed",
+        "statement_source_url":  "https://www.youtube.com/watch?v=cT2fv0ZsfVo",
+        "statement_published_at":  "2026-02-19T12:00:00Z",
+        "candidate_id":  "96173268-2c97-451c-89e5-584b60099747",
+        "candidate_name":  "Ken Paxton",
+        "candidate_party":  "Republican",
+        "candidate_office":  "US Senate",
+        "candidate_state":  "TX",
+        "election_cycle":  2026,
+        "race_stage":  "primary_runoff",
+        "fact_checkable":  false,
+        "is_published":  false,
+        "published_at":  null,
+        "published_by_reviewer_id":  null,
+        "reviewer_state":  "Insufficient Evidence",
+        "second_reviewer_action":  null,
+        "primary_source_count":  1,
+        "secondary_source_count":  1,
+        "candidate_source_count":  0,
+        "verification_source_count":  2,
+        "verification_primary_count":  1,
+        "verification_secondary_count":  1,
+        "latest_verdict":  "insufficient",
+        "latest_confidence":  0.4,
+        "latest_rationale":  "Provisional bootstrap review: claim requires evidence attachment and human verification.",
+        "latest_citation_notes":  "Pending primary + independent secondary source review.",
+        "latest_reviewer_id":  "tx_2026_bootstrap_reviewer",
+        "latest_evaluated_at":  "2026-04-21T15:48:26.262569Z",
+        "publish_gate_passed":  false,
+        "publish_gate_failures":  [
+                                      "claim_not_fact_checkable",
+                                      "latest_verdict_must_be_supported_mixed_or_unsupported"
+                                  ],
+        "checklist":  [
+                          {
+                              "code":  "fact_checkable",
+                              "label":  "Claim is fact-checkable",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_verdict_publishable",
+                              "label":  "Latest verdict is publishable (supported/mixed/unsupported)",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_rationale_present",
+                              "label":  "Latest rationale is present",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_citation_notes_present",
+                              "label":  "Latest citation notes are present",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_primary_present",
+                              "label":  "Verification primary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_secondary_present",
+                              "label":  "Verification secondary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "moderation_clear",
+                              "label":  "Latest evaluation is moderation-policy clean",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "dual_control_ready_for_publish",
+                              "label":  "Publish handoff has a different applying reviewer",
+                              "passed":  true,
+                              "blocking":  false
+                          }
+                      ]
+    },
+    {
+        "claim_id":  "b39374a5-5352-4553-b53c-d38cf58788df",
+        "claim_text":  "Campaign event framing U.S.",
+        "issue_tag":  "Campaign Messaging",
+        "status":  "reviewed",
+        "statement_source_url":  "https://www.youtube.com/watch?v=cT2fv0ZsfVo",
+        "statement_published_at":  "2026-02-19T12:00:00Z",
+        "candidate_id":  "96173268-2c97-451c-89e5-584b60099747",
+        "candidate_name":  "Ken Paxton",
+        "candidate_party":  "Republican",
+        "candidate_office":  "US Senate",
+        "candidate_state":  "TX",
+        "election_cycle":  2026,
+        "race_stage":  "primary_runoff",
+        "fact_checkable":  false,
+        "is_published":  false,
+        "published_at":  null,
+        "published_by_reviewer_id":  null,
+        "reviewer_state":  "Insufficient Evidence",
+        "second_reviewer_action":  null,
+        "primary_source_count":  1,
+        "secondary_source_count":  1,
+        "candidate_source_count":  0,
+        "verification_source_count":  2,
+        "verification_primary_count":  1,
+        "verification_secondary_count":  1,
+        "latest_verdict":  "insufficient",
+        "latest_confidence":  0.4,
+        "latest_rationale":  "Provisional bootstrap review: claim requires evidence attachment and human verification.",
+        "latest_citation_notes":  "Pending primary + independent secondary source review.",
+        "latest_reviewer_id":  "tx_2026_bootstrap_reviewer",
+        "latest_evaluated_at":  "2026-04-21T15:48:26.262569Z",
+        "publish_gate_passed":  false,
+        "publish_gate_failures":  [
+                                      "claim_not_fact_checkable",
+                                      "latest_verdict_must_be_supported_mixed_or_unsupported"
+                                  ],
+        "checklist":  [
+                          {
+                              "code":  "fact_checkable",
+                              "label":  "Claim is fact-checkable",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_verdict_publishable",
+                              "label":  "Latest verdict is publishable (supported/mixed/unsupported)",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_rationale_present",
+                              "label":  "Latest rationale is present",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_citation_notes_present",
+                              "label":  "Latest citation notes are present",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_primary_present",
+                              "label":  "Verification primary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_secondary_present",
+                              "label":  "Verification secondary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "moderation_clear",
+                              "label":  "Latest evaluation is moderation-policy clean",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "dual_control_ready_for_publish",
+                              "label":  "Publish handoff has a different applying reviewer",
+                              "passed":  true,
+                              "blocking":  false
+                          }
+                      ]
+    },
+    {
+        "claim_id":  "3e71f508-8b53-4f83-8079-86d72260a3f7",
+        "claim_text":  "General Mills agrees to remove artificial dyes from its products following my investigation.",
+        "issue_tag":  "Campaign Messaging",
+        "status":  "reviewed",
+        "statement_source_url":  "https://x.com/KenPaxtonTX/status/1935360538781040857",
+        "statement_published_at":  "2025-06-18T12:00:00Z",
+        "candidate_id":  "96173268-2c97-451c-89e5-584b60099747",
+        "candidate_name":  "Ken Paxton",
+        "candidate_party":  "Republican",
+        "candidate_office":  "US Senate",
+        "candidate_state":  "TX",
+        "election_cycle":  2026,
+        "race_stage":  "primary_runoff",
+        "fact_checkable":  false,
+        "is_published":  false,
+        "published_at":  null,
+        "published_by_reviewer_id":  null,
+        "reviewer_state":  "Insufficient Evidence",
+        "second_reviewer_action":  null,
+        "primary_source_count":  1,
+        "secondary_source_count":  1,
+        "candidate_source_count":  0,
+        "verification_source_count":  2,
+        "verification_primary_count":  1,
+        "verification_secondary_count":  1,
+        "latest_verdict":  "insufficient",
+        "latest_confidence":  0.4,
+        "latest_rationale":  "Provisional bootstrap review: claim requires evidence attachment and human verification.",
+        "latest_citation_notes":  "Pending primary + independent secondary source review.",
+        "latest_reviewer_id":  "tx_2026_bootstrap_reviewer",
+        "latest_evaluated_at":  "2026-04-21T15:48:26.262569Z",
+        "publish_gate_passed":  false,
+        "publish_gate_failures":  [
+                                      "claim_not_fact_checkable",
+                                      "latest_verdict_must_be_supported_mixed_or_unsupported"
+                                  ],
+        "checklist":  [
+                          {
+                              "code":  "fact_checkable",
+                              "label":  "Claim is fact-checkable",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_verdict_publishable",
+                              "label":  "Latest verdict is publishable (supported/mixed/unsupported)",
+                              "passed":  false,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_rationale_present",
+                              "label":  "Latest rationale is present",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "latest_citation_notes_present",
+                              "label":  "Latest citation notes are present",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_primary_present",
+                              "label":  "Verification primary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "verification_secondary_present",
+                              "label":  "Verification secondary source is attached",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "moderation_clear",
+                              "label":  "Latest evaluation is moderation-policy clean",
+                              "passed":  true,
+                              "blocking":  true
+                          },
+                          {
+                              "code":  "dual_control_ready_for_publish",
+                              "label":  "Publish handoff has a different applying reviewer",
+                              "passed":  true,
+                              "blocking":  false
+                          }
+                      ]
+    }
+]

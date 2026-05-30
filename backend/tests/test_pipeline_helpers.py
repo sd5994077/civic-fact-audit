@@ -5,12 +5,13 @@ from __future__ import annotations
 import dataclasses
 
 import pytest
-from sqlalchemy import Select
+from sqlalchemy import Select, select
 
 from app.core.intake_profiles import IntakeProfile
 from app.models.enums import RaceStage
 from app.scripts.pipeline_helpers import (
     RaceContext,
+    candidate_stages_for_context,
     build_candidate_filter,
     build_unextracted_statement_query,
     race_context_from_profile,
@@ -89,6 +90,75 @@ def test_build_candidate_filter_returns_four_conditions() -> None:
     )
     conditions = build_candidate_filter(ctx)
     assert len(conditions) == 4
+
+
+def test_build_candidate_filter_expands_texas_senate_to_runoff() -> None:
+    ctx = RaceContext(
+        profile_id='tx_2026_senate',
+        label='Texas 2026 U.S. Senate',
+        state='tx',
+        office='us senate',
+        election_cycle=2026,
+        race_stage=RaceStage.primary,
+    )
+    stages = candidate_stages_for_context(ctx)
+    assert stages == (RaceStage.primary, RaceStage.primary_runoff)
+
+    compiled = str(select(1).where(*build_candidate_filter(ctx)))
+    assert 'candidates.race_stage IN' in compiled
+
+
+def test_build_candidate_filter_keeps_texas_senate_non_primary_stage_scoped() -> None:
+    ctx = RaceContext(
+        profile_id='tx_2026_senate',
+        label='Texas 2026 U.S. Senate',
+        state='tx',
+        office='us senate',
+        election_cycle=2026,
+        race_stage=RaceStage.general,
+    )
+    stages = candidate_stages_for_context(ctx)
+    assert stages == (RaceStage.general,)
+
+    compiled = str(select(1).where(*build_candidate_filter(ctx)))
+    assert 'candidates.race_stage =' in compiled
+    assert 'candidates.race_stage IN' not in compiled
+
+
+def test_race_context_from_profile_drives_texas_senate_stage_override() -> None:
+    senate_primary_profile = _make_profile(
+        profile_id='tx_2026_senate',
+        label='Texas 2026 U.S. Senate',
+        race_stage='primary',
+    )
+    senate_general_profile = _make_profile(
+        profile_id='tx_2026_senate',
+        label='Texas 2026 U.S. Senate',
+        race_stage='general',
+    )
+
+    primary_ctx = race_context_from_profile(senate_primary_profile)
+    general_ctx = race_context_from_profile(senate_general_profile)
+
+    assert candidate_stages_for_context(primary_ctx) == (RaceStage.primary, RaceStage.primary_runoff)
+    assert candidate_stages_for_context(general_ctx) == (RaceStage.general,)
+
+
+def test_build_candidate_filter_keeps_other_profiles_stage_scoped() -> None:
+    ctx = RaceContext(
+        profile_id='tx_2026_governor',
+        label='Texas 2026 Governor',
+        state='tx',
+        office='governor',
+        election_cycle=2026,
+        race_stage=RaceStage.general,
+    )
+    stages = candidate_stages_for_context(ctx)
+    assert stages == (RaceStage.general,)
+
+    compiled = str(select(1).where(*build_candidate_filter(ctx)))
+    assert 'candidates.race_stage =' in compiled
+    assert 'candidates.race_stage IN' not in compiled
 
 
 def test_build_unextracted_statement_query_is_a_select() -> None:

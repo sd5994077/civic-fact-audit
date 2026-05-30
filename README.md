@@ -161,10 +161,10 @@ civic-fact-audit/
 - Reviewer authentication with signed bearer tokens (`POST /v1/auth/login`, `GET /v1/auth/me`).
 - Dual-control approval tokens required for candidate mutations and sensitive overrides.
 - Per-IP sliding-window rate limiting on all write endpoints with `Retry-After` headers.
-- Admin console at `/admin/` — candidate lifecycle, review-queue adjudication, evidence triage, bulk source attach, proposal triage, publish/unpublish controls, audit-event inspection, and worker health monitoring.
+- Admin console at `/admin/` — Claim Workbench-first adjudication plus candidate lifecycle, queue/regression tabs, proposal triage, publish/unpublish controls, audit-event inspection, and worker health monitoring. See `docs/CLAIM_WORKBENCH_WORKFLOW.md`.
 - Background job worker with queue + retry logic and worker-health endpoint (`GET /v1/admin/jobs/worker-health`).
 - Full-text claim search (`GET /v1/claims/search`) with PostgreSQL GIN index, ILIKE fallback, and relevance ranking.
-- Public read-only API tier with API key authentication — admin-issued `X-API-Key` keys for external consumers; exposes published claim verdicts at `GET /v1/public/claims`.
+- Public read-only API tier with API key authentication — admin-issued `X-API-Key` keys for external consumers; exposes published claim verdicts at `GET /v1/public/claims` and cross-race published-volume reporting at `GET /v1/public/race-summary`.
 - Admin API key management (`POST/GET/DELETE /v1/admin/api-keys`).
 - Claim reviewability heuristics to exclude rhetorical slogans from evidence/review/compare workflows.
 - Scoring service with transparent numerators/denominators and formula versioning.
@@ -178,3 +178,4 @@ civic-fact-audit/
 - Source quality scoring automation.
 - Caching and query optimization for high-traffic public endpoints.
 - Expand to additional 2026 priority races.
+

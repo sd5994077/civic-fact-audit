@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     postgres_password: str = _DEFAULT_DB_PASSWORD
 
     openai_api_key: str = ''
+    congress_api_key: str = ''
     auth_secret_key: str = _DEFAULT_AUTH_SECRET
     auth_token_ttl_minutes: int = 480
     reviewer_bootstrap_email: str = 'reviewer@local'

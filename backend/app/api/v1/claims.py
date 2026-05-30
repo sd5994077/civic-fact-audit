@@ -22,6 +22,7 @@ from app.schemas.api import (
     ExtractClaimsRequest,
     ExtractClaimsResponse,
     SourceListResponse,
+    SourceRecommendationResponse,
     SourceRead,
 )
 from app.services.auth_dependency_service import require_reviewer_or_admin
@@ -29,6 +30,7 @@ from app.services.auth_service import AuthIdentity, AuthService
 from app.services.claim_extraction_service import ClaimExtractionService
 from app.services.proposal_service import ProposalService
 from app.services.search_service import SearchService
+from app.services.source_recommendation_service import SourceRecommendationService
 from app.services.source_service import SourceService
 
 router = APIRouter(prefix='/claims')
@@ -108,6 +110,28 @@ def list_sources(
         claim_id=claim_id,
         sources=[SourceRead.model_validate(source, from_attributes=True) for source in sources],
     )
+
+
+@router.get(
+    '/{claim_id}/source-recommendations',
+    response_model=SourceRecommendationResponse,
+    responses={
+        401: {'model': ErrorResponse},
+        403: {'model': ErrorResponse},
+        404: {'model': ErrorResponse},
+        429: {'model': ErrorResponse},
+    },
+)
+def source_recommendations(
+    claim_id: uuid.UUID,
+    limit: int | None = Query(default=None, ge=1, le=12),
+    db: Session = Depends(get_db),
+    identity: AuthIdentity = Depends(require_reviewer_or_admin),
+    _rl: None = Depends(ip_rate_limit(WRITE_STANDARD_LIMIT, endpoint_key='source_recommendations')),
+) -> SourceRecommendationResponse:
+    _ = identity
+    payload = SourceRecommendationService.get_recommendations(db, claim_id=claim_id, limit=limit)
+    return SourceRecommendationResponse.model_validate(payload)
 
 
 @router.delete(

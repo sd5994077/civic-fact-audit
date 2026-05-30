@@ -261,7 +261,7 @@ def test_apply_source_proposal_uses_single_transaction(monkeypatch) -> None:
             self.proposal_type = ProposalType.verification_source_suggestion
             self.status = ProposalStatus.approved
             self.proposal_payload = (
-                '{"url":"https://example.com","source_class":"primary","source_origin":"verification","quality_score":0.9}'
+                '{"url":"https://example.com/record","source_class":"primary","source_origin":"verification","quality_score":0.9}'
             )
             self.reviewed_by = 'approver@local'
             self.reviewed_at = None
@@ -379,7 +379,7 @@ def test_apply_verification_source_proposal_blocks_self_apply_dual_control() -> 
             self.proposal_type = ProposalType.verification_source_suggestion
             self.status = ProposalStatus.approved
             self.proposal_payload = (
-                '{"url":"https://example.com","source_class":"primary","source_origin":"verification","quality_score":0.9}'
+                '{"url":"https://example.com/record","source_class":"primary","source_origin":"verification","quality_score":0.9}'
             )
             self.reviewed_by = 'reviewer@local'
             self.reviewed_at = None
@@ -422,7 +422,7 @@ def test_apply_verification_source_proposal_blocks_self_apply_case_insensitive()
             self.proposal_type = ProposalType.verification_source_suggestion
             self.status = ProposalStatus.approved
             self.proposal_payload = (
-                '{"url":"https://example.com","source_class":"primary","source_origin":"verification","quality_score":0.9}'
+                '{"url":"https://example.com/record","source_class":"primary","source_origin":"verification","quality_score":0.9}'
             )
             self.reviewed_by = 'Reviewer@Local'
             self.reviewed_at = None

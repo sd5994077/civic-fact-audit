@@ -88,6 +88,10 @@ These policy fields let each shared frame declare what evidence classes are acce
 
 `source_class` describes evidence depth. `source_origin` describes who controls the source. Candidate-originated material may document what was said, but it is not sufficient verification on its own.
 
+Recommendation metadata:
+- Source recommendation responses may include `source_category` (`primary_record`/`civic_research`/`fact_check`/`secondary_news`) for Workbench triage.
+- `source_category` is not persisted on `sources` rows in this phase; persisted adjudication evidence remains `source_class` + `source_origin` + publisher + URL.
+
 Bulk attach contract:
 - `POST /v1/claims/sources/bulk` accepts `{ approval_token, items[] }` for verification-origin batches.
 - Dual-control enforcement in this phase is verification-only:

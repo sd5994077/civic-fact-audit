@@ -1,5 +1,5 @@
 {
-  "version": "admin_jobs_allowlist_v6_2026_05_14",
+  "version": "admin_jobs_allowlist_v7_2026_05_19",
   "job_types": [
     {
       "job_type": "ingest_candidate_roster",
@@ -47,7 +47,8 @@
       "module": "app.scripts.extract_tx_2026_claims_batch",
       "allowed_modules": [
         "app.scripts.extract_tx_2026_claims_batch",
-        "app.scripts.extract_tx_2026_attorney_general_runoff_claims_batch"
+        "app.scripts.extract_tx_2026_attorney_general_runoff_claims_batch",
+        "app.scripts.extract_tx_2026_governor_claims_batch"
       ],
       "supports_dry_run": false,
       "description": "Extract claim candidates from statements.",
@@ -64,7 +65,8 @@
       "module": "app.scripts.backfill_tx_2026_claim_reviewability",
       "allowed_modules": [
         "app.scripts.backfill_tx_2026_claim_reviewability",
-        "app.scripts.backfill_tx_2026_attorney_general_runoff_claim_reviewability"
+        "app.scripts.backfill_tx_2026_attorney_general_runoff_claim_reviewability",
+        "app.scripts.backfill_tx_2026_governor_claim_reviewability"
       ],
       "supports_dry_run": false,
       "description": "Apply reviewability heuristics to claims.",
@@ -91,7 +93,8 @@
       "module": "app.scripts.generate_tx_2026_publish_queue_report",
       "allowed_modules": [
         "app.scripts.generate_tx_2026_publish_queue_report",
-        "app.scripts.generate_tx_2026_attorney_general_runoff_publish_queue_report"
+        "app.scripts.generate_tx_2026_attorney_general_runoff_publish_queue_report",
+        "app.scripts.generate_tx_2026_governor_publish_queue_report"
       ],
       "supports_dry_run": false,
       "description": "Generate publish-queue diagnostics.",
@@ -108,7 +111,8 @@
       "module": "app.scripts.generate_tx_2026_publish_progress_report",
       "allowed_modules": [
         "app.scripts.generate_tx_2026_publish_progress_report",
-        "app.scripts.generate_tx_2026_attorney_general_runoff_publish_progress_report"
+        "app.scripts.generate_tx_2026_attorney_general_runoff_publish_progress_report",
+        "app.scripts.generate_tx_2026_governor_publish_progress_report"
       ],
       "supports_dry_run": false,
       "description": "Generate publish progress summary.",
@@ -125,7 +129,8 @@
       "module": "app.scripts.generate_tx_2026_claim_coverage_report",
       "allowed_modules": [
         "app.scripts.generate_tx_2026_claim_coverage_report",
-        "app.scripts.generate_tx_2026_attorney_general_runoff_claim_coverage_report"
+        "app.scripts.generate_tx_2026_attorney_general_runoff_claim_coverage_report",
+        "app.scripts.generate_tx_2026_governor_claim_coverage_report"
       ],
       "supports_dry_run": false,
       "description": "Generate per-candidate published-verified claim coverage and enforce the minimum coverage threshold.",

@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>Civic Fact Audit Admin</title>
-  <link rel="stylesheet" href="./admin.css?v=20260521c">
+  <link rel="stylesheet" href="./admin.css?v=20260522a">
 </head>
 <body>
   <main class="admin-shell">
@@ -32,9 +32,16 @@
       </form>
       <article id="approval-panel" class="panel" style="margin-top:1rem;" hidden>
         <div class="panel-head"><h3>Request Approval Token</h3></div>
-        <p class="status-text">Use a second reviewer/admin account to request the short-lived dual-control token for <code>intake_profile_mutation</code>.</p>
+        <p class="status-text">Use a second reviewer/admin account to request the short-lived dual-control token for the action you are about to perform.</p>
         <form id="approval-token-form" class="stack-form compact">
-          <label>Action<input id="approval-action" type="text" value="intake_profile_mutation" readonly></label>
+          <label>Action
+            <select id="approval-action">
+              <option value="evaluation_overwrite" selected>evaluation_overwrite</option>
+              <option value="candidate_mutation">candidate_mutation</option>
+              <option value="bulk_attach_verification_sources">bulk_attach_verification_sources</option>
+              <option value="intake_profile_mutation">intake_profile_mutation</option>
+            </select>
+          </label>
           <button type="submit" class="primary-btn">Request Token</button>
         </form>
         <label>Approval Reviewer ID<input id="approval-reviewer-id" type="text" readonly placeholder="Returned reviewer ID"></label>
@@ -290,26 +297,37 @@
 
               <form id="workbench-source-form" class="stack-form compact" autocomplete="off">
                 <h4>Attach Source</h4>
-                <label>Claim ID<input id="workbench-source-claim-id" type="text" readonly required></label>
-                <label>Source URL<input id="workbench-source-url" type="url" placeholder="https://www.congress.gov/" required></label>
+                <label>Claim ID<span class="hint" title="The claim you are attaching this source to. Pick a claim from the Workbench list to populate this automatically.">?</span><input id="workbench-source-claim-id" type="text" readonly required></label>
+                <label>Source URL<span class="hint" title="A direct link to a relevant record/report/article. Prefer neutral, record-based sources for verification.">?</span><input id="workbench-source-url" type="url" placeholder="https://www.congress.gov/" required></label>
                 <label>Source Class
+                  <span class="hint" title="Primary = original record/dataset/official filing. Secondary = independent reporting that corroborates the record.">?</span>
                   <select id="workbench-source-class" required>
                     <option value="primary">primary</option>
                     <option value="secondary">secondary</option>
                   </select>
                 </label>
                 <label>Source Origin
+                  <span class="hint" title="Verification = evidence used to assess accuracy. Candidate = candidate-origin material (allowed for direct quotes only, not as verification).">?</span>
                   <select id="workbench-source-origin" required>
                     <option value="verification">verification</option>
                     <option value="candidate">candidate</option>
                   </select>
                 </label>
-                <label>Publisher<input id="workbench-source-publisher" type="text" placeholder="Congress.gov"></label>
-                <label class="inline-check"><input id="workbench-source-direct-quote" type="checkbox"> Direct candidate quote from official social channel</label>
+                <label>Publisher<span class="hint" title="Human-readable publisher/owner of the source (e.g., Congress.gov). Used for policy checks and reviewer clarity.">?</span><input id="workbench-source-publisher" type="text" placeholder="Congress.gov"></label>
+                <label class="inline-check"><input id="workbench-source-direct-quote" type="checkbox"> Direct candidate quote from official social channel <span class="hint" title="Only use when source_origin=candidate and the URL is an official social post. Do not use for verification evidence.">?</span></label>
                 <p class="status-text">Use a real neutral record or reporting source; do not leave the sample example values in place.</p>
                 <button type="submit" class="primary-btn">Attach Source</button>
               </form>
               <p id="workbench-source-status" class="status-text"></p>
+              <div class="checklist-box">
+                <div class="panel-head">
+                  <h4>Suggested Verification Links</h4>
+                  <button id="workbench-recommendations-refresh" class="ghost-btn" type="button">Refresh Suggestions</button>
+                </div>
+                <p class="status-text">Suggestions are neutral starting points only. Verify relevance before attaching.</p>
+                <p id="workbench-recommendations-status" class="status-text"></p>
+                <div id="workbench-recommendations-list" class="list"></div>
+              </div>
               <div class="checklist-box">
                 <h4>Attached Sources</h4>
                 <p id="workbench-sources-list-status" class="status-text"></p>
@@ -318,9 +336,10 @@
 
               <form id="workbench-review-form" class="stack-form" autocomplete="off">
                 <h4>Submit Evaluation</h4>
-                <label>Claim ID<input id="workbench-review-claim-id" type="text" readonly required></label>
-                <label>Approval Token (overwrite only)<input id="workbench-review-approval-token" type="text" placeholder="Paste dual-control approval token"></label>
+                <label>Claim ID<span class="hint" title="The claim you are evaluating. Pick a claim from the Workbench list to populate this automatically.">?</span><input id="workbench-review-claim-id" type="text" readonly required></label>
+                <label>Approval Token (overwrite only)<span class="hint" title="Required only when overwriting an existing evaluation (dual-control). Leave blank for first-time evaluations.">?</span><input id="workbench-review-approval-token" type="text" placeholder="Paste dual-control approval token"></label>
                 <label>Verdict
+                  <span class="hint" title="supported/mixed/unsupported require minimum verification evidence. insufficient means evidence is not sufficient to verify or falsify to standard.">?</span>
                   <select id="workbench-review-verdict" required>
                     <option value="supported">supported</option>
                     <option value="mixed">mixed</option>
@@ -328,17 +347,18 @@
                     <option value="insufficient">insufficient</option>
                   </select>
                 </label>
-                <label>Confidence (0-1)<input id="workbench-review-confidence" type="number" min="0" max="1" step="0.01" value="0.70" required></label>
-                <label>Rationale<textarea id="workbench-review-rationale" minlength="10" required></textarea></label>
-                <label>Citation Notes<textarea id="workbench-review-citation-notes"></textarea></label>
+                <label>Confidence (0-1)<span class="hint" title="How confident you are in the verdict given the attached evidence. For 'insufficient', this is confidence in the insufficiency decision, not the claim's truth.">?</span><input id="workbench-review-confidence" type="number" min="0" max="1" step="0.01" value="0.70" required></label>
+                <label>Rationale<span class="hint" title="Short, neutral explanation of how the evidence supports the verdict. Avoid advocacy or endorsements.">?</span><textarea id="workbench-review-rationale" minlength="10" required></textarea></label>
+                <label>Citation Notes<span class="hint" title="List concrete sources checked and what each supports. Include URLs; call out missing denominator/methodology for numeric claims.">?</span><textarea id="workbench-review-citation-notes"></textarea></label>
                 <button type="submit" class="primary-btn">Submit Evaluation</button>
               </form>
               <p id="workbench-review-submit-status" class="status-text"></p>
 
               <form id="workbench-publish-form" class="stack-form compact" autocomplete="off">
                 <h4>Publish Action</h4>
-                <label>Claim ID<input id="workbench-publish-claim-id" type="text" readonly required></label>
+                <label>Claim ID<span class="hint" title="The claim to publish/unpublish. Only admins can execute publish actions.">?</span><input id="workbench-publish-claim-id" type="text" readonly required></label>
                 <label>Action
+                  <span class="hint" title="Publish makes the claim visible to the public compare page. Unpublish removes it from public view. Dual-control may require a different actor than the evaluator.">?</span>
                   <select id="workbench-publish-action" required>
                     <option value="publish">publish</option>
                     <option value="unpublish">unpublish</option>
@@ -346,6 +366,7 @@
                 </label>
                 <button type="submit" class="primary-btn">Execute Publish Action</button>
               </form>
+              <p id="workbench-publish-hint" class="status-text"></p>
               <p id="workbench-publish-status" class="status-text"></p>
             </div>
           </article>
@@ -746,6 +767,6 @@
     </section>
   </main>
 
-  <script src="./admin.js?v=20260521c"></script>
+  <script src="./admin.js?v=20260522a"></script>
 </body>
 </html>

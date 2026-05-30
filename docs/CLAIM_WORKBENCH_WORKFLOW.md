@@ -45,6 +45,9 @@ No endpoint in this workflow may be used to produce endorsements or voting recom
 
 1. Start with `Needs Evidence` rows.
 2. Attach verification evidence until at least one verification `primary` and one verification `secondary` source are present.
+   - Workbench can pre-load neutral candidates from `GET /v1/claims/{claim_id}/source-recommendations`.
+   - Suggestions are reviewer aids only; reviewers must still confirm relevance before attaching.
+   - Recommendations marked `discovery_only` are research links and are not one-click attachable evidence.
 3. Row moves to `Needs Review` when minimum verification evidence is present and no latest human evaluation exists.
 4. Submit evaluation via `POST /v1/claims/{claim_id}/evaluate`.
 5. If latest verdict is `insufficient`, row is treated as review-complete but non-publishable (`Insufficient Evidence`).
@@ -100,3 +103,17 @@ Use advanced tabs only when necessary:
 - `Review Queue`, `Evidence Queue`, `Publish Controls`: API-level queue inspection/regression checks
 - `Proposal Triage`: proposal lifecycle and apply operations
 - `Advanced: Bulk Attach`: controlled bulk source ingestion requiring strict payload review and dual-control handling for verification-origin items
+
+## 7) QA Smoke Coverage
+
+Run frontend/admin smoke checks:
+
+```bash
+npm run test:smoke
+```
+
+The smoke suite now includes a focused Workbench recommendation regression on claim `89949aa0-1f75-481b-9449-6ee4f45f5b3b`:
+- validates Workbench scope/filter loading
+- validates suggested verification link rendering
+- validates one-click attach from suggestion
+- validates verification coverage update (`primary >= 1`, `secondary >= 1`)

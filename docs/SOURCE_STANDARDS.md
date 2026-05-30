@@ -9,6 +9,19 @@ Use sources in this order:
 2. Independent reporting for corroboration.
 3. Candidate-originated material only to document what was said, not to verify truth.
 
+Rule of precedence:
+- Primary records outweigh fact-check summaries and news reporting when records are available.
+
+## Recommendation Tiers (Workbench)
+
+`GET /v1/claims/{claim_id}/source-recommendations` may return recommendation metadata category labels:
+- `primary_record`
+- `civic_research`
+- `fact_check`
+- `secondary_news`
+
+These categories help reviewers prioritize triage. They do not change persisted source schema (`source_class` remains `primary` or `secondary`) and they do not replace human adjudication requirements.
+
 ## Disallowed for Verification Origin
 
 Do not attach these as `source_origin=verification`:
@@ -30,6 +43,7 @@ This exception captures candidate-originated quotes and is not verification trut
 
 Policy lists are versioned in:
 - `backend/app/config/source_admission_policy_v1.json`
+- `backend/app/config/source_recommendation_policy_v1.json`
 
 Config keys:
 - `partisan_publishers`

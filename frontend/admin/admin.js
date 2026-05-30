@@ -28,6 +28,7 @@ let selectedWorkbenchClaimId = "";
 let selectedProposalId = "";
 let selectedPublishClaimId = "";
 let selectedWorkbenchSources = [];
+let selectedWorkbenchRecommendations = [];
 let reviewQueueRows = [];
 let evidenceQueueRows = [];
 let workbenchRows = [];
@@ -95,6 +96,12 @@ function normalizeOptionalInt(value) {
 const RACE_STAGE_VALUES = new Set(["primary", "primary_runoff", "general", "special"]);
 const SOURCE_CLASS_VALUES = new Set(["primary", "secondary"]);
 const SOURCE_ORIGIN_VALUES = new Set(["candidate", "verification"]);
+const SOURCE_CATEGORY_LABELS = {
+  primary_record: "Primary record",
+  civic_research: "Civic research",
+  fact_check: "Fact-check",
+  secondary_news: "Secondary news",
+};
 const SOURCE_PROPOSAL_TYPES = new Set(["candidate_source_capture", "verification_source_suggestion"]);
 const WORKBENCH_STATE_ORDER = [
   "Needs Evidence",
@@ -123,6 +130,11 @@ function shortId(id) {
   const text = String(id || "");
   if (text.length <= 10) return text;
   return `${text.slice(0, 10)}...`;
+}
+
+function formatSourceCategoryLabel(value) {
+  const key = String(value || "").trim();
+  return SOURCE_CATEGORY_LABELS[key] || (key ? key.replaceAll("_", " ") : "Uncategorized");
 }
 
 function verdictClass(verdict) {
@@ -337,7 +349,7 @@ async function requestApprovalToken(event) {
     return;
   }
 
-  const action = "intake_profile_mutation";
+  const action = $("approval-action")?.value?.trim() || "evaluation_overwrite";
   try {
     setStatus("approval-token-status", "Requesting approval token...");
     const response = await apiRequest(API_AUTH_APPROVAL_TOKEN_URL, {
@@ -1364,8 +1376,11 @@ function renderWorkbenchDetail(row) {
     detail.hidden = true;
     empty.hidden = false;
     selectedWorkbenchSources = [];
+    selectedWorkbenchRecommendations = [];
     renderWorkbenchSourcesList([]);
+    renderWorkbenchRecommendationsList([]);
     setStatus("workbench-sources-list-status", "");
+    setStatus("workbench-recommendations-status", "");
     return;
   }
 
@@ -1394,12 +1409,20 @@ function renderWorkbenchDetail(row) {
   $("workbench-source-claim-id").value = String(row.claim_id);
   $("workbench-review-claim-id").value = String(row.claim_id);
   $("workbench-publish-claim-id").value = String(row.claim_id);
-  $("workbench-publish-action").value = row.is_published ? "unpublish" : "publish";
+  const publishActionEl = $("workbench-publish-action");
+  if (publishActionEl) publishActionEl.value = row.is_published ? "unpublish" : "publish";
+  setStatus(
+    "workbench-publish-hint",
+    row.is_published
+      ? "Current state: published. Default action is unpublish; after unpublish, the selector will flip back to publish."
+      : "Current state: unpublished. Default action is publish; after publish, the selector will flip back to unpublish."
+  );
   syncWorkbenchPublishVisibility();
 
   renderWorkbenchChecklist(row);
   renderWorkbenchRawFailures(row);
-  void loadWorkbenchSources(String(row.claim_id));
+  const claimId = String(row.claim_id);
+  void Promise.all([loadWorkbenchSources(claimId), loadWorkbenchSourceRecommendations(claimId)]);
 }
 
 function selectWorkbenchClaim(claimId) {
@@ -1500,6 +1523,73 @@ function renderWorkbenchSourcesList(sources) {
   });
 }
 
+function renderWorkbenchRecommendationsList(recommendations) {
+  const list = $("workbench-recommendations-list");
+  if (!list) return;
+  if (!recommendations.length) {
+    list.innerHTML = `<p class="status-text">No recommendations available for this claim yet.</p>`;
+    return;
+  }
+
+  list.innerHTML = recommendations
+    .map((item, index) => {
+      const sourceClass = item.source_class || "unknown";
+      const publisher = item.publisher || "Unspecified publisher";
+      const recommendationUrl = item.url || "";
+      const discoveryUrl = item.discovery_url || "";
+      const evidenceUrl = item.evidence_url || "";
+      const officialUrl = item.official_url || "";
+      const displayUrl = evidenceUrl || discoveryUrl || recommendationUrl;
+      const rationale = item.rationale || "";
+      const validationBits = [];
+      if (item.validation_status) validationBits.push(`status: ${item.validation_status}`);
+      if (item.http_status) validationBits.push(`http ${item.http_status}`);
+      if (typeof item.topic_overlap_score === "number") validationBits.push(`topic score ${item.topic_overlap_score}`);
+      if (item.page_type) validationBits.push(`page type ${item.page_type}`);
+      const validationNote = item.validation_note || "";
+      const pageTitle = item.page_title || "";
+      const recommendationRole = item.recommendation_role || "discovery_only";
+      const sourceCategoryLabel = formatSourceCategoryLabel(item.source_category);
+      const canAttach = recommendationRole === "attachable_evidence";
+      const roleLabel = canAttach ? "Attachable evidence" : recommendationRole === "discovery_only" ? "Research link only" : recommendationRole;
+      return `
+        <div class="row-btn" style="cursor:default;">
+          <strong>#${index + 1} ${escapeHtml(sourceClass)} verification</strong>
+          <span class="row-meta">publisher: ${escapeHtml(publisher)} | category: ${escapeHtml(sourceCategoryLabel)} | template ${escapeHtml(item.template_id || "n/a")}</span>
+          <span class="row-meta">role: ${escapeHtml(roleLabel)}</span>
+          <span class="row-meta"><a href="${escapeHtml(displayUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(displayUrl)}</a></span>
+          ${evidenceUrl && discoveryUrl ? `<span class="row-meta">discovery: <a href="${escapeHtml(discoveryUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(discoveryUrl)}</a></span>` : ""}
+          ${officialUrl ? `<span class="row-meta">official: <a href="${escapeHtml(officialUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(officialUrl)}</a></span>` : ""}
+          <span class="row-meta">${escapeHtml(rationale)}</span>
+          ${validationBits.length ? `<span class="row-meta">validation: ${escapeHtml(validationBits.join(" | "))}</span>` : ""}
+          ${pageTitle ? `<span class="row-meta">title: ${escapeHtml(pageTitle)}</span>` : ""}
+          ${validationNote ? `<span class="row-meta">${escapeHtml(validationNote)}</span>` : ""}
+          <div class="action-row" style="margin-top:0.5rem;">
+            ${canAttach
+              ? `<button type="button" class="ghost-btn workbench-recommendation-use" data-recommendation-index="${index}">Attach This Source</button>`
+              : `<a class="ghost-btn" href="${escapeHtml(discoveryUrl || displayUrl)}" target="_blank" rel="noopener noreferrer">Open Research Link</a>`}
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+
+  list.querySelectorAll(".workbench-recommendation-use").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const index = Number(btn.dataset.recommendationIndex);
+      if (!Number.isInteger(index) || index < 0 || index >= selectedWorkbenchRecommendations.length) return;
+      const recommendation = selectedWorkbenchRecommendations[index];
+      if (btn.disabled) return;
+      btn.disabled = true;
+      try {
+        await attachWorkbenchRecommendedSource(recommendation);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
 async function loadWorkbenchSources(claimId) {
   if (!claimId || !isUuid(claimId)) {
     selectedWorkbenchSources = [];
@@ -1519,9 +1609,99 @@ async function loadWorkbenchSources(claimId) {
     renderWorkbenchSourcesList(selectedWorkbenchSources);
     setStatus("workbench-sources-list-status", `Loaded ${selectedWorkbenchSources.length} sources.`, "ok");
   } catch (err) {
+    const selectedClaimId = String($("workbench-source-claim-id")?.value || "");
+    if (String(claimId) !== selectedClaimId) {
+      return;
+    }
     selectedWorkbenchSources = [];
     renderWorkbenchSourcesList([]);
     setStatus("workbench-sources-list-status", parseApiError(err, "Failed to load sources."), "bad");
+  }
+}
+
+async function loadWorkbenchSourceRecommendations(claimId) {
+  if (!claimId || !isUuid(claimId)) {
+    selectedWorkbenchRecommendations = [];
+    renderWorkbenchRecommendationsList([]);
+    setStatus("workbench-recommendations-status", "");
+    return;
+  }
+
+  try {
+    setStatus("workbench-recommendations-status", "Loading suggested verification links...");
+    const payload = await apiRequest(`${API_EVALUATE_BASE_URL}/${encodeURIComponent(claimId)}/source-recommendations`);
+    const selectedClaimId = String($("workbench-source-claim-id")?.value || "");
+    if (String(claimId) !== selectedClaimId) {
+      return;
+    }
+    selectedWorkbenchRecommendations = payload?.recommendations || [];
+    renderWorkbenchRecommendationsList(selectedWorkbenchRecommendations);
+    const missingClasses = payload?.missing_source_classes || [];
+    const coverageMessage = `Coverage now: ${payload?.verification_primary_count ?? 0} primary / ${payload?.verification_secondary_count ?? 0} secondary.`;
+    const missingMessage = missingClasses.length
+      ? ` Missing: ${missingClasses.join(", ")}.`
+      : " Minimum verification classes are currently satisfied.";
+    setStatus(
+      "workbench-recommendations-status",
+      `Loaded ${selectedWorkbenchRecommendations.length} suggestions. ${coverageMessage}${missingMessage}`,
+      "ok"
+    );
+  } catch (err) {
+    const selectedClaimId = String($("workbench-source-claim-id")?.value || "");
+    if (String(claimId) !== selectedClaimId) {
+      return;
+    }
+    selectedWorkbenchRecommendations = [];
+    renderWorkbenchRecommendationsList([]);
+    setStatus("workbench-recommendations-status", parseApiError(err, "Failed to load recommendations."), "bad");
+  }
+}
+
+async function attachWorkbenchRecommendedSource(recommendation) {
+  const claimId = $("workbench-source-claim-id")?.value?.trim();
+  if (!claimId || !isUuid(claimId)) {
+    setStatus("workbench-recommendations-status", "Select a valid claim first.", "bad");
+    return;
+  }
+  const url = String(recommendation?.evidence_url || recommendation?.url || "").trim();
+  const sourceClass = recommendation?.source_class;
+  const publisher = recommendation?.publisher || null;
+  const recommendationRole = recommendation?.recommendation_role || "discovery_only";
+  if (!isHttpUrl(url) || !SOURCE_CLASS_VALUES.has(sourceClass)) {
+    setStatus("workbench-recommendations-status", "Recommendation payload is invalid. Refresh suggestions and retry.", "bad");
+    return;
+  }
+  if (recommendationRole !== "attachable_evidence") {
+    const note = String(recommendation?.validation_note || "This link is available for research only.");
+    setStatus("workbench-recommendations-status", note, "bad");
+    return;
+  }
+  try {
+    setStatus("workbench-recommendations-status", "Attaching suggested source...");
+    await apiRequest(`${API_EVALUATE_BASE_URL}/${encodeURIComponent(claimId)}/sources`, {
+      method: "POST",
+      body: {
+        url,
+        source_class: sourceClass,
+        source_origin: "verification",
+        publisher,
+        is_direct_candidate_quote: false,
+      },
+    });
+    setStatus("workbench-recommendations-status", "Suggested source attached.", "ok");
+    await Promise.all([
+      loadWorkbench(),
+      loadEvidenceQueue(),
+      loadWorkbenchSources(claimId),
+      loadWorkbenchSourceRecommendations(claimId),
+    ]);
+  } catch (err) {
+    const policyMessage = parseSourceAdmissionError(err);
+    setStatus(
+      "workbench-recommendations-status",
+      policyMessage || parseApiError(err, "Failed to attach suggested source."),
+      "bad"
+    );
   }
 }
 
@@ -1587,7 +1767,7 @@ async function submitWorkbenchSourceAttach(event) {
       },
     });
     setStatus("workbench-source-status", "Source attached.", "ok");
-    await Promise.all([loadWorkbench(), loadEvidenceQueue(), loadWorkbenchSources(claimId)]);
+    await Promise.all([loadWorkbench(), loadEvidenceQueue(), loadWorkbenchSources(claimId), loadWorkbenchSourceRecommendations(claimId)]);
   } catch (err) {
     const policyMessage = parseSourceAdmissionError(err);
     setStatus("workbench-source-status", policyMessage || parseApiError(err, "Source attach failed."), "bad");
@@ -1641,6 +1821,7 @@ async function submitWorkbenchPublishAction(event) {
   }
   const claimId = $("workbench-publish-claim-id")?.value?.trim();
   const action = $("workbench-publish-action")?.value;
+  const submitBtn = document.querySelector("#workbench-publish-form button[type='submit']");
   if (!claimId || !action) {
     setStatus("workbench-publish-status", "Select a claim and publish action first.", "bad");
     return;
@@ -1657,14 +1838,24 @@ async function submitWorkbenchPublishAction(event) {
 
   try {
     setStatus("workbench-publish-status", "Submitting publish action...");
+    if (submitBtn) submitBtn.disabled = true;
     await apiRequest(`${API_EVALUATE_BASE_URL}/${encodeURIComponent(claimId)}/${encodeURIComponent(action)}`, {
       method: "POST",
     });
-    setStatus("workbench-publish-status", `Claim ${action} action completed.`, "ok");
+    const nextAction = action === "publish" ? "unpublish" : "publish";
+    const actionEl = $("workbench-publish-action");
+    if (actionEl) actionEl.value = nextAction;
+    setStatus(
+      "workbench-publish-status",
+      `Claim ${action} action completed. Next action defaults to ${nextAction}.`,
+      "ok"
+    );
     await Promise.all([loadWorkbench(), loadPublishQueue(), loadAuditList()]);
   } catch (err) {
     const dualControlMessage = parsePublishDualControlError(err, action);
     setStatus("workbench-publish-status", dualControlMessage || parseApiError(err, "Publish action failed."), "bad");
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
   }
 }
 
@@ -2445,6 +2636,10 @@ function bindEvents() {
     renderWorkbenchRawFailures(row || null);
   });
   $("workbench-source-form")?.addEventListener("submit", submitWorkbenchSourceAttach);
+  $("workbench-recommendations-refresh")?.addEventListener("click", async () => {
+    const claimId = $("workbench-source-claim-id")?.value?.trim();
+    await loadWorkbenchSourceRecommendations(claimId || "");
+  });
   $("workbench-review-form")?.addEventListener("submit", submitWorkbenchReview);
   $("workbench-publish-form")?.addEventListener("submit", submitWorkbenchPublishAction);
 

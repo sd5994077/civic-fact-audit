@@ -66,6 +66,7 @@ Rules:
 - Published factual verdicts should rely on at least one primary record and one independent corroborating source when possible.
 - If the underlying record is available, prefer it over commentary about the record.
 - If a source is interpretive, summarize it as interpretation rather than treating it as raw fact.
+- Fact-check organizations (for example AP Fact Check, Reuters Fact Check, FactCheck.org, PolitiFact, Snopes) are corroborating and interpretive inputs, not automatic verdict authorities.
 - In product output, these should be labeled separately from candidate-originated sources.
 - Enforcement: partisan/advocacy publishers are blocked from verification-origin source attachment.
   - Applies to direct source attach, bulk attach, and proposal create/apply paths.
