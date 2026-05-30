@@ -27,6 +27,7 @@ Tie-break precedence:
 
 State derivation is read-time only (`GET /v1/claims/workbench`), with no state table or migration.
 Non-fact-checkable claims are excluded by default and can be included with `include_non_fact_checkable=true`.
+The admin UI also hides terminal states (`Published` and `Insufficient Evidence`) by default unless a reviewer-state filter is selected or `Show terminal states` is checked.
 
 ## 2) Responsibilities
 
