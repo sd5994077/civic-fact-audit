@@ -111,6 +111,7 @@ const WORKBENCH_STATE_ORDER = [
   "Published",
   "Insufficient Evidence",
 ];
+const WORKBENCH_TERMINAL_STATES = new Set(["Published", "Insufficient Evidence"]);
 const BULK_ATTACH_EXAMPLE = {
   approval_token: "paste-approval-token-here",
   items: [
@@ -1437,6 +1438,7 @@ async function loadWorkbench() {
     setStatus("workbench-list-status", "Loading Workbench...");
     const includeNonFactCheckable = !!$("workbench-filter-include-non-fact-checkable")?.checked;
     const workbenchState = normalizeOptionalText($("workbench-filter-reviewer-state")?.value);
+    const showTerminalStates = !!$("workbench-filter-show-terminal")?.checked;
     const limit = normalizeOptionalInt($("workbench-filter-limit")?.value) || 200;
     const params = buildRaceFilterParams("workbench-filter", {
       include_non_fact_checkable: includeNonFactCheckable,
@@ -1444,7 +1446,10 @@ async function loadWorkbench() {
       limit,
     });
     const rows = await apiRequest(`${API_WORKBENCH_URL}?${params.toString()}`);
-    workbenchRows = rows || [];
+    const allRows = rows || [];
+    workbenchRows = workbenchState || showTerminalStates
+      ? allRows
+      : allRows.filter((row) => !WORKBENCH_TERMINAL_STATES.has(String(row.reviewer_state || "")));
     renderWorkbenchList(workbenchRows);
     if (workbenchRows.length) {
       const keepSelected = workbenchRows.some((row) => String(row.claim_id) === selectedWorkbenchClaimId);
@@ -1455,7 +1460,9 @@ async function loadWorkbench() {
       selectedWorkbenchClaimId = "";
       renderWorkbenchDetail(null);
     }
-    setStatus("workbench-list-status", `Loaded ${workbenchRows.length} Workbench claims.`, "ok");
+    const hiddenTerminalCount = allRows.length - workbenchRows.length;
+    const terminalNote = hiddenTerminalCount > 0 ? ` ${hiddenTerminalCount} terminal claims hidden.` : "";
+    setStatus("workbench-list-status", `Loaded ${workbenchRows.length} Workbench claims.${terminalNote}`, "ok");
   } catch (err) {
     workbenchRows = [];
     selectedWorkbenchClaimId = "";
