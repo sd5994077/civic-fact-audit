@@ -118,6 +118,7 @@ def test_source_recommendations_allows_reviewer_auth(monkeypatch) -> None:
                     'template_id': 'tx_senate_congress_primary',
                     'rank': 1,
                     'source_class': SourceClass.primary,
+                    'source_category': 'primary_record',
                     'source_origin': SourceOrigin.verification,
                     'url': 'https://www.congress.gov/search?q=example',
                     'publisher': 'Congress.gov',
@@ -138,6 +139,7 @@ def test_source_recommendations_allows_reviewer_auth(monkeypatch) -> None:
     assert body['verification_secondary_count'] == 1
     assert body['missing_source_classes'] == ['primary']
     assert len(body['recommendations']) == 1
+    assert body['recommendations'][0]['source_category'] == 'primary_record'
     assert body['recommendations'][0]['source_origin'] == 'verification'
     assert captured['claim_id'] == claim_id
     assert captured['limit'] == 5

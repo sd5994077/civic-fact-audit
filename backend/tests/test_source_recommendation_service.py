@@ -53,6 +53,61 @@ def _funding_context() -> ClaimRecommendationContext:
         race_stage='primary_runoff',
     )
 
+def _democracy_elections_context() -> ClaimRecommendationContext:
+    return ClaimRecommendationContext(
+        claim_id=uuid.uuid4(),
+        claim_text='Cornyn discussed election administration safeguards.',
+        issue_tag='Democracy & Elections',
+        statement_text='statement',
+        candidate_name='John Cornyn',
+        candidate_party='Republican',
+        candidate_office='US Senate',
+        candidate_state='TX',
+        election_cycle=2026,
+        race_stage='primary_runoff',
+    )
+
+
+def test_get_recommendations_matches_issue_tags_after_normalization(monkeypatch) -> None:
+    ctx = _democracy_elections_context()
+    policy = SourceRecommendationPolicy(
+        version='test-policy-v1',
+        default_limit=6,
+        templates=(
+            SourceRecommendationTemplate(
+                template_id='democracy_template',
+                source_class=SourceClass.secondary,
+                publisher='Ballotpedia',
+                url_template='https://ballotpedia.org/wiki/index.php?search={query}',
+                rationale='elections context',
+                priority=10,
+                issue_tags=('democracy_and_elections',),
+            ),
+        ),
+    )
+
+    monkeypatch.setattr('app.services.source_recommendation_service.get_source_recommendation_policy', lambda: policy)
+    monkeypatch.setattr(
+        SourceRecommendationService,
+        '_load_claim_context',
+        staticmethod(lambda _db, _claim_id: ctx),
+    )
+    monkeypatch.setattr(
+        SourceRecommendationService,
+        '_load_source_snapshot',
+        staticmethod(lambda _db, _claim_id: (set(), 0, 0)),
+    )
+    monkeypatch.setattr(
+        SourceRecommendationService,
+        '_validate_recommendation_url',
+        staticmethod(lambda _url, _context, require_methodology_signals=False: RecommendationValidationResult(status='validated', http_status=200, topic_overlap_score=0.8)),
+    )
+
+    result = SourceRecommendationService.get_recommendations(object(), claim_id=ctx.claim_id, limit=6)
+    recommendations = result['recommendations']
+    assert len(recommendations) == 1
+    assert recommendations[0]['template_id'] == 'democracy_template'
+
 
 def test_get_recommendations_filters_existing_social_and_partisan(monkeypatch) -> None:
     ctx = _context()
@@ -120,6 +175,7 @@ def test_get_recommendations_filters_existing_social_and_partisan(monkeypatch) -
     recommendations = result['recommendations']
     assert len(recommendations) == 1
     assert recommendations[0]['template_id'] == 'secondary_ok'
+    assert recommendations[0]['source_category'] == 'secondary_news'
     assert recommendations[0]['source_origin'] == SourceOrigin.verification
     assert recommendations[0]['rank'] == 1
 
@@ -182,6 +238,7 @@ def test_get_recommendations_respects_scope_priority_and_limit(monkeypatch) -> N
     recommendations = result['recommendations']
     assert len(recommendations) == 1
     assert recommendations[0]['template_id'] == 'best_match'
+    assert recommendations[0]['source_category'] == 'primary_record'
     assert recommendations[0]['rank'] == 1
     assert result['missing_source_classes'] == [SourceClass.primary, SourceClass.secondary]
 
@@ -305,7 +362,7 @@ def test_get_recommendations_skips_unreachable_and_no_results(monkeypatch) -> No
     assert recommendations[0]['topic_overlap_score'] == 0.6
 
 
-def test_numeric_voting_claim_prefers_methodology_templates_only(monkeypatch) -> None:
+def test_numeric_voting_claim_includes_generic_and_methodology_templates(monkeypatch) -> None:
     ctx = _numeric_voting_context()
     policy = SourceRecommendationPolicy(
         version='test-policy-v1',
@@ -348,8 +405,9 @@ def test_numeric_voting_claim_prefers_methodology_templates_only(monkeypatch) ->
 
     result = SourceRecommendationService.get_recommendations(object(), claim_id=ctx.claim_id, limit=6)
     recommendations = result['recommendations']
-    assert len(recommendations) == 1
-    assert recommendations[0]['template_id'] == 'voteview_primary'
+    assert len(recommendations) == 2
+    assert recommendations[0]['template_id'] == 'generic_secondary'
+    assert recommendations[1]['template_id'] == 'voteview_primary'
 
 
 def test_validate_numeric_voting_claim_rejects_missing_methodology_signals(monkeypatch) -> None:

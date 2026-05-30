@@ -161,6 +161,10 @@ class SourceRecommendationService:
         'sres': 'senate-resolution',
         'hres': 'house-resolution',
     }
+    _SOURCE_CATEGORY_DEFAULT_BY_CLASS = {
+        SourceClass.primary: 'primary_record',
+        SourceClass.secondary: 'secondary_news',
+    }
 
     @staticmethod
     def _normalize_url(url: str) -> str:
@@ -248,11 +252,21 @@ class SourceRecommendationService:
         return query
 
     @staticmethod
+    def _normalize_issue_tag(value: str | None) -> str:
+        text = (value or '').strip().lower()
+        if not text:
+            return ''
+        # Keep policy tags compatible with UI-style labels like "Democracy & Elections".
+        text = text.replace('&', ' and ')
+        normalized = re.sub(r'[^a-z0-9]+', '_', text).strip('_')
+        return normalized
+
+    @staticmethod
     def _template_matches_context(template: SourceRecommendationTemplate, context: ClaimRecommendationContext) -> bool:
         context_state = (context.candidate_state or '').strip().upper()
         context_office = (context.candidate_office or '').strip().lower()
         context_stage = (context.race_stage or '').strip().lower()
-        context_issue = (context.issue_tag or '').strip().lower()
+        context_issue = SourceRecommendationService._normalize_issue_tag(context.issue_tag)
 
         if template.state is not None and template.state != context_state:
             return False
@@ -260,9 +274,20 @@ class SourceRecommendationService:
             return False
         if template.race_stage is not None and template.race_stage != context_stage:
             return False
-        if template.issue_tags and context_issue not in set(template.issue_tags):
-            return False
+        if template.issue_tags:
+            template_issue_tags = {SourceRecommendationService._normalize_issue_tag(tag) for tag in template.issue_tags}
+            if context_issue not in template_issue_tags:
+                return False
         return True
+
+    @staticmethod
+    def _source_category_for_template(template: SourceRecommendationTemplate) -> str:
+        if template.source_category:
+            return template.source_category
+        return SourceRecommendationService._SOURCE_CATEGORY_DEFAULT_BY_CLASS.get(
+            template.source_class,
+            'secondary_news',
+        )
 
     @staticmethod
     def _load_claim_context(db: Session, claim_id: uuid.UUID) -> ClaimRecommendationContext:
@@ -1128,8 +1153,6 @@ class SourceRecommendationService:
         for template in sorted(policy.templates, key=lambda item: (item.priority, item.template_id)):
             if not SourceRecommendationService._template_matches_context(template, context):
                 continue
-            if numeric_voting_claim and not template.supports_numeric_voting_claims:
-                continue
             if (
                 funding_claim
                 and template.template_id != 'tx_senate_congress_primary'
@@ -1276,6 +1299,7 @@ class SourceRecommendationService:
                 {
                     'template_id': template.template_id,
                     'source_class': template.source_class,
+                    'source_category': SourceRecommendationService._source_category_for_template(template),
                     'source_origin': SourceOrigin.verification,
                     'url': suggestion_url,
                     'publisher': template.publisher,

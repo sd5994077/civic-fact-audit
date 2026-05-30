@@ -96,6 +96,12 @@ function normalizeOptionalInt(value) {
 const RACE_STAGE_VALUES = new Set(["primary", "primary_runoff", "general", "special"]);
 const SOURCE_CLASS_VALUES = new Set(["primary", "secondary"]);
 const SOURCE_ORIGIN_VALUES = new Set(["candidate", "verification"]);
+const SOURCE_CATEGORY_LABELS = {
+  primary_record: "Primary record",
+  civic_research: "Civic research",
+  fact_check: "Fact-check",
+  secondary_news: "Secondary news",
+};
 const SOURCE_PROPOSAL_TYPES = new Set(["candidate_source_capture", "verification_source_suggestion"]);
 const WORKBENCH_STATE_ORDER = [
   "Needs Evidence",
@@ -124,6 +130,11 @@ function shortId(id) {
   const text = String(id || "");
   if (text.length <= 10) return text;
   return `${text.slice(0, 10)}...`;
+}
+
+function formatSourceCategoryLabel(value) {
+  const key = String(value || "").trim();
+  return SOURCE_CATEGORY_LABELS[key] || (key ? key.replaceAll("_", " ") : "Uncategorized");
 }
 
 function verdictClass(verdict) {
@@ -1538,12 +1549,13 @@ function renderWorkbenchRecommendationsList(recommendations) {
       const validationNote = item.validation_note || "";
       const pageTitle = item.page_title || "";
       const recommendationRole = item.recommendation_role || "discovery_only";
+      const sourceCategoryLabel = formatSourceCategoryLabel(item.source_category);
       const canAttach = recommendationRole === "attachable_evidence";
       const roleLabel = canAttach ? "Attachable evidence" : recommendationRole === "discovery_only" ? "Research link only" : recommendationRole;
       return `
         <div class="row-btn" style="cursor:default;">
           <strong>#${index + 1} ${escapeHtml(sourceClass)} verification</strong>
-          <span class="row-meta">publisher: ${escapeHtml(publisher)} | template ${escapeHtml(item.template_id || "n/a")}</span>
+          <span class="row-meta">publisher: ${escapeHtml(publisher)} | category: ${escapeHtml(sourceCategoryLabel)} | template ${escapeHtml(item.template_id || "n/a")}</span>
           <span class="row-meta">role: ${escapeHtml(roleLabel)}</span>
           <span class="row-meta"><a href="${escapeHtml(displayUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(displayUrl)}</a></span>
           ${evidenceUrl && discoveryUrl ? `<span class="row-meta">discovery: <a href="${escapeHtml(discoveryUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(discoveryUrl)}</a></span>` : ""}
@@ -1567,7 +1579,13 @@ function renderWorkbenchRecommendationsList(recommendations) {
       const index = Number(btn.dataset.recommendationIndex);
       if (!Number.isInteger(index) || index < 0 || index >= selectedWorkbenchRecommendations.length) return;
       const recommendation = selectedWorkbenchRecommendations[index];
-      await attachWorkbenchRecommendedSource(recommendation);
+      if (btn.disabled) return;
+      btn.disabled = true;
+      try {
+        await attachWorkbenchRecommendedSource(recommendation);
+      } finally {
+        btn.disabled = false;
+      }
     });
   });
 }

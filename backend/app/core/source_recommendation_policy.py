@@ -7,6 +7,10 @@ from pathlib import Path
 
 from app.models.enums import SourceClass
 
+SOURCE_RECOMMENDATION_CATEGORIES = frozenset(
+    {'primary_record', 'civic_research', 'fact_check', 'secondary_news'}
+)
+
 
 @dataclass(frozen=True)
 class SourceRecommendationTemplate:
@@ -16,6 +20,7 @@ class SourceRecommendationTemplate:
     url_template: str
     rationale: str
     priority: int
+    source_category: str | None = None
     query_hint: str | None = None
     supports_numeric_voting_claims: bool = False
     requires_methodology_signals: bool = False
@@ -49,6 +54,13 @@ def get_source_recommendation_policy(path: str | None = None) -> SourceRecommend
         source_class_raw = str(raw.get('source_class', '')).strip().lower()
         if source_class_raw not in {'primary', 'secondary'}:
             raise ValueError(f'Unsupported source_class for template {template_id}: {source_class_raw}')
+        source_category_raw = str(raw.get('source_category', '')).strip().lower() or None
+        if source_category_raw is None:
+            source_category_raw = 'primary_record' if source_class_raw == 'primary' else 'secondary_news'
+        if source_category_raw is not None and source_category_raw not in SOURCE_RECOMMENDATION_CATEGORIES:
+            raise ValueError(
+                f'Unsupported source_category for template {template_id}: {source_category_raw}'
+            )
         issue_tags = tuple(str(tag).strip().lower() for tag in raw.get('issue_tags', []) if str(tag).strip())
         templates.append(
             SourceRecommendationTemplate(
@@ -58,6 +70,7 @@ def get_source_recommendation_policy(path: str | None = None) -> SourceRecommend
                 url_template=str(raw.get('url_template', '')).strip(),
                 rationale=str(raw.get('rationale', '')).strip(),
                 priority=int(raw.get('priority', 100)),
+                source_category=source_category_raw,
                 query_hint=(str(raw.get('query_hint', '')).strip() or None),
                 supports_numeric_voting_claims=bool(raw.get('supports_numeric_voting_claims', False)),
                 requires_methodology_signals=bool(raw.get('requires_methodology_signals', False)),

@@ -97,10 +97,12 @@ test("workbench suggestions attach flow for claim 89949aa0-1f75-481b-9449-6ee4f4
         template_id: "tx_senate_congress_primary",
         rank: recommendations.length + 1,
         source_class: "primary",
+        source_category: "primary_record",
         source_origin: "verification",
         url: sourcePrimaryUrl,
         publisher: "Congress.gov",
         rationale: "Federal legislative record search for vote alignment.",
+        recommendation_role: "attachable_evidence",
       });
     }
     if (!attachedSources.some((source) => source.url === sourceSecondaryUrl)) {
@@ -108,10 +110,12 @@ test("workbench suggestions attach flow for claim 89949aa0-1f75-481b-9449-6ee4f4
         template_id: "reuters_secondary",
         rank: recommendations.length + 1,
         source_class: "secondary",
+        source_category: "secondary_news",
         source_origin: "verification",
         url: sourceSecondaryUrl,
         publisher: "Reuters",
         rationale: "Independent reporting corroboration.",
+        recommendation_role: "attachable_evidence",
       });
     }
     return {
@@ -202,6 +206,7 @@ test("workbench suggestions attach flow for claim 89949aa0-1f75-481b-9449-6ee4f4
 
     await expect(page.locator("#workbench-recommendations-list .row-btn")).toHaveCount(1);
     await expect(page.locator("#workbench-recommendations-list")).toContainText("Reuters");
+    await expect(page.locator("#workbench-recommendations-list")).toContainText("category: Secondary news");
     await expect(page.locator("#workbench-recommendations-status")).toContainText("Missing: secondary.");
 
     await page.click("#workbench-recommendations-list .workbench-recommendation-use");
@@ -296,6 +301,7 @@ test("workbench discovery-only suggestion hides attach action", async ({ page })
               template_id: "usaspending_primary",
               rank: 1,
               source_class: "primary",
+              source_category: "primary_record",
               source_origin: "verification",
               url: discoveryUrl,
               discovery_url: discoveryUrl,

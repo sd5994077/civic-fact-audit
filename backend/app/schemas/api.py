@@ -236,6 +236,7 @@ class SourceRecommendationRead(BaseModel):
     template_id: str
     rank: int = Field(ge=1)
     source_class: SourceClass
+    source_category: Literal['primary_record', 'civic_research', 'fact_check', 'secondary_news']
     source_origin: SourceOrigin
     url: str
     publisher: str
