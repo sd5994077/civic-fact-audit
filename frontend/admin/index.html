@@ -32,9 +32,16 @@
       </form>
       <article id="approval-panel" class="panel" style="margin-top:1rem;" hidden>
         <div class="panel-head"><h3>Request Approval Token</h3></div>
-        <p class="status-text">Use a second reviewer/admin account to request the short-lived dual-control token for <code>intake_profile_mutation</code>.</p>
+        <p class="status-text">Use a second reviewer/admin account to request the short-lived dual-control token for the action you are about to perform.</p>
         <form id="approval-token-form" class="stack-form compact">
-          <label>Action<input id="approval-action" type="text" value="intake_profile_mutation" readonly></label>
+          <label>Action
+            <select id="approval-action">
+              <option value="evaluation_overwrite" selected>evaluation_overwrite</option>
+              <option value="candidate_mutation">candidate_mutation</option>
+              <option value="bulk_attach_verification_sources">bulk_attach_verification_sources</option>
+              <option value="intake_profile_mutation">intake_profile_mutation</option>
+            </select>
+          </label>
           <button type="submit" class="primary-btn">Request Token</button>
         </form>
         <label>Approval Reviewer ID<input id="approval-reviewer-id" type="text" readonly placeholder="Returned reviewer ID"></label>

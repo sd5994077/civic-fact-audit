@@ -349,7 +349,7 @@ async function requestApprovalToken(event) {
     return;
   }
 
-  const action = "intake_profile_mutation";
+  const action = $("approval-action")?.value?.trim() || "evaluation_overwrite";
   try {
     setStatus("approval-token-status", "Requesting approval token...");
     const response = await apiRequest(API_AUTH_APPROVAL_TOKEN_URL, {
