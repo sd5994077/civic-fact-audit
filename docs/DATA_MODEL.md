@@ -139,6 +139,20 @@ Public compare cards currently render a curated subset capped per side (candidat
 
 Multiple evaluations per claim are allowed. The latest evaluation is used for scoring; prior rows remain as revision history.
 Evaluation writes require authenticated bearer token; reviewer identity is resolved server-side from reviewer account records.
+
+## ClaimAiDraft
+- `id` (UUID)
+- `claim_id` (FK)
+- `model` (model identifier that generated this draft, e.g. `gpt-4o-mini` or a merged `gpt-4o-mini+claude-sonnet-4-6` escalation label)
+- `suggested_verdict` (supported/mixed/unsupported/insufficient)
+- `suggested_confidence`, `model_confidence`, `evidence_sufficiency` (0-1)
+- `green_lane_ready` (bool)
+- `rationale`, `citation_notes`
+- `subclaims_payload`, `source_assessments_payload`, `warnings_payload`, `missing_evidence_payload` (nullable JSON-serialized text, following the same convention as `AdminAuditEvent` payload fields)
+- `created_at`
+- `updated_at`
+
+One row is written every time `POST /v1/claims/{claim_id}/review-draft` generates a draft, giving a full history rather than only the single latest-verdict summary recorded on `ClaimEvaluation`. `GET /v1/claims/{claim_id}/review-drafts` lists history; `GET /v1/claims/{claim_id}/review-draft-diff` compares the most recent draft to the claim's latest submitted evaluation (verdict match, confidence delta, whether rationale/citation notes were edited before submission). Draft history is a reviewer aid only — it never feeds scoring or publish gates.
 Evaluation overwrite dual-control:
 - request supports optional `approval_token` (action `evaluation_overwrite`).
 - first evaluation write is allowed without dual-control.

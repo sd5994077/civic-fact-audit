@@ -156,7 +156,7 @@ civic-fact-audit/
 
 ## AI Review Draft Pipeline
 
-The Claim Workbench generates an AI-assisted draft evaluation via `POST /v1/claims/{claim_id}/review-draft`. The draft is advisory only — a human reviewer must confirm before any claim is published.
+The Claim Workbench generates an AI-assisted draft evaluation via `POST /v1/claims/{claim_id}/review-draft`. The draft is advisory only — a human reviewer must confirm before any claim is published. Every generated draft is persisted (`GET /v1/claims/{claim_id}/review-drafts`) and can be diffed against the claim's latest submitted evaluation (`GET /v1/claims/{claim_id}/review-draft-diff`) to see whether the reviewer changed the verdict, confidence, rationale, or citation notes before submitting.
 
 ### 3-Tier Model Stack
 
@@ -209,14 +209,15 @@ Tests 12 scenarios across false/misleading/truthful/mixed claim types at easy/me
 
 ## What's Included Right Now
 - FastAPI backend with versioned `v1` routes for candidates, statements, claims, evidence, evaluations, scores, and comparison.
-- PostgreSQL schema with Alembic migrations (through `20260614_01`).
+- PostgreSQL schema with Alembic migrations (through `20260710_01`).
 - Structured error responses across all endpoints.
 - Reviewer authentication with signed bearer tokens (`POST /v1/auth/login`, `GET /v1/auth/me`).
 - Dual-control approval tokens required for candidate mutations and sensitive overrides.
 - Per-IP sliding-window rate limiting on all write endpoints with `Retry-After` headers.
 - Admin console at `/admin/` — Claim Workbench-first adjudication plus candidate lifecycle, queue/regression tabs, proposal triage, publish/unpublish controls, audit-event inspection, and worker health monitoring. See `docs/CLAIM_WORKBENCH_WORKFLOW.md`.
-- AI review draft pipeline with 3-tier model stack, `_enforce_green_lane` guardrail, escalation guard, and `CIVIC_AI_DEGRADED_MODE` circuit breaker.
+- AI review draft pipeline with 3-tier model stack, `_enforce_green_lane` guardrail, escalation guard, and `CIVIC_AI_DEGRADED_MODE` circuit breaker. Every draft is persisted with history/diff views (`GET /v1/claims/{id}/review-drafts`, `GET /v1/claims/{id}/review-draft-diff`).
 - Source integrity checks at attach time: reviewer-facing URL reachability probe, persisted `fetch_status`, and reviewer-supplied `content_excerpt` fallback for paywalled or JS-rendered pages.
+- Claim-type evidence anchors for source recommendations — funding/reimbursement claims (amount/program/state/funding-context) and numeric voting-record claims (claimed-stat/denominator/methodology) — gating one-click Workbench attach on anchor sufficiency, with a page-level re-check against real fetched content for resolved Federal Register records.
 - Weekly AI regression health check script with baseline comparison and scheduled task (Mondays at 08:00).
 - 12-scenario stress test suite covering false, misleading, truthful, and mixed claim types.
 - Background job worker with queue + retry logic and worker-health endpoint (`GET /v1/admin/jobs/worker-health`).
@@ -228,11 +229,8 @@ Tests 12 scenarios across false/misleading/truthful/mixed claim types at easy/me
 - Moderation policy enforcement with boundary phrase detection.
 - Audit event log for all admin/reviewer actions.
 - Texas 2026 U.S. Senate race data: roster ingest, statement batches, evidence attachment, and adjudication packet scripts.
-- 418 automated tests covering scoring, source policy and recommendation logic, review drafts, rate limiting, search, API key service, and core business logic.
+- 435 automated tests covering scoring, source policy and recommendation logic, review drafts, rate limiting, search, API key service, and core business logic.
 
 ## Next Steps
-- Add claim-type evidence anchors for funding/reimbursement and numeric voting-record claims.
-- Add deterministic page-level anchor extraction before evidence attachment.
-- Add persistent AI draft history/diffing against reviewer-submitted evaluations.
-- Add deterministic denominator/methodology validators for numeric claims.
+All roadmap items through Phase 10 are complete. See `ROADMAP.md` for the full phase-by-phase history and `git log` for in-flight work beyond it.
 

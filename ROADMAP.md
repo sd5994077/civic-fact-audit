@@ -137,11 +137,11 @@
 - [x] Add deterministic Congress.gov bill-ID resolver v1 (API-keyed) for `tx_senate_congress_primary` so explicit bill citations can resolve from research links to official bill pages.
 - [x] Add claim-type evidence anchors to move from topic-overlap-only checks to evidence sufficiency checks (funding/reimbursement anchors existed; added numeric voting-record anchors — `claimed_stat`/`denominator`/`methodology` — gating attach on methodology plus a matching stat or denominator, not just keyword presence).
 - [x] Add deterministic page-level anchor extraction from fetched content to support robust amount/methodology checks before evidence attachment (Federal Register resolver results are now re-checked against the real fetched document text, not just search-API metadata, before being marked attachable).
-- [ ] Add Workbench reviewer guidance text for discovery-only vs attachable recommendations and publish-gate impact.
+- [x] Add Workbench reviewer guidance text for discovery-only vs attachable recommendations and publish-gate impact (persistent guidance banner, role pills, and per-recommendation missing-anchor notes on the Suggested Verification Links panel).
 
 ## Phase 10 - Hybrid Review Assistant
 - [x] Add reviewer-authenticated AI draft endpoint for claim-level review packets (`POST /v1/claims/{id}/review-draft`).
 - [x] Add Workbench "Draft Evidence Review" UI with one-click prefill into evaluation fields.
 - [x] Enforce that AI drafts remain non-final reviewer assistance (no auto-evaluate, no auto-publish).
-- [ ] Add persistent draft history and diffing between AI draft and reviewer-submitted evaluation.
-- [ ] Add deterministic numeric-claim denominator/methodology validators to complement model confidence.
+- [x] Add persistent draft history and diffing between AI draft and reviewer-submitted evaluation (`claim_ai_drafts` table + `GET /v1/claims/{id}/review-drafts` + `GET /v1/claims/{id}/review-draft-diff`, surfaced in Workbench).
+- [x] Add deterministic numeric-claim denominator/methodology validators to complement model confidence (`_numeric_voting_anchor_assessment` in the source-recommendation service; see Phase 9).

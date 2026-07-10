@@ -58,7 +58,7 @@ No endpoint in this workflow may be used to produce endorsements or voting recom
      surfaces the specific missing anchors when a recommendation is research-only so reviewers know
      why it wasn't auto-attachable.
 3. Row moves to `Needs Review` when minimum verification evidence is present and no latest human evaluation exists.
-4. Optional: generate a reviewer-aid draft packet via `POST /v1/claims/{claim_id}/review-draft` (suggested verdict/confidence/rationale/citation notes + source assessments + warnings).
+4. Optional: generate a reviewer-aid draft packet via `POST /v1/claims/{claim_id}/review-draft` (suggested verdict/confidence/rationale/citation notes + source assessments + warnings). Every generated draft is persisted; `GET /v1/claims/{claim_id}/review-drafts` lists prior drafts and `GET /v1/claims/{claim_id}/review-draft-diff` compares the latest draft to the claim's latest submitted evaluation (verdict match, confidence delta, whether rationale/citation notes were edited). Workbench shows both under "Draft History & Diff vs Submitted Evaluation".
 5. Reviewer confirms/edits and submits evaluation via `POST /v1/claims/{claim_id}/evaluate`.
 6. If latest verdict is `insufficient`, row is treated as review-complete but non-publishable (`Insufficient Evidence`).
 
@@ -66,7 +66,7 @@ Important gates:
 - verdicts `supported|mixed|unsupported` require minimum verification evidence
 - evaluation overwrites require dual-control (`evaluation_overwrite` approval token from a different reviewer/admin)
 - moderation policy applies to rationale and citation notes
-- AI draft output is assistance only; it does not create official evaluations or publish mutations
+- AI draft output is assistance only; it does not create official evaluations or publish mutations, and draft history/diffing is a reviewer aid only — it never feeds scoring or publish gates
 
 ## 4) Publish and Handoff Flow
 

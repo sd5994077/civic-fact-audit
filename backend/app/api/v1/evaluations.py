@@ -13,12 +13,15 @@ from app.schemas.api import (
     ClaimWorkbenchState,
     ErrorResponse,
     EvaluateClaimRequest,
+    ReviewDraftDiffResponse,
+    ReviewDraftHistoryItem,
     ReviewDraftResponse,
     ReviewQueueItem,
 )
 from app.schemas.api import PublishClaimResponse, PublishQueueItem
 from app.services.auth_dependency_service import require_admin, require_reviewer_or_admin
 from app.services.auth_service import AuthIdentity, AuthService
+from app.services.claim_ai_draft_service import ClaimAiDraftService
 from app.services.claim_workbench_service import ClaimWorkbenchService
 from app.services.evaluation_service import EvaluationService
 from app.services.review_draft_service import ReviewDraftService
@@ -109,7 +112,39 @@ def review_draft(
 ) -> ReviewDraftResponse:
     _ = identity
     payload = ReviewDraftService.generate_review_draft(db, claim_id=claim_id)
+    ClaimAiDraftService.record_draft(db, claim_id=claim_id, payload=payload)
     return ReviewDraftResponse.model_validate(payload)
+
+
+@router.get(
+    '/{claim_id}/review-drafts',
+    response_model=list[ReviewDraftHistoryItem],
+    responses={401: {'model': ErrorResponse}, 403: {'model': ErrorResponse}, 404: {'model': ErrorResponse}},
+)
+def review_draft_history(
+    claim_id: uuid.UUID,
+    limit: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    identity: AuthIdentity = Depends(require_reviewer_or_admin),
+) -> list[ReviewDraftHistoryItem]:
+    _ = identity
+    rows = ClaimAiDraftService.list_draft_history(db, claim_id=claim_id, limit=limit)
+    return [ReviewDraftHistoryItem.model_validate(row) for row in rows]
+
+
+@router.get(
+    '/{claim_id}/review-draft-diff',
+    response_model=ReviewDraftDiffResponse,
+    responses={401: {'model': ErrorResponse}, 403: {'model': ErrorResponse}, 404: {'model': ErrorResponse}},
+)
+def review_draft_diff(
+    claim_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    identity: AuthIdentity = Depends(require_reviewer_or_admin),
+) -> ReviewDraftDiffResponse:
+    _ = identity
+    payload = ClaimAiDraftService.get_draft_diff(db, claim_id=claim_id)
+    return ReviewDraftDiffResponse.model_validate(payload)
 
 
 @router.get(

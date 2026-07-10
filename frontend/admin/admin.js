@@ -1444,7 +1444,7 @@ function renderWorkbenchDetail(row) {
   renderWorkbenchRawFailures(row);
   clearWorkbenchDraft();
   const claimId = String(row.claim_id);
-  void Promise.all([loadWorkbenchSources(claimId), loadWorkbenchSourceRecommendations(claimId)]);
+  void Promise.all([loadWorkbenchSources(claimId), loadWorkbenchSourceRecommendations(claimId), loadWorkbenchDraftHistory(claimId)]);
 }
 
 function selectWorkbenchClaim(claimId) {
@@ -1658,6 +1658,11 @@ function clearWorkbenchDraft() {
   if (missing) missing.innerHTML = `<li class="status-text">No missing evidence flags loaded.</li>`;
   updateReviewerChecklist(null);
   appliedDraftMeta = null;
+  setStatus("workbench-review-draft-diff-status", "");
+  const diffContainer = $("workbench-review-draft-diff");
+  if (diffContainer) diffContainer.innerHTML = "";
+  const historyContainer = $("workbench-review-draft-history-list");
+  if (historyContainer) historyContainer.innerHTML = "";
 }
 
 function renderWorkbenchDraft(payload) {
@@ -1831,11 +1836,92 @@ async function runWorkbenchReviewDraft() {
     });
     renderWorkbenchDraft(payload || {});
     setStatus("workbench-review-draft-status", "Draft generated. Reviewer confirmation is still required.", "ok");
+    void loadWorkbenchDraftHistory(claimId);
   } catch (err) {
     clearWorkbenchDraft();
     const reviewDraftMessage = parseReviewDraftError(err);
     setStatus("workbench-review-draft-status", reviewDraftMessage || parseApiError(err, "Failed to generate review draft."), "bad");
   }
+}
+
+async function loadWorkbenchDraftHistory(claimId) {
+  const diffContainer = $("workbench-review-draft-diff");
+  const historyContainer = $("workbench-review-draft-history-list");
+  if (!claimId || !isUuid(claimId)) {
+    if (diffContainer) diffContainer.innerHTML = "";
+    if (historyContainer) historyContainer.innerHTML = "";
+    setStatus("workbench-review-draft-diff-status", "");
+    return;
+  }
+  try {
+    setStatus("workbench-review-draft-diff-status", "Loading draft history...");
+    const [diff, history] = await Promise.all([
+      apiRequest(`${API_EVALUATE_BASE_URL}/${encodeURIComponent(claimId)}/review-draft-diff`),
+      apiRequest(`${API_EVALUATE_BASE_URL}/${encodeURIComponent(claimId)}/review-drafts`),
+    ]);
+    const selectedClaimId = String($("workbench-review-claim-id")?.value || "");
+    if (String(claimId) !== selectedClaimId) return;
+    renderWorkbenchDraftDiff(diff);
+    renderWorkbenchDraftHistory(Array.isArray(history) ? history : []);
+    setStatus("workbench-review-draft-diff-status", "");
+  } catch (err) {
+    const selectedClaimId = String($("workbench-review-claim-id")?.value || "");
+    if (String(claimId) !== selectedClaimId) return;
+    if (diffContainer) diffContainer.innerHTML = "";
+    if (historyContainer) historyContainer.innerHTML = "";
+    setStatus("workbench-review-draft-diff-status", parseApiError(err, "Failed to load draft history."), "bad");
+  }
+}
+
+function renderWorkbenchDraftDiff(diff) {
+  const container = $("workbench-review-draft-diff");
+  if (!container) return;
+  if (!diff || (!diff.draft && !diff.evaluation)) {
+    container.innerHTML = `<p class="status-text">No AI draft or submitted evaluation yet for this claim.</p>`;
+    return;
+  }
+  if (!diff.draft) {
+    container.innerHTML = `<p class="status-text">No AI draft generated yet. Evaluation on file has verdict "${escapeHtml(String(diff.evaluation?.verdict || "n/a"))}".</p>`;
+    return;
+  }
+  if (!diff.evaluation) {
+    container.innerHTML = `<p class="status-text">Draft generated (suggested verdict "${escapeHtml(String(diff.draft.suggested_verdict || "n/a"))}"), but no evaluation has been submitted yet.</p>`;
+    return;
+  }
+  const verdictTone = diff.verdict_match ? "ok" : "bad";
+  const deltaNum = diff.confidence_delta == null ? null : Number(diff.confidence_delta);
+  const confidenceDelta = deltaNum == null ? "n/a" : `${deltaNum > 0 ? "+" : ""}${deltaNum.toFixed(2)}`;
+  container.innerHTML = `
+    <div class="row-btn" style="cursor:default;">
+      <strong class="${verdictTone}">${diff.verdict_match ? "Verdict matched" : "Verdict changed"}</strong>
+      <span class="row-meta">draft verdict: ${escapeHtml(String(diff.draft.suggested_verdict || "n/a"))} (confidence ${Number(diff.draft.suggested_confidence ?? 0).toFixed(2)}, model ${escapeHtml(String(diff.draft.model || "n/a"))})</span>
+      <span class="row-meta">submitted verdict: ${escapeHtml(String(diff.evaluation.verdict || "n/a"))} (confidence ${Number(diff.evaluation.confidence ?? 0).toFixed(2)}) by ${escapeHtml(String(diff.evaluation.reviewer_id || "n/a"))}</span>
+      <span class="row-meta">confidence delta (submitted minus draft): ${escapeHtml(confidenceDelta)}</span>
+      <span class="row-meta">${diff.rationale_changed ? "Reviewer edited the rationale before submitting." : "Rationale unchanged from draft."}</span>
+      <span class="row-meta">${diff.citation_notes_changed ? "Reviewer edited the citation notes before submitting." : "Citation notes unchanged from draft."}</span>
+    </div>
+  `;
+}
+
+function renderWorkbenchDraftHistory(history) {
+  const container = $("workbench-review-draft-history-list");
+  if (!container) return;
+  if (!history.length) {
+    container.innerHTML = `<p class="status-text">No drafts generated yet for this claim.</p>`;
+    return;
+  }
+  container.innerHTML = history
+    .map((item) => {
+      const created = item.created_at ? new Date(item.created_at).toLocaleString() : "unknown time";
+      return `
+        <div class="row-btn" style="cursor:default;">
+          <strong class="${verdictClass(String(item.suggested_verdict || ""))}">${escapeHtml(String(item.suggested_verdict || "n/a"))}</strong>
+          <span class="row-meta">${escapeHtml(created)} | model ${escapeHtml(String(item.model || "n/a"))} | confidence ${Number(item.suggested_confidence ?? 0).toFixed(2)}</span>
+          <span class="row-meta">${escapeHtml(String(item.rationale || ""))}</span>
+        </div>
+      `;
+    })
+    .join("");
 }
 
 async function loadWorkbenchSources(claimId) {
@@ -2937,6 +3023,10 @@ function bindEvents() {
   });
   $("workbench-review-draft-run")?.addEventListener("click", async () => runWorkbenchReviewDraft());
   $("workbench-review-draft-apply")?.addEventListener("click", () => applyWorkbenchDraftToReviewForm());
+  $("workbench-review-draft-history-refresh")?.addEventListener("click", async () => {
+    const claimId = $("workbench-review-claim-id")?.value?.trim();
+    if (claimId) void loadWorkbenchDraftHistory(claimId);
+  });
   ["reviewer-confirm-sources", "reviewer-confirm-claim", "reviewer-confirm-verdict"].forEach((id) => {
     $(id)?.addEventListener("change", enforceChecklistGate);
   });

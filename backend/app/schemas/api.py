@@ -223,6 +223,44 @@ class ReviewDraftResponse(BaseModel):
     missing_evidence: list[str] = Field(default_factory=list)
 
 
+class ReviewDraftHistoryItem(BaseModel):
+    id: uuid.UUID
+    claim_id: uuid.UUID
+    model: str
+    suggested_verdict: Verdict
+    suggested_confidence: float = Field(ge=0, le=1)
+    model_confidence: float = Field(ge=0, le=1)
+    evidence_sufficiency: float = Field(ge=0, le=1)
+    green_lane_ready: bool
+    rationale: str
+    citation_notes: str
+    subclaims: list[ReviewDraftSubclaim] = Field(default_factory=list)
+    source_assessments: list[ReviewDraftSourceAssessment] = Field(default_factory=list)
+    warnings: list[ReviewDraftWarning] = Field(default_factory=list)
+    missing_evidence: list[str] = Field(default_factory=list)
+    created_at: datetime
+
+
+class ReviewDraftEvaluationSnapshot(BaseModel):
+    id: uuid.UUID
+    verdict: Verdict
+    confidence: float = Field(ge=0, le=1)
+    rationale: str
+    citation_notes: str | None
+    reviewer_id: str
+    created_at: datetime
+
+
+class ReviewDraftDiffResponse(BaseModel):
+    claim_id: uuid.UUID
+    draft: ReviewDraftHistoryItem | None = None
+    evaluation: ReviewDraftEvaluationSnapshot | None = None
+    verdict_match: bool | None = None
+    confidence_delta: float | None = None
+    rationale_changed: bool | None = None
+    citation_notes_changed: bool | None = None
+
+
 class PublishClaimResponse(BaseModel):
     claim_id: uuid.UUID
     is_published: bool

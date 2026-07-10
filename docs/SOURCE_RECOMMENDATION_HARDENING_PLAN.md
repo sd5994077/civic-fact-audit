@@ -36,7 +36,10 @@ This pass intentionally avoids LLM integration. The current system remains deter
    - preserve methodology signal requirements and strengthen denominator/numerator checks
      (`_numeric_voting_anchor_assessment`: `claimed_stat`/`denominator`/`methodology` anchors;
      attach requires methodology plus a matching stat or denominator).
-4. [ ] Add richer reviewer UX messaging about why a recommendation is research-only.
+4. [x] Add richer reviewer UX messaging about why a recommendation is research-only — persistent
+   guidance banner explaining attachable_evidence vs discovery_only and publish-gate impact, role
+   pills, and a per-recommendation missing-anchor note (e.g. "missing: program, funding_context")
+   on the Workbench Suggested Verification Links panel.
 
 ## Acceptance Criteria
 - Workbench only shows `Attach This Source` for `recommendation_role=attachable_evidence`.

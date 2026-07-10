@@ -151,6 +151,7 @@ class Claim(TimestampMixin, Base):
         uselist=False,
     )
     proposals: Mapped[list['ClaimProposal']] = relationship(back_populates='claim', cascade='all, delete-orphan')
+    ai_drafts: Mapped[list['ClaimAiDraft']] = relationship(back_populates='claim', cascade='all, delete-orphan')
 
     __table_args__ = (
         Index('ix_claims_statement_status', 'statement_id', 'status'),
@@ -279,6 +280,36 @@ class ClaimEvaluation(TimestampMixin, Base):
     claim: Mapped['Claim'] = relationship(back_populates='evaluations')
 
     __table_args__ = (Index('ix_claim_evaluations_claim_created', 'claim_id', 'created_at'),)
+
+
+class ClaimAiDraft(TimestampMixin, Base):
+    """
+    Persisted history of every AI review-draft generation for a claim, so reviewers can
+    see prior drafts and compare the most recent one against what was actually submitted.
+    """
+
+    __tablename__ = 'claim_ai_drafts'
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    claim_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('claims.id', ondelete='CASCADE'))
+    model: Mapped[str] = mapped_column(String(128), nullable=False)
+    suggested_verdict: Mapped[Verdict] = mapped_column(Enum(Verdict, name='verdict'))
+    suggested_confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    model_confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    evidence_sufficiency: Mapped[float] = mapped_column(Float, nullable=False)
+    green_lane_ready: Mapped[bool] = mapped_column(nullable=False, default=False, server_default=text('false'))
+    rationale: Mapped[str] = mapped_column(Text, nullable=False)
+    citation_notes: Mapped[str] = mapped_column(Text, nullable=False)
+    # JSON-serialized lists (subclaims, source_assessments, warnings, missing_evidence),
+    # following the same Text+json.dumps convention used by AdminAuditEvent payload fields.
+    subclaims_payload: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_assessments_payload: Mapped[str | None] = mapped_column(Text, nullable=True)
+    warnings_payload: Mapped[str | None] = mapped_column(Text, nullable=True)
+    missing_evidence_payload: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    claim: Mapped['Claim'] = relationship(back_populates='ai_drafts')
+
+    __table_args__ = (Index('ix_claim_ai_drafts_claim_created', 'claim_id', 'created_at'),)
 
 
 class ScoreSnapshot(TimestampMixin, Base):
