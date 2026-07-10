@@ -272,6 +272,18 @@ textarea { min-height: 84px; resize: vertical; }
 .status-ok { color: var(--ok); }
 .status-bad { color: var(--bad); }
 
+.source-url-check-status {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 0.78rem;
+  min-height: 1.1em;
+  transition: color 0.15s;
+}
+.source-url-check-status.ok      { color: var(--ok); }
+.source-url-check-status.bad     { color: var(--bad); }
+.source-url-check-status.warn    { color: #f5a623; }
+.source-url-check-status.checking { color: var(--muted); }
+
 .action-row {
   display: flex;
   flex-wrap: wrap;

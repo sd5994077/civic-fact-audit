@@ -29,6 +29,8 @@ let selectedProposalId = "";
 let selectedPublishClaimId = "";
 let selectedWorkbenchSources = [];
 let selectedWorkbenchRecommendations = [];
+let selectedWorkbenchDraft = null;
+let appliedDraftMeta = null;  // tracks AI draft audit fields when draft was applied to the form
 let reviewQueueRows = [];
 let evidenceQueueRows = [];
 let workbenchRows = [];
@@ -1351,7 +1353,24 @@ function renderWorkbenchRawFailures(row) {
     return;
   }
   pre.hidden = false;
-  pre.textContent = JSON.stringify(row?.publish_gate_failures || [], null, 2);
+  const failures = row?.publish_gate_failures || [];
+  if (failures.length === 0) {
+    pre.textContent = "✓ All publish gate checks passed.";
+  } else {
+    const GATE_LABELS = {
+      "claim_not_fact_checkable": "Claim must be fact-checkable",
+      "latest_verdict_must_be_supported_mixed_or_unsupported": "Evaluation verdict required (supported / mixed / unsupported)",
+      "latest_rationale_required": "Rationale must be written",
+      "latest_citation_notes_required": "Citation notes must be written",
+      "verification_primary_source_required": "Primary verification source must be attached",
+      "verification_secondary_source_required": "Secondary verification source must be attached",
+      "verification_source_url_unreachable": "Replace unreachable verification source URLs before publish",
+      "latest_evaluation_moderation_policy_violation": "Moderation policy violation in rationale or citation notes",
+    };
+    pre.textContent = "Blocked — incomplete requirements:\n" + failures.map(
+      (f) => "  • " + (GATE_LABELS[f] || f)
+    ).join("\n");
+  }
 }
 
 function _workbenchHandoffGuidance(row) {
@@ -1378,6 +1397,7 @@ function renderWorkbenchDetail(row) {
     empty.hidden = false;
     selectedWorkbenchSources = [];
     selectedWorkbenchRecommendations = [];
+    clearWorkbenchDraft();
     renderWorkbenchSourcesList([]);
     renderWorkbenchRecommendationsList([]);
     setStatus("workbench-sources-list-status", "");
@@ -1422,6 +1442,7 @@ function renderWorkbenchDetail(row) {
 
   renderWorkbenchChecklist(row);
   renderWorkbenchRawFailures(row);
+  clearWorkbenchDraft();
   const claimId = String(row.claim_id);
   void Promise.all([loadWorkbenchSources(claimId), loadWorkbenchSourceRecommendations(claimId)]);
 }
@@ -1476,6 +1497,11 @@ async function loadWorkbench() {
 
 function parseSourceAdmissionError(err) {
   const code = err?.payload?.error?.code;
+  if (code === "source_url_not_found") {
+    const details = err?.payload?.error?.details || {};
+    const httpStatus = details.http_status ? ` (HTTP ${details.http_status})` : "";
+    return `URL not reachable${httpStatus} — verify the link is correct and publicly accessible.`;
+  }
   if (code !== "source_admission_policy_violation") return null;
   const details = err?.payload?.error?.details || {};
   const rejectionField = details.rejection_field ? `field ${details.rejection_field}` : "source admission policy";
@@ -1489,6 +1515,23 @@ function parseSourceDeleteError(err) {
   }
   if (code === "source_not_found") {
     return "Source not found for this claim. Refresh and retry.";
+  }
+  return null;
+}
+
+function parseReviewDraftError(err) {
+  const code = err?.payload?.error?.code;
+  const details = err?.payload?.error?.details || {};
+  if (code === "review_draft_requires_verification_sources") {
+    return "Attach at least one admissible verification source, then retry draft generation.";
+  }
+  if (code === "review_draft_source_fetch_failed") {
+    return "No readable verification source was found. Attach a reachable HTML/text source and retry.";
+  }
+  if (code === "review_draft_source_url_not_allowlisted") {
+    const hostname = String(details.hostname || "").trim();
+    const hostLabel = hostname ? ` (${hostname})` : "";
+    return `Draft fetch blocked: source domain is not on the review-draft allowlist${hostLabel}. Attach an allowlisted neutral source (for example: congress.gov, senate.gov, reuters.com), then retry.`;
   }
   return null;
 }
@@ -1595,6 +1638,200 @@ function renderWorkbenchRecommendationsList(recommendations) {
       }
     });
   });
+}
+
+function clearWorkbenchDraft() {
+  selectedWorkbenchDraft = null;
+  setStatus("workbench-review-draft-status", "");
+  setStatus("workbench-review-draft-summary", "");
+  const subclaims = $("workbench-review-draft-subclaims");
+  if (subclaims) subclaims.innerHTML = `<p class="status-text">Generate a draft to see claim decomposition.</p>`;
+  const sources = $("workbench-review-draft-sources");
+  if (sources) sources.innerHTML = `<p class="status-text">Generate a draft to see source-by-source support notes.</p>`;
+  const warnings = $("workbench-review-draft-warnings");
+  if (warnings) warnings.innerHTML = `<li class="status-text">No warnings loaded.</li>`;
+  const missing = $("workbench-review-draft-missing");
+  if (missing) missing.innerHTML = `<li class="status-text">No missing evidence flags loaded.</li>`;
+  updateReviewerChecklist(null);
+  appliedDraftMeta = null;
+}
+
+function renderWorkbenchDraft(payload) {
+  const subclaims = $("workbench-review-draft-subclaims");
+  const sources = $("workbench-review-draft-sources");
+  const warnings = $("workbench-review-draft-warnings");
+  const missing = $("workbench-review-draft-missing");
+  if (!subclaims || !sources || !warnings || !missing) return;
+
+  selectedWorkbenchDraft = payload;
+  const greenLane = !!payload?.green_lane_ready;
+  const verdict = payload?.suggested_verdict || "n/a";
+  const suggestedConfidence = payload?.suggested_confidence == null ? "n/a" : Number(payload.suggested_confidence).toFixed(2);
+  const modelConfidence = payload?.model_confidence == null ? "n/a" : Number(payload.model_confidence).toFixed(2);
+  const evidenceSufficiency = payload?.evidence_sufficiency == null ? "n/a" : Number(payload.evidence_sufficiency).toFixed(2);
+  const summaryTone = greenLane ? "ok" : "";
+  const greenLaneLabel = greenLane ? "Green-lane ready for reviewer confirmation." : "Reviewer confirmation still required; check warnings.";
+  setStatus("workbench-review-draft-summary", `Suggested verdict ${verdict} | confidence ${suggestedConfidence} | model ${modelConfidence} | evidence sufficiency ${evidenceSufficiency}. ${greenLaneLabel}`, summaryTone);
+
+  const subclaimRows = Array.isArray(payload?.subclaims) ? payload.subclaims : [];
+  if (!subclaimRows.length) {
+    subclaims.innerHTML = `<p class="status-text">No subclaim decomposition provided by draft.</p>`;
+  } else {
+    subclaims.innerHTML = subclaimRows
+      .map((item) => {
+        const judgment = String(item.judgment || "unclear");
+        const tone = verdictClass(judgment);
+        return `
+          <div class="row-btn" style="cursor:default;">
+            <strong class="${tone}">${escapeHtml(judgment)}</strong>
+            <span class="row-meta">${escapeHtml(item.text || "")}</span>
+            <span class="row-meta">${escapeHtml(item.notes || "")}</span>
+          </div>
+        `;
+      })
+      .join("");
+  }
+
+  const sourceRows = Array.isArray(payload?.source_assessments) ? payload.source_assessments : [];
+  if (!sourceRows.length) {
+    sources.innerHTML = `<p class="status-text">No source assessments returned.</p>`;
+  } else {
+    sources.innerHTML = sourceRows
+      .map((item) => {
+        const fetchStatus = String(item.fetch_status || "unknown");
+        const fetchOk = fetchStatus === "ok" || fetchStatus === "truncated";
+        const fetchWarn = fetchStatus === "pdf_unparsed" || fetchStatus === "unsupported_content_type" || fetchStatus === "empty";
+        const fetchBadge = fetchOk
+          ? `<span class="mini-tag-supported" title="Live fetch succeeded">✓ live${fetchStatus === "truncated" ? " (partial)" : ""}</span>`
+          : fetchWarn
+          ? `<span class="mini-tag-mixed" title="Fetch status: ${escapeHtml(fetchStatus)}">⚠ ${escapeHtml(fetchStatus)}</span>`
+          : `<span class="mini-tag-alert" title="Fetch status: ${escapeHtml(fetchStatus)}">✗ ${escapeHtml(fetchStatus)}</span>`;
+        return `
+          <div class="row-btn" style="cursor:default;">
+            <strong>${escapeHtml(String(item.supports_claim || "insufficient"))}</strong>
+            ${fetchBadge}
+            <span class="row-meta">${escapeHtml(String(item.source_class || "unknown"))} / ${escapeHtml(String(item.source_origin || "unknown"))} | ${escapeHtml(String(item.publisher || "Unspecified publisher"))}</span>
+            <span class="row-meta"><a href="${escapeHtml(String(item.url || "#"))}" target="_blank" rel="noopener noreferrer">${escapeHtml(String(item.url || ""))}</a></span>
+            <span class="row-meta">${escapeHtml(String(item.summary || ""))}</span>
+            ${item.excerpt ? `<span class="row-meta">${escapeHtml(String(item.excerpt))}</span>` : ""}
+          </div>
+        `;
+      })
+      .join("");
+  }
+
+  const warningRows = Array.isArray(payload?.warnings) ? payload.warnings : [];
+  warnings.innerHTML = warningRows.length
+    ? warningRows
+        .map((item) => {
+          const severity = String(item.severity || "warning");
+          const tone = severity === "critical" ? "bad" : severity === "info" ? "" : "ok";
+          return `<li class="${tone}">${escapeHtml(severity)}: ${escapeHtml(String(item.message || ""))} (${escapeHtml(String(item.code || ""))})</li>`;
+        })
+        .join("")
+    : `<li class="ok">pass: No draft warnings reported.</li>`;
+
+  const missingRows = Array.isArray(payload?.missing_evidence) ? payload.missing_evidence : [];
+  missing.innerHTML = missingRows.length
+    ? missingRows.map((item) => `<li class="bad">blocked: ${escapeHtml(String(item))}</li>`).join("")
+    : `<li class="ok">pass: No missing evidence flags reported.</li>`;
+
+  updateReviewerChecklist(payload);
+}
+
+function fetchStatusOk(status) {
+  return status === "ok" || status === "truncated";
+}
+
+function updateReviewerChecklist(payload) {
+  const checklist = $("workbench-reviewer-checklist");
+  if (!checklist) return;
+  checklist.style.display = payload ? "" : "none";
+
+  // Reset checkboxes when a new draft loads
+  ["reviewer-confirm-sources", "reviewer-confirm-claim", "reviewer-confirm-verdict"].forEach((id) => {
+    const el = $(id);
+    if (el) el.checked = false;
+  });
+
+  // Warn about unverified sources so reviewer knows what "verify" means
+  const unverified = (payload?.source_assessments || []).filter((s) => !fetchStatusOk(String(s.fetch_status || "unknown")));
+  const sourceNote = $("reviewer-checklist-source-note");
+  if (sourceNote) {
+    if (unverified.length) {
+      sourceNote.textContent = `⚠ ${unverified.length} source(s) could not be fetched automatically — open each link manually before checking this box.`;
+      sourceNote.className = "status-text bad";
+    } else {
+      sourceNote.textContent = "All sources were fetched successfully. Confirm content matches the cited claim.";
+      sourceNote.className = "status-text ok";
+    }
+  }
+  enforceChecklistGate();
+}
+
+function enforceChecklistGate() {
+  const allChecked =
+    !!$("reviewer-confirm-sources")?.checked &&
+    !!$("reviewer-confirm-claim")?.checked &&
+    !!$("reviewer-confirm-verdict")?.checked;
+  const submitBtn = $("workbench-review-submit-btn");
+  if (submitBtn) {
+    submitBtn.disabled = !allChecked;
+    submitBtn.title = allChecked ? "" : "Complete the reviewer confirmation checklist above before submitting.";
+  }
+  const gateStatus = $("workbench-checklist-gate-status");
+  if (gateStatus) {
+    gateStatus.textContent = allChecked ? "" : "Complete all three confirmations above to enable submit.";
+    gateStatus.className = allChecked ? "" : "status-text bad";
+  }
+}
+
+function applyWorkbenchDraftToReviewForm() {
+  if (!selectedWorkbenchDraft) {
+    setStatus("workbench-review-draft-status", "Generate a draft first.", "bad");
+    return;
+  }
+  const verdictEl = $("workbench-review-verdict");
+  const confidenceEl = $("workbench-review-confidence");
+  const rationaleEl = $("workbench-review-rationale");
+  const citationEl = $("workbench-review-citation-notes");
+  if (!verdictEl || !confidenceEl || !rationaleEl || !citationEl) return;
+
+  const suggestedVerdict = String(selectedWorkbenchDraft.suggested_verdict || "insufficient");
+  verdictEl.value = suggestedVerdict;
+  const confidenceNumber = Number(selectedWorkbenchDraft.suggested_confidence);
+  confidenceEl.value = Number.isFinite(confidenceNumber) ? confidenceNumber.toFixed(2) : "0.70";
+  rationaleEl.value = String(selectedWorkbenchDraft.rationale || "");
+  citationEl.value = String(selectedWorkbenchDraft.citation_notes || "");
+
+  // Record audit metadata so submitWorkbenchReview can send it with the evaluation
+  appliedDraftMeta = {
+    ai_draft_used: true,
+    ai_draft_model: String(selectedWorkbenchDraft.model || "gpt-4o-mini"),
+    ai_draft_suggested_verdict: suggestedVerdict,
+  };
+
+  setStatus("workbench-review-draft-status", "Draft applied to evaluation form. Review and edit before submitting.", "ok");
+}
+
+async function runWorkbenchReviewDraft() {
+  const claimId = $("workbench-review-claim-id")?.value?.trim();
+  if (!claimId || !isUuid(claimId)) {
+    setStatus("workbench-review-draft-status", "Select a valid claim first.", "bad");
+    return;
+  }
+  try {
+    setStatus("workbench-review-draft-status", "Generating AI draft from attached evidence...");
+    const payload = await apiRequest(`${API_EVALUATE_BASE_URL}/${encodeURIComponent(claimId)}/review-draft`, {
+      method: "POST",
+    });
+    renderWorkbenchDraft(payload || {});
+    setStatus("workbench-review-draft-status", "Draft generated. Reviewer confirmation is still required.", "ok");
+  } catch (err) {
+    clearWorkbenchDraft();
+    const reviewDraftMessage = parseReviewDraftError(err);
+    setStatus("workbench-review-draft-status", reviewDraftMessage || parseApiError(err, "Failed to generate review draft."), "bad");
+  }
 }
 
 async function loadWorkbenchSources(claimId) {
@@ -1743,6 +1980,7 @@ async function submitWorkbenchSourceAttach(event) {
   const sourceOrigin = $("workbench-source-origin")?.value;
   const publisher = $("workbench-source-publisher")?.value?.trim();
   const isDirectQuote = !!$("workbench-source-direct-quote")?.checked;
+  const contentExcerpt = $("workbench-source-excerpt")?.value?.trim() || null;
 
   if (!claimId || !isUuid(claimId)) {
     setStatus("workbench-source-status", "Select a valid claim first.", "bad");
@@ -1771,9 +2009,12 @@ async function submitWorkbenchSourceAttach(event) {
         source_origin: sourceOrigin,
         publisher: publisher || null,
         is_direct_candidate_quote: isDirectQuote,
+        content_excerpt: contentExcerpt,
       },
     });
     setStatus("workbench-source-status", "Source attached.", "ok");
+    const excerptEl = $("workbench-source-excerpt");
+    if (excerptEl) excerptEl.value = "";
     await Promise.all([loadWorkbench(), loadEvidenceQueue(), loadWorkbenchSources(claimId), loadWorkbenchSourceRecommendations(claimId)]);
   } catch (err) {
     const policyMessage = parseSourceAdmissionError(err);
@@ -1799,6 +2040,18 @@ async function submitWorkbenchReview(event) {
     setStatus("workbench-review-submit-status", "Confidence must be between 0 and 1.", "bad");
     return;
   }
+  // Checklist gate: all three reviewer confirmations required when a draft was used
+  const checklistVisible = $("workbench-reviewer-checklist")?.style.display !== "none";
+  if (checklistVisible) {
+    const allChecked =
+      !!$("reviewer-confirm-sources")?.checked &&
+      !!$("reviewer-confirm-claim")?.checked &&
+      !!$("reviewer-confirm-verdict")?.checked;
+    if (!allChecked) {
+      setStatus("workbench-review-submit-status", "Complete the reviewer confirmation checklist before submitting.", "bad");
+      return;
+    }
+  }
 
   try {
     setStatus("workbench-review-submit-status", "Submitting evaluation...");
@@ -1810,9 +2063,11 @@ async function submitWorkbenchReview(event) {
         rationale,
         citation_notes: citationNotes || null,
         approval_token: approvalToken || null,
+        ...(appliedDraftMeta || {}),
       },
     });
     setStatus("workbench-review-submit-status", "Evaluation saved.", "ok");
+    clearWorkbenchDraft();
     await Promise.all([loadWorkbench(), loadReviewQueue(), loadPublishQueue()]);
   } catch (err) {
     const dualControlMessage = parseEvaluationDualControlError(err);
@@ -2425,12 +2680,14 @@ function buildPublishChecklist(row) {
   const failures = Array.isArray(row?.publish_gate_failures) ? row.publish_gate_failures : [];
   const hasFailure = (code) => failures.includes(code);
   return [
-    { ok: !hasFailure("latest_rationale_required"), label: "Rationale present and review-ready" },
-    { ok: !hasFailure("latest_citation_notes_required"), label: "Citation notes present" },
-    { ok: !hasFailure("verification_primary_source_required"), label: "Verification primary source attached" },
-    { ok: !hasFailure("verification_secondary_source_required"), label: "Verification secondary source attached" },
+    { ok: !hasFailure("claim_not_fact_checkable"), label: "Claim is fact-checkable" },
+    { ok: !hasFailure("latest_verdict_must_be_supported_mixed_or_unsupported"), label: "Evaluation verdict recorded (supported / mixed / unsupported)" },
+    { ok: !hasFailure("latest_rationale_required"), label: "Rationale written" },
+    { ok: !hasFailure("latest_citation_notes_required"), label: "Citation notes written" },
+    { ok: !hasFailure("verification_primary_source_required"), label: "Primary verification source attached" },
+    { ok: !hasFailure("verification_secondary_source_required"), label: "Secondary verification source attached" },
+    { ok: !hasFailure("verification_source_url_unreachable"), label: "Verification source URLs are reachable" },
     { ok: !hasFailure("latest_evaluation_moderation_policy_violation"), label: "Moderation policy clean" },
-    { ok: !!row?.publish_gate_passed, label: "Publish gate passed" },
   ];
 }
 
@@ -2643,9 +2900,41 @@ function bindEvents() {
     renderWorkbenchRawFailures(row || null);
   });
   $("workbench-source-form")?.addEventListener("submit", submitWorkbenchSourceAttach);
+  $("workbench-source-url")?.addEventListener("blur", async () => {
+    const url = $("workbench-source-url")?.value?.trim();
+    if (!url || !isHttpUrl(url)) return;
+    const statusEl = $("workbench-source-url-check");
+    if (!statusEl) return;
+    statusEl.textContent = "Checking…";
+    statusEl.className = "source-url-check-status checking";
+    try {
+      const result = await apiRequest(`${API_BASE_URL}/claims/url-check?url=${encodeURIComponent(url)}`);
+      if (result.status === "ok") {
+        statusEl.textContent = `✓ Reachable (HTTP ${result.code})`;
+        statusEl.className = "source-url-check-status ok";
+      } else if (result.status === "gated") {
+        statusEl.textContent = `⚠ Paywalled / gated (HTTP ${result.code}) — paste an excerpt below`;
+        statusEl.className = "source-url-check-status warn";
+      } else if (result.status === "dead") {
+        statusEl.textContent = `✗ ${result.message}`;
+        statusEl.className = "source-url-check-status bad";
+      } else {
+        statusEl.textContent = `⚠ ${result.message}`;
+        statusEl.className = "source-url-check-status warn";
+      }
+    } catch (_) {
+      statusEl.textContent = "";
+      statusEl.className = "source-url-check-status";
+    }
+  });
   $("workbench-recommendations-refresh")?.addEventListener("click", async () => {
     const claimId = $("workbench-source-claim-id")?.value?.trim();
     await loadWorkbenchSourceRecommendations(claimId || "");
+  });
+  $("workbench-review-draft-run")?.addEventListener("click", async () => runWorkbenchReviewDraft());
+  $("workbench-review-draft-apply")?.addEventListener("click", () => applyWorkbenchDraftToReviewForm());
+  ["reviewer-confirm-sources", "reviewer-confirm-claim", "reviewer-confirm-verdict"].forEach((id) => {
+    $(id)?.addEventListener("change", enforceChecklistGate);
   });
   $("workbench-review-form")?.addEventListener("submit", submitWorkbenchReview);
   $("workbench-publish-form")?.addEventListener("submit", submitWorkbenchPublishAction);
@@ -2727,6 +3016,7 @@ async function init() {
     bulkAttachField.value = getBulkAttachExampleText();
   }
   renderBulkAttachResults(null);
+  clearWorkbenchDraft();
 
   bindEvents();
   setActiveTab("workbench");
