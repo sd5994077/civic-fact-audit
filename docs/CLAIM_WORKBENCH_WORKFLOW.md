@@ -50,6 +50,13 @@ No endpoint in this workflow may be used to produce endorsements or voting recom
    - Workbench can pre-load neutral candidates from `GET /v1/claims/{claim_id}/source-recommendations`.
    - Suggestions are reviewer aids only; reviewers must still confirm relevance before attaching.
    - Recommendations marked `discovery_only` are research links and are not one-click attachable evidence.
+     They do not count toward the publish gate's minimum verification-source requirement until a
+     reviewer independently verifies the link and attaches it manually via the source-attach form.
+     Only `attachable_evidence` recommendations (resolved to a specific record and passed the
+     claim-type anchor checks — amount/program/state context for funding claims, or claimed-stat/
+     denominator/methodology for numeric voting-record claims) can be one-click attached. Workbench
+     surfaces the specific missing anchors when a recommendation is research-only so reviewers know
+     why it wasn't auto-attachable.
 3. Row moves to `Needs Review` when minimum verification evidence is present and no latest human evaluation exists.
 4. Optional: generate a reviewer-aid draft packet via `POST /v1/claims/{claim_id}/review-draft` (suggested verdict/confidence/rationale/citation notes + source assessments + warnings).
 5. Reviewer confirms/edits and submits evaluation via `POST /v1/claims/{claim_id}/evaluate`.

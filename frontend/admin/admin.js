@@ -1602,11 +1602,13 @@ function renderWorkbenchRecommendationsList(recommendations) {
       const sourceCategoryLabel = formatSourceCategoryLabel(item.source_category);
       const canAttach = recommendationRole === "attachable_evidence";
       const roleLabel = canAttach ? "Attachable evidence" : recommendationRole === "discovery_only" ? "Research link only" : recommendationRole;
+      const rolePillClass = canAttach ? "attachable" : "discovery";
+      const missingAnchors = Array.isArray(item.missing_anchors) ? item.missing_anchors : [];
       return `
         <div class="row-btn" style="cursor:default;">
           <strong>#${index + 1} ${escapeHtml(sourceClass)} verification</strong>
           <span class="row-meta">publisher: ${escapeHtml(publisher)} | category: ${escapeHtml(sourceCategoryLabel)} | template ${escapeHtml(item.template_id || "n/a")}</span>
-          <span class="row-meta">role: ${escapeHtml(roleLabel)}</span>
+          <span class="row-meta"><span class="recommendation-role-pill ${rolePillClass}">${escapeHtml(roleLabel)}</span></span>
           <span class="row-meta"><a href="${escapeHtml(displayUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(displayUrl)}</a></span>
           ${evidenceUrl && discoveryUrl ? `<span class="row-meta">discovery: <a href="${escapeHtml(discoveryUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(discoveryUrl)}</a></span>` : ""}
           ${officialUrl ? `<span class="row-meta">official: <a href="${escapeHtml(officialUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(officialUrl)}</a></span>` : ""}
@@ -1614,6 +1616,8 @@ function renderWorkbenchRecommendationsList(recommendations) {
           ${validationBits.length ? `<span class="row-meta">validation: ${escapeHtml(validationBits.join(" | "))}</span>` : ""}
           ${pageTitle ? `<span class="row-meta">title: ${escapeHtml(pageTitle)}</span>` : ""}
           ${validationNote ? `<span class="row-meta">${escapeHtml(validationNote)}</span>` : ""}
+          ${!canAttach && missingAnchors.length ? `<span class="recommendation-anchor-note">Not attachable because it is missing: ${escapeHtml(missingAnchors.join(", "))}. This will not count toward the publish gate's minimum verification sources.</span>` : ""}
+          ${!canAttach ? `<span class="recommendation-anchor-note">Research link only — attach a source manually above if you independently verify it supports the claim.</span>` : ""}
           <div class="action-row" style="margin-top:0.5rem;">
             ${canAttach
               ? `<button type="button" class="ghost-btn workbench-recommendation-use" data-recommendation-index="${index}">Attach This Source</button>`

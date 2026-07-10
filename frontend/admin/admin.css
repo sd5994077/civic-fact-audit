@@ -314,6 +314,34 @@ textarea { min-height: 84px; resize: vertical; }
   background: rgba(255, 255, 255, 0.02);
 }
 
+.recommendation-guidance {
+  margin: 0.4rem 0 0.6rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.recommendation-role-pill {
+  display: inline-block;
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.recommendation-role-pill.attachable { color: var(--ok); border: 1px solid var(--ok); }
+.recommendation-role-pill.discovery { color: #f5a623; border: 1px solid #f5a623; }
+
+.recommendation-anchor-note {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.78rem;
+  color: #f5a623;
+}
+
 .checklist-box h4 {
   margin: 0 0 0.5rem;
   font-family: Georgia, "Times New Roman", serif;
