@@ -135,8 +135,8 @@
 - [x] Add recommendation role metadata (`attachable_evidence`, `discovery_only`, `candidate_quote_only`, `rejected`) so research links stay visible without being auto-attachable evidence.
 - [x] Gate Workbench one-click attach to `attachable_evidence` recommendations only, with clear research-only explanations for discovery links.
 - [x] Add deterministic Congress.gov bill-ID resolver v1 (API-keyed) for `tx_senate_congress_primary` so explicit bill citations can resolve from research links to official bill pages.
-- [ ] Add claim-type evidence anchors to move from topic-overlap-only checks to evidence sufficiency checks (start with funding/reimbursement and numeric voting-record claims).
-- [ ] Add deterministic page-level anchor extraction from fetched content to support robust amount/methodology checks before evidence attachment.
+- [x] Add claim-type evidence anchors to move from topic-overlap-only checks to evidence sufficiency checks (funding/reimbursement anchors existed; added numeric voting-record anchors — `claimed_stat`/`denominator`/`methodology` — gating attach on methodology plus a matching stat or denominator, not just keyword presence).
+- [x] Add deterministic page-level anchor extraction from fetched content to support robust amount/methodology checks before evidence attachment (Federal Register resolver results are now re-checked against the real fetched document text, not just search-API metadata, before being marked attachable).
 - [ ] Add Workbench reviewer guidance text for discovery-only vs attachable recommendations and publish-gate impact.
 
 ## Phase 10 - Hybrid Review Assistant

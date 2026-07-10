@@ -1571,3 +1571,195 @@ def test_fr_resolver_missing_anchors_excludes_amount() -> None:
     display_missing = [m for m in missing if m != 'amount']
     assert 'amount' not in display_missing
     assert 'amount' in missing, 'amount should still be in raw missing (FR metadata never has amounts)'
+
+
+def test_numeric_voting_anchor_assessment_matches_percentage_and_methodology() -> None:
+    ctx = _numeric_voting_context()
+    matched, missing = SourceRecommendationService._numeric_voting_anchor_assessment(
+        ctx,
+        'voteview presidential support score shows cornyn voted with trump 92% of the time based on roll call votes.',
+    )
+    assert 'claimed_stat' in matched
+    assert 'methodology' in matched
+    assert SourceRecommendationService._numeric_voting_anchor_match_is_attachable(matched, missing) is True
+
+
+def test_numeric_voting_anchor_assessment_missing_methodology_blocks_attach() -> None:
+    ctx = _numeric_voting_context()
+    matched, missing = SourceRecommendationService._numeric_voting_anchor_assessment(
+        ctx,
+        'cornyn voted with trump 92% of the time, texas senator says.',
+    )
+    assert 'claimed_stat' in matched
+    assert 'methodology' in missing
+    assert SourceRecommendationService._numeric_voting_anchor_match_is_attachable(matched, missing) is False
+
+
+def test_numeric_voting_anchor_assessment_uses_fraction_denominator() -> None:
+    ctx = ClaimRecommendationContext(
+        claim_id=uuid.uuid4(),
+        claim_text='Cornyn ranked 95 out of 100 senators on the conservative scorecard.',
+        issue_tag='voting_record',
+        statement_text='statement',
+        candidate_name='John Cornyn',
+        candidate_party='Republican',
+        candidate_office='US Senate',
+        candidate_state='TX',
+        election_cycle=2026,
+        race_stage='primary_runoff',
+    )
+    matched, missing = SourceRecommendationService._numeric_voting_anchor_assessment(
+        ctx,
+        'scorecard methodology: cornyn ranked 95 out of 100 senators based on roll call votes this session.',
+    )
+    assert 'claimed_stat' in matched
+    assert 'denominator' in matched
+    assert 'methodology' in matched
+    assert SourceRecommendationService._numeric_voting_anchor_match_is_attachable(matched, missing) is True
+
+
+def test_numeric_voting_claim_demoted_to_discovery_only_without_anchors(monkeypatch) -> None:
+    ctx = _numeric_voting_context()
+    policy = SourceRecommendationPolicy(
+        version='test-policy-v1',
+        default_limit=6,
+        templates=(
+            SourceRecommendationTemplate(
+                template_id='voteview_primary',
+                source_class=SourceClass.primary,
+                publisher='Voteview',
+                url_template='https://voteview.com/search?q={query}',
+                rationale='methodology source',
+                priority=20,
+                supports_numeric_voting_claims=True,
+                requires_methodology_signals=True,
+            ),
+        ),
+    )
+    monkeypatch.setattr('app.services.source_recommendation_service.get_source_recommendation_policy', lambda: policy)
+    monkeypatch.setattr(SourceRecommendationService, '_load_claim_context', staticmethod(lambda _db, _claim_id: ctx))
+    monkeypatch.setattr(SourceRecommendationService, '_load_source_snapshot', staticmethod(lambda _db, _claim_id: (set(), 0, 0)))
+    monkeypatch.setattr(
+        SourceRecommendationService,
+        '_validate_recommendation_url',
+        staticmethod(
+            lambda _url, _context, require_methodology_signals=False: RecommendationValidationResult(
+                status='validated',
+                http_status=200,
+                page_type='article',
+                topic_overlap_score=0.8,
+                evidence_text='cornyn voted with trump 92 percent of the time according to this article.',
+            )
+        ),
+    )
+
+    result = SourceRecommendationService.get_recommendations(object(), claim_id=ctx.claim_id, limit=6)
+    recommendations = result['recommendations']
+    assert len(recommendations) == 1
+    assert recommendations[0]['recommendation_role'] == 'discovery_only'
+    assert 'methodology' in recommendations[0]['missing_anchors']
+
+
+def test_numeric_voting_claim_stays_attachable_with_full_anchors(monkeypatch) -> None:
+    ctx = _numeric_voting_context()
+    policy = SourceRecommendationPolicy(
+        version='test-policy-v1',
+        default_limit=6,
+        templates=(
+            SourceRecommendationTemplate(
+                template_id='voteview_primary',
+                source_class=SourceClass.primary,
+                publisher='Voteview',
+                url_template='https://voteview.com/search?q={query}',
+                rationale='methodology source',
+                priority=20,
+                supports_numeric_voting_claims=True,
+                requires_methodology_signals=True,
+            ),
+        ),
+    )
+    monkeypatch.setattr('app.services.source_recommendation_service.get_source_recommendation_policy', lambda: policy)
+    monkeypatch.setattr(SourceRecommendationService, '_load_claim_context', staticmethod(lambda _db, _claim_id: ctx))
+    monkeypatch.setattr(SourceRecommendationService, '_load_source_snapshot', staticmethod(lambda _db, _claim_id: (set(), 0, 0)))
+    monkeypatch.setattr(
+        SourceRecommendationService,
+        '_validate_recommendation_url',
+        staticmethod(
+            lambda _url, _context, require_methodology_signals=False: RecommendationValidationResult(
+                status='validated',
+                http_status=200,
+                page_type='article',
+                topic_overlap_score=0.8,
+                evidence_text='presidential support score methodology: cornyn voted with trump 92% of the time.',
+            )
+        ),
+    )
+
+    result = SourceRecommendationService.get_recommendations(object(), claim_id=ctx.claim_id, limit=6)
+    recommendations = result['recommendations']
+    assert len(recommendations) == 1
+    assert recommendations[0]['recommendation_role'] == 'attachable_evidence'
+    assert recommendations[0]['evidence_url'] == recommendations[0]['url']
+
+
+def test_federal_register_page_level_check_demotes_when_fetched_text_lacks_anchors(monkeypatch) -> None:
+    """FR resolver metadata may look attachable, but the real fetched document text is the final gate."""
+    ctx = _funding_context()
+    policy = SourceRecommendationPolicy(
+        version='test-policy-v1',
+        default_limit=6,
+        templates=(
+            SourceRecommendationTemplate(
+                template_id='federal_register_primary',
+                source_class=SourceClass.primary,
+                publisher='Federal Register',
+                url_template='https://www.federalregister.gov/documents/search?conditions%5Bterm%5D={query}',
+                rationale='funding search',
+                priority=10,
+                supports_funding_claims=True,
+            ),
+        ),
+    )
+
+    class _ApiResponse:
+        status_code = 200
+
+        def raise_for_status(self):  # type: ignore[no-untyped-def]
+            return None
+
+        def json(self):  # type: ignore[no-untyped-def]
+            return {
+                'results': [
+                    {
+                        'html_url': 'https://www.federalregister.gov/documents/2026/01/01/2026-00001/sample',
+                        'pdf_url': None,
+                        'title': 'Operation Lone Star reimbursement for Texas exceeds 11 billion',
+                        'abstract': 'Federal reimbursement obligation details',
+                    }
+                ]
+            }
+
+    monkeypatch.setattr('app.services.source_recommendation_service.httpx.get', lambda *_args, **_kwargs: _ApiResponse())
+    monkeypatch.setattr('app.services.source_recommendation_service.get_source_recommendation_policy', lambda: policy)
+    monkeypatch.setattr(SourceRecommendationService, '_load_claim_context', staticmethod(lambda _db, _claim_id: ctx))
+    monkeypatch.setattr(SourceRecommendationService, '_load_source_snapshot', staticmethod(lambda _db, _claim_id: (set(), 0, 0)))
+    monkeypatch.setattr(
+        SourceRecommendationService,
+        '_validate_recommendation_url',
+        staticmethod(
+            lambda _url, _context, require_methodology_signals=False: RecommendationValidationResult(
+                status='validated',
+                http_status=200,
+                page_type='evidence_page',
+                # Real fetched document text does not actually mention the program/state/funding
+                # context the search-result metadata implied — the page-level check should catch this.
+                evidence_text='this document announces a routine rulemaking notice with no related detail.',
+            )
+        ),
+    )
+
+    result = SourceRecommendationService.get_recommendations(object(), claim_id=ctx.claim_id, limit=6)
+    recommendations = result['recommendations']
+    assert len(recommendations) == 1
+    assert recommendations[0]['recommendation_role'] == 'discovery_only'
+    assert recommendations[0]['evidence_url'] is None

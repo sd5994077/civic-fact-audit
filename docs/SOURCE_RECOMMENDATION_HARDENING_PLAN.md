@@ -27,12 +27,16 @@ This pass intentionally avoids LLM integration. The current system remains deter
 - No schema migrations.
 
 ## Next Slice
-1. Add deterministic evidence-anchor extraction directly from fetched content.
-2. Funding/reimbursement claims:
+1. [x] Add deterministic evidence-anchor extraction directly from fetched content — Federal Register
+   resolver results are re-checked against the real fetched document text (not just search-API
+   metadata) via `_federal_register_item_is_attachable` before being marked attachable.
+2. [x] Funding/reimbursement claims:
    - enforce claimed amount and funding-context anchors before attachable role.
-3. Numeric voting-record claims:
-   - preserve methodology signal requirements and strengthen denominator/numerator checks.
-4. Add richer reviewer UX messaging about why a recommendation is research-only.
+3. [x] Numeric voting-record claims:
+   - preserve methodology signal requirements and strengthen denominator/numerator checks
+     (`_numeric_voting_anchor_assessment`: `claimed_stat`/`denominator`/`methodology` anchors;
+     attach requires methodology plus a matching stat or denominator).
+4. [ ] Add richer reviewer UX messaging about why a recommendation is research-only.
 
 ## Acceptance Criteria
 - Workbench only shows `Attach This Source` for `recommendation_role=attachable_evidence`.
