@@ -74,7 +74,9 @@ def _get_or_create_candidate(
     return candidate
 
 
-def _insert_statement_with_claim_and_eval(db: Session, *, candidate: Candidate, seed: SeedClaim) -> None:
+def _insert_statement_with_claim_and_eval(
+    db: Session, *, candidate: Candidate, seed: SeedClaim, published_at: datetime
+) -> None:
     stmt = Statement(
         candidate_id=candidate.id,
         source_type=seed.statement_source_type,
@@ -93,6 +95,8 @@ def _insert_statement_with_claim_and_eval(db: Session, *, candidate: Candidate, 
         extraction_method='seed',
         extraction_metadata='example_dataset',
         status=ClaimStatus.reviewed,
+        is_published=True,
+        published_at=published_at,
     )
     db.add(claim)
     db.flush()
@@ -138,10 +142,10 @@ def main() -> None:
 
     db = SessionLocal()
     try:
-        office = 'US Senate'
-        state = 'TX'
+        office = 'US Senate (Example)'
+        state = 'XX'
         election_cycle = 2026
-        race_stage = RaceStage.primary
+        race_stage = RaceStage.primary_runoff
 
         # Example candidates for UI wiring only.
         candidate_a = _get_or_create_candidate(
@@ -251,11 +255,14 @@ def main() -> None:
         ]
 
         for seed in seeds_a:
-            _insert_statement_with_claim_and_eval(db, candidate=candidate_a, seed=seed)
+            _insert_statement_with_claim_and_eval(db, candidate=candidate_a, seed=seed, published_at=published)
         for seed in seeds_b:
-            _insert_statement_with_claim_and_eval(db, candidate=candidate_b, seed=seed)
+            _insert_statement_with_claim_and_eval(db, candidate=candidate_b, seed=seed, published_at=published)
 
         db.commit()
+        print(f"Seeded candidates: {candidate_a.name}, {candidate_b.name}")
+        print(f"Seeded {len(seeds_a)} claims for A, {len(seeds_b)} claims for B")
+        print("Done — all claims marked is_published=True")
     finally:
         db.close()
 
