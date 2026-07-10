@@ -45,6 +45,7 @@ class EvaluationService:
     _PUBLISH_GATE_VERIFICATION_PRIMARY = 'verification_primary_source_required'
     _PUBLISH_GATE_VERIFICATION_SECONDARY = 'verification_secondary_source_required'
     _PUBLISH_GATE_MODERATION_POLICY = 'latest_evaluation_moderation_policy_violation'
+    _PUBLISH_GATE_DEAD_SOURCE = 'verification_source_url_unreachable'
 
     @staticmethod
     def _fact_checkable_predicate():
@@ -79,6 +80,18 @@ class EvaluationService:
             case(
                 (
                     and_(eligible, Source.source_origin == SourceOrigin.verification, Source.source_class == SourceClass.secondary),
+                    1,
+                ),
+                else_=0,
+            )
+        )
+        dead_verification_source_count = func.sum(
+            case(
+                (
+                    and_(
+                        Source.source_origin == SourceOrigin.verification,
+                        Source.fetch_status == 'http_4xx',
+                    ),
                     1,
                 ),
                 else_=0,
@@ -129,6 +142,7 @@ class EvaluationService:
                 verification_count.label('verification_count'),
                 verification_primary_count.label('verification_primary_count'),
                 verification_secondary_count.label('verification_secondary_count'),
+                dead_verification_source_count.label('dead_verification_source_count'),
                 latest_eval_ranked.c.latest_verdict,
                 latest_eval_ranked.c.latest_confidence,
                 latest_eval_ranked.c.latest_rationale,
@@ -251,6 +265,7 @@ class EvaluationService:
                 'verification_source_count': int(row['verification_count']),
                 'verification_primary_count': int(row['verification_primary_count']),
                 'verification_secondary_count': int(row['verification_secondary_count']),
+                'dead_verification_source_count': int(row['dead_verification_source_count']),
                 'latest_verdict': row['latest_verdict'],
                 'latest_confidence': row['latest_confidence'],
                 'latest_rationale': row['latest_rationale'],
@@ -341,6 +356,9 @@ class EvaluationService:
             rationale=rationale_text,
             citation_notes=payload.citation_notes,
             reviewer_id=reviewer_id,
+            ai_draft_used=payload.ai_draft_used,
+            ai_draft_model=payload.ai_draft_model or None,
+            ai_draft_suggested_verdict=payload.ai_draft_suggested_verdict or None,
         )
 
         claim.status = ClaimStatus.reviewed
@@ -436,6 +454,16 @@ class EvaluationService:
             failures.append(EvaluationService._PUBLISH_GATE_VERIFICATION_PRIMARY)
         if not SourceService.has_source_class(db, claim.id, SourceClass.secondary, source_origin=SourceOrigin.verification):
             failures.append(EvaluationService._PUBLISH_GATE_VERIFICATION_SECONDARY)
+        # Block publish if any verification source URL is confirmed dead (http_4xx).
+        dead_source_exists = db.scalar(
+            select(func.count(Source.id)).where(
+                Source.claim_id == claim.id,
+                Source.source_origin == SourceOrigin.verification,
+                Source.fetch_status == 'http_4xx',
+            )
+        ) or 0
+        if dead_source_exists > 0:
+            failures.append(EvaluationService._PUBLISH_GATE_DEAD_SOURCE)
         return list(dict.fromkeys(failures))
 
     @staticmethod
@@ -564,6 +592,7 @@ class EvaluationService:
                     'secondary_source_count': row['secondary_source_count'],
                     'verification_primary_count': row['verification_primary_count'],
                     'verification_secondary_count': row['verification_secondary_count'],
+                    'dead_verification_source_count': row['dead_verification_source_count'],
                     'publish_gate_passed': gate_passed,
                     'publish_gate_failures': failures,
                     'is_published': bool(row.get('is_published', False)),
@@ -598,6 +627,8 @@ class EvaluationService:
             failures.append(EvaluationService._PUBLISH_GATE_VERIFICATION_PRIMARY)
         if int(row.get('verification_secondary_count') or 0) <= 0:
             failures.append(EvaluationService._PUBLISH_GATE_VERIFICATION_SECONDARY)
+        if int(row.get('dead_verification_source_count') or 0) > 0:
+            failures.append(EvaluationService._PUBLISH_GATE_DEAD_SOURCE)
         return list(dict.fromkeys(failures))
 
     @staticmethod

@@ -7,12 +7,21 @@ from sqlalchemy.orm import Session
 from app.core.rate_limiter import ADMIN_WRITE_LIMIT, WRITE_STANDARD_LIMIT, ip_rate_limit
 from app.db.database import get_db
 from app.models.enums import RaceStage
-from app.schemas.api import ClaimEvaluationRead, ClaimWorkbenchItem, ClaimWorkbenchState, ErrorResponse, EvaluateClaimRequest, ReviewQueueItem
+from app.schemas.api import (
+    ClaimEvaluationRead,
+    ClaimWorkbenchItem,
+    ClaimWorkbenchState,
+    ErrorResponse,
+    EvaluateClaimRequest,
+    ReviewDraftResponse,
+    ReviewQueueItem,
+)
 from app.schemas.api import PublishClaimResponse, PublishQueueItem
 from app.services.auth_dependency_service import require_admin, require_reviewer_or_admin
 from app.services.auth_service import AuthIdentity, AuthService
 from app.services.claim_workbench_service import ClaimWorkbenchService
 from app.services.evaluation_service import EvaluationService
+from app.services.review_draft_service import ReviewDraftService
 
 router = APIRouter(prefix='/claims')
 
@@ -77,6 +86,30 @@ def evaluate_claim(
         approval_reviewer_id=approval_reviewer_id,
     )
     return ClaimEvaluationRead.model_validate(evaluation, from_attributes=True)
+
+
+@router.post(
+    '/{claim_id}/review-draft',
+    response_model=ReviewDraftResponse,
+    responses={
+        401: {'model': ErrorResponse},
+        403: {'model': ErrorResponse},
+        404: {'model': ErrorResponse},
+        422: {'model': ErrorResponse},
+        429: {'model': ErrorResponse},
+        502: {'model': ErrorResponse},
+        503: {'model': ErrorResponse},
+    },
+)
+def review_draft(
+    claim_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    identity: AuthIdentity = Depends(require_reviewer_or_admin),
+    _rl: None = Depends(ip_rate_limit(WRITE_STANDARD_LIMIT, endpoint_key='review_draft')),
+) -> ReviewDraftResponse:
+    _ = identity
+    payload = ReviewDraftService.generate_review_draft(db, claim_id=claim_id)
+    return ReviewDraftResponse.model_validate(payload)
 
 
 @router.get(

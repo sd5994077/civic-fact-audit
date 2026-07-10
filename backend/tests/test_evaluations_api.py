@@ -79,6 +79,70 @@ def test_evaluate_claim_returns_422_for_moderation_violation(monkeypatch) -> Non
     app.dependency_overrides.clear()
 
 
+def test_review_draft_requires_reviewer_or_admin_auth(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides.pop(require_reviewer_or_admin, None)
+    monkeypatch.setattr('app.api.v1.evaluations.ReviewDraftService.generate_review_draft', lambda *_args, **_kwargs: {})
+
+    client = TestClient(app)
+    response = client.post(f'/v1/claims/{uuid.uuid4()}/review-draft')
+    assert response.status_code == 401
+    app.dependency_overrides.clear()
+
+
+def test_review_draft_returns_structured_payload(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[require_reviewer_or_admin] = _override_reviewer
+    claim_id = uuid.uuid4()
+    source_id = uuid.uuid4()
+    claim_id_arg = claim_id
+
+    def _fake_review_draft(_db, *, claim_id: uuid.UUID):  # type: ignore[no-untyped-def]
+        assert claim_id == claim_id_arg
+        return {
+            'claim_id': claim_id,
+            'suggested_verdict': 'mixed',
+            'suggested_confidence': 0.73,
+            'model_confidence': 0.9,
+            'evidence_sufficiency': 0.84,
+            'green_lane_ready': False,
+            'rationale': 'Evidence supports one component of the claim but not the superlative framing.',
+            'citation_notes': 'Primary legislative record and secondary analysis were reviewed.',
+            'subclaims': [
+                {
+                    'text': 'Candidate voted for the bill.',
+                    'judgment': 'supported',
+                    'notes': 'Roll call shows a yes vote.',
+                }
+            ],
+            'source_assessments': [
+                {
+                    'source_id': source_id,
+                    'url': 'https://www.senate.gov/legislative/LIS/roll_call_votes/vote1151/vote_115_1_00323.htm',
+                    'source_class': 'primary',
+                    'source_origin': 'verification',
+                    'publisher': 'U.S. Senate',
+                    'supports_claim': 'supports',
+                    'summary': 'Roll call includes the candidate as Yea.',
+                    'excerpt': 'Cornyn (R-TX), Yea',
+                }
+            ],
+            'warnings': [{'code': 'methodology_context_missing', 'message': 'Comparative denominator is not explicit.', 'severity': 'warning'}],
+            'missing_evidence': ['comparative_denominator_unresolved'],
+        }
+
+    monkeypatch.setattr('app.api.v1.evaluations.ReviewDraftService.generate_review_draft', _fake_review_draft)
+
+    client = TestClient(app)
+    response = client.post(f'/v1/claims/{claim_id}/review-draft')
+    body = response.json()
+    assert response.status_code == 200
+    assert body['claim_id'] == str(claim_id)
+    assert body['suggested_verdict'] == 'mixed'
+    assert body['source_assessments'][0]['supports_claim'] == 'supports'
+    app.dependency_overrides.clear()
+
+
 def test_workbench_requires_reviewer_or_admin_auth(monkeypatch) -> None:
     app.dependency_overrides[get_db] = _override_db
     app.dependency_overrides.pop(require_reviewer_or_admin, None)

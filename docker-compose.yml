@@ -25,9 +25,15 @@ services:
       POSTGRES_DB: civic_fact_audit
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_REVIEW_DRAFT_MODEL: ${OPENAI_REVIEW_DRAFT_MODEL:-gpt-5-mini}
+      OPENAI_REVIEW_DRAFT_MAX_COMPLETION_TOKENS: ${OPENAI_REVIEW_DRAFT_MAX_COMPLETION_TOKENS:-1600}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       CONGRESS_API_KEY: ${CONGRESS_API_KEY:-}
     ports:
       - "8000:8000"
+    volumes:
+      - ./backend/app:/app/app
 
   web:
     build:
@@ -37,6 +43,8 @@ services:
       - api
     ports:
       - "3001:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
 
 volumes:
   postgres_data:

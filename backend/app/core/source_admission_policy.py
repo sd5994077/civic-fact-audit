@@ -18,6 +18,7 @@ class SourceAdmissionPolicy:
     partisan_publishers: tuple[str, ...]
     partisan_domains: tuple[str, ...]
     social_domains: tuple[str, ...]
+    review_draft_fetch_allowed_domains: tuple[str, ...]
 
 
 DEFAULT_POLICY_PATH = Path(__file__).resolve().parent.parent / 'config' / 'source_admission_policy_v1.json'
@@ -57,6 +58,7 @@ def get_source_admission_policy(path: str | None = None) -> SourceAdmissionPolic
         partisan_publishers=_normalize_list('partisan_publishers'),
         partisan_domains=_normalize_list('partisan_domains'),
         social_domains=_normalize_list('social_domains'),
+        review_draft_fetch_allowed_domains=_normalize_list('review_draft_fetch_allowed_domains'),
     )
 
 
@@ -112,3 +114,11 @@ def is_social_url(url: str) -> bool:
     policy = get_source_admission_policy()
     host = _normalized_hostname(url)
     return any(_matches(host, pattern, 'suffix') for pattern in policy.social_domains)
+
+
+def is_review_draft_fetch_allowed(url: str) -> bool:
+    policy = get_source_admission_policy()
+    host = _normalized_hostname(url)
+    if not host:
+        return False
+    return any(_matches(host, pattern, policy.domain_match) for pattern in policy.review_draft_fetch_allowed_domains)
