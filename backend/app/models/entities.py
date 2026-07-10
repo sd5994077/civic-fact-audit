@@ -184,6 +184,12 @@ class Source(TimestampMixin, Base):
     policy_flagged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     publisher: Mapped[str | None] = mapped_column(String(255), nullable=True)
     quality_score: Mapped[float] = mapped_column(Float, nullable=False)
+    # Reviewer-provided excerpt: key quote or passage from the source that supports the claim.
+    # Used as AI context fallback when live fetch returns empty (paywalled / JS-rendered pages).
+    content_excerpt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Result of the URL reachability probe at attach time.
+    # Values: ok | gated | request_error | http_4xx | unknown
+    fetch_status: Mapped[str] = mapped_column(String(32), nullable=False, default='unknown', server_default='unknown')
 
     claim: Mapped['Claim'] = relationship(back_populates='sources')
     evidence_links: Mapped[list['ClaimEvidenceLink']] = relationship(back_populates='source')
@@ -264,6 +270,11 @@ class ClaimEvaluation(TimestampMixin, Base):
     rationale: Mapped[str] = mapped_column(Text, nullable=False)
     citation_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     reviewer_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    # AI draft audit trail — records whether this evaluation was informed by an AI draft,
+    # which model generated it, and what verdict the model suggested vs what the reviewer chose.
+    ai_draft_used: Mapped[bool] = mapped_column(nullable=False, default=False, server_default=text('false'))
+    ai_draft_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    ai_draft_suggested_verdict: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     claim: Mapped['Claim'] = relationship(back_populates='evaluations')
 
