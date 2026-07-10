@@ -1,6 +1,6 @@
 # Threat Model
 
-_Last updated: 2026-05-13. Scope: civic-fact-audit backend API and admin frontend._
+_Last updated: 2026-05-31. Scope: civic-fact-audit backend API and admin frontend._
 
 ---
 
@@ -12,7 +12,7 @@ _Last updated: 2026-05-13. Scope: civic-fact-audit backend API and admin fronten
 | **Reviewer browser → API** | Authenticated reviewer/admin actions — JWT bearer token required |
 | **Admin browser → API** | Admin-only actions — `require_admin` dependency enforced |
 | **API → PostgreSQL** | Internal — credentials from environment variables, never from request data |
-| **API → OpenAI** | Script-only; not used by the runtime API server |
+| **API → OpenAI** | Runtime reviewer-assist draft generation (`POST /v1/claims/{id}/review-draft`) using `OPENAI_API_KEY` |
 
 ---
 
@@ -112,7 +112,8 @@ Credentials (`Authorization` header) are allowed only from listed origins. Wildc
 | `POSTGRES_PASSWORD` | Yes (non-dev rejects default) | Environment variable |
 | `REVIEWER_BOOTSTRAP_PASSWORD` | Yes (non-dev rejects default) | Environment variable; hash stored in DB via PBKDF2-SHA256 390 000 iterations |
 | `CORS_ALLOWED_ORIGINS` | Yes (non-dev rejects default localhost list) | Environment variable |
-| `OPENAI_API_KEY` | No (scripts only, not runtime) | Environment variable |
+| `OPENAI_API_KEY` | Yes (runtime review-draft endpoint) | Environment variable |
+| `GEMINI_API_KEY` | No (reserved for future provider fallback) | Environment variable |
 
 All secrets are loaded from `.env` via `pydantic-settings`. `.env` is listed in `.gitignore`. `.env.example` with safe placeholders is committed for deployer reference.
 

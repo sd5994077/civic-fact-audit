@@ -33,6 +33,7 @@ The admin UI also hides terminal states (`Published` and `Insufficient Evidence`
 
 Reviewer/admin responsibilities in Workbench:
 - attach admissible sources (record `source_origin`, `source_class`, publisher, and quote exception only when applicable)
+- optionally generate AI review drafts (`POST /v1/claims/{claim_id}/review-draft`) to prefill reviewer notes
 - submit claim evaluation (`supported|mixed|unsupported|insufficient`) with rationale/citation notes
 - resolve blocking checklist items
 - hand off when dual-control is required
@@ -50,13 +51,15 @@ No endpoint in this workflow may be used to produce endorsements or voting recom
    - Suggestions are reviewer aids only; reviewers must still confirm relevance before attaching.
    - Recommendations marked `discovery_only` are research links and are not one-click attachable evidence.
 3. Row moves to `Needs Review` when minimum verification evidence is present and no latest human evaluation exists.
-4. Submit evaluation via `POST /v1/claims/{claim_id}/evaluate`.
-5. If latest verdict is `insufficient`, row is treated as review-complete but non-publishable (`Insufficient Evidence`).
+4. Optional: generate a reviewer-aid draft packet via `POST /v1/claims/{claim_id}/review-draft` (suggested verdict/confidence/rationale/citation notes + source assessments + warnings).
+5. Reviewer confirms/edits and submits evaluation via `POST /v1/claims/{claim_id}/evaluate`.
+6. If latest verdict is `insufficient`, row is treated as review-complete but non-publishable (`Insufficient Evidence`).
 
 Important gates:
 - verdicts `supported|mixed|unsupported` require minimum verification evidence
 - evaluation overwrites require dual-control (`evaluation_overwrite` approval token from a different reviewer/admin)
 - moderation policy applies to rationale and citation notes
+- AI draft output is assistance only; it does not create official evaluations or publish mutations
 
 ## 4) Publish and Handoff Flow
 

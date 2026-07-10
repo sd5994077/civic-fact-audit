@@ -82,11 +82,14 @@ These policy fields let each shared frame declare what evidence classes are acce
 - `policy_flagged_at` (nullable timestamp when exclusion flag was set)
 - `publisher`
 - `quality_score` (0-1)
+- `content_excerpt` (nullable reviewer-provided quote/passage used when live fetch returns no readable text)
+- `fetch_status` (attach-time reachability/result marker such as `ok`, `gated`, `request_error`, `http_4xx`, `unknown`)
 - `created_at`
 - `updated_at`
 - unique: `(claim_id, url)`
 
 `source_class` describes evidence depth. `source_origin` describes who controls the source. Candidate-originated material may document what was said, but it is not sufficient verification on its own.
+URL normalization is applied on new writes for duplicate control, but historical stored evidence URLs are not rewritten in-place by migration.
 
 Recommendation metadata:
 - Source recommendation responses may include `source_category` (`primary_record`/`civic_research`/`fact_check`/`secondary_news`) for Workbench triage.
@@ -128,6 +131,9 @@ Public compare cards currently render a curated subset capped per side (candidat
 - `rationale`
 - `citation_notes`
 - `reviewer_id`
+- `ai_draft_used` (bool; whether the reviewer applied an AI draft before submitting this evaluation)
+- `ai_draft_model` (nullable model identifier recorded for audit trail)
+- `ai_draft_suggested_verdict` (nullable model verdict recorded for reviewer-vs-draft comparison)
 - `created_at`
 - `updated_at`
 
