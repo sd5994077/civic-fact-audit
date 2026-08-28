@@ -10,6 +10,7 @@ let reviewQueueRows = [];
 let proposalQueueRows = [];
 let authToken = localStorage.getItem("cfa_auth_token") || "";
 let compareState = null;
+let compareRawState = null;
 let compareAbortController = null;
 const DEFAULT_RACE_KEY = "TX|US Senate|2026";
 const DEFAULT_RACE_STAGE = "primary_runoff";
@@ -194,8 +195,8 @@ function renderTopCards(compare) {
               <strong>${escapeHtml(String(counts.mixed))}</strong>
             </div>
             <div>
-              <span class="breakdown-label">Unverified</span>
-              <strong>${escapeHtml(String(counts.insufficient))}</strong>
+              <span class="breakdown-label">Contradicted</span>
+              <strong>${escapeHtml(String(counts.unsupported))}</strong>
             </div>
           </div>
 
@@ -823,6 +824,7 @@ async function loadCompare() {
       throw err;
     }
     const compareRaw = await res.json();
+    compareRawState = compareRaw;
     const compare = applyClientFilters(compareRaw);
     compareState = compare;
 
@@ -844,6 +846,7 @@ async function loadCompare() {
     renderContrastBand(compare);
     renderIssueList(compare, bounded);
     renderPanel(compare, bounded);
+    renderPublishedClaims(compareRawState);
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") return;
     if (err && typeof err === "object" && err.status === 404) {
@@ -1078,9 +1081,201 @@ async function submitProposalAction(event) {
   }
 }
 
+// ── Tab switching ─────────────────────────────────────────────────────────────
+
+// Visibility rules per tab. Each entry lists element IDs that should be VISIBLE
+// for that tab; everything else in the workspace is hidden.
+// "header#compare-hero" is a <header>, not a <section>, so it's handled separately.
+const TAB_VISIBILITY = {
+  compare: {
+    header: true,
+    sections: ["candidate-cards", "compare-controls-section", "compare-contrast", "compare-matrix-board"],
+  },
+  matrix: {
+    header: false,
+    sections: ["compare-matrix-board"],
+  },
+  claims: {
+    header: false,
+    sections: ["published-claims-view"],
+  },
+  stances: {
+    header: false,
+    sections: ["stances-view"],
+  },
+  methods: {
+    header: false,
+    sections: ["methods-view"],
+  },
+};
+
+// All section IDs that are ever toggled — used to hide everything not in the active set.
+const ALL_MANAGED_SECTIONS = [
+  "candidate-cards",
+  "compare-controls-section",
+  "compare-contrast",
+  "compare-matrix-board",
+  "published-claims-view",
+  "stances-view",
+  "methods-view",
+];
+
+function setActiveTab(tabName) {
+  document.querySelectorAll(".rail-link[data-tab]").forEach((btn) => {
+    btn.classList.toggle("is-active", btn.dataset.tab === tabName);
+  });
+
+  const rule = TAB_VISIBILITY[tabName] ?? TAB_VISIBILITY.compare;
+  const visibleSet = new Set(rule.sections);
+
+  // Toggle hero header
+  const hero = $("compare-hero");
+  if (hero) hero.hidden = !rule.header;
+
+  // Toggle managed sections
+  ALL_MANAGED_SECTIONS.forEach((id) => {
+    const el = $(id);
+    if (el) el.hidden = !visibleSet.has(id);
+  });
+}
+
+function bindTabNav() {
+  document.querySelectorAll(".rail-link[data-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => setActiveTab(btn.dataset.tab));
+  });
+}
+
+// ── Published Claims list ─────────────────────────────────────────────────────
+
+function buildClaimsFromCompare(compare) {
+  if (!compare) return [];
+  const candidateMap = new Map((compare.candidates || []).map((c) => [c.id, c]));
+  const claims = [];
+  for (const issue of compare.issues || []) {
+    for (const item of issue.items || []) {
+      const candidate = candidateMap.get(item.candidate_id);
+      claims.push({
+        claim_id: item.claim_id,
+        candidate_id: item.candidate_id,
+        candidate_name: candidate?.name ?? "Unknown",
+        candidate_party: candidate?.party ?? "",
+        issue_tag: issue.issue_tag,
+        claim_text: item.claim_text,
+        verdict: item.verdict,
+        confidence: item.confidence,
+        rationale: item.rationale,
+        citation_notes: item.citation_notes,
+        sources: item.sources || [],
+        warnings: item.warnings || [],
+      });
+    }
+  }
+  const ORDER = { unsupported: 0, mixed: 1, supported: 2 };
+  claims.sort((a, b) => {
+    const vDiff = (ORDER[a.verdict] ?? 3) - (ORDER[b.verdict] ?? 3);
+    return vDiff !== 0 ? vDiff : (a.candidate_name ?? "").localeCompare(b.candidate_name ?? "");
+  });
+  return claims;
+}
+
+function renderPublishedClaims(compare) {
+  const listEl = $("claims-list");
+  const countEl = $("claims-count");
+  const candidateSelect = $("claims-filter-candidate");
+  if (!listEl) return;
+
+  const allClaims = buildClaimsFromCompare(compare);
+
+  if (candidateSelect && candidateSelect.options.length === 1) {
+    const names = [...new Map(allClaims.map((c) => [c.candidate_id, c.candidate_name])).entries()];
+    names.sort((a, b) => a[1].localeCompare(b[1]));
+    names.forEach(([id, name]) => {
+      const opt = document.createElement("option");
+      opt.value = id;
+      opt.textContent = name;
+      candidateSelect.appendChild(opt);
+    });
+  }
+
+  const verdictFilter = $("claims-filter-verdict")?.value ?? "";
+  const candidateFilter = $("claims-filter-candidate")?.value ?? "";
+  const issueFilter = ($("claims-filter-issue")?.value ?? "").trim().toLowerCase();
+
+  const filtered = allClaims.filter((c) => {
+    if (verdictFilter && c.verdict !== verdictFilter) return false;
+    if (candidateFilter && c.candidate_id !== candidateFilter) return false;
+    if (issueFilter && !String(c.issue_tag ?? "").toLowerCase().includes(issueFilter)) return false;
+    return true;
+  });
+
+  if (countEl) countEl.textContent = `${filtered.length} claim${filtered.length !== 1 ? "s" : ""}`;
+
+  if (filtered.length === 0) {
+    listEl.innerHTML = `<p class="note-copy">No published claims match the current filters.</p>`;
+    return;
+  }
+
+  listEl.innerHTML = filtered.map((c) => {
+    const vClass = verdictClass(c.verdict);
+    const vLabel = formatVerdictLabel(c.verdict);
+    const pct = Number.isFinite(c.confidence) ? `${Math.round(c.confidence * 100)}%` : "";
+    const rationale = c.rationale?.trim() || "No rationale recorded.";
+    const citationNotes = c.citation_notes?.trim() || "";
+    let sourceLinksHtml = "";
+    for (const s of c.sources || []) {
+      if (!s.url) continue;
+      let hostname = s.url;
+      try { hostname = new URL(s.url).hostname.replace(/^www\./, ""); } catch (_) {}
+      const label = s.publisher || hostname;
+      const cls = s.source_class === "primary" ? "source-primary" : "source-secondary";
+      sourceLinksHtml += `<a class="source-link ${cls}" href="${escapeHtml(s.url)}" target="_blank" rel="noopener">${escapeHtml(label)}</a>`;
+    }
+    const warningPills = (c.warnings || []).filter((w) => w.code)
+      .map((w) => `<span class="mini-tag mini-tag-alert">${escapeHtml(w.code)}</span>`).join("");
+
+    return `
+      <article class="claim-card ${stanceClass(c.verdict)}">
+        <header class="claim-card-header">
+          <div class="claim-card-meta">
+            <span class="claim-candidate">${escapeHtml(c.candidate_name)}${c.candidate_party ? ` <span class="claim-party">(${escapeHtml(c.candidate_party)})</span>` : ""}</span>
+            <span class="claim-issue-tag">${escapeHtml(c.issue_tag)}</span>
+          </div>
+          <div class="claim-verdict-row">
+            <span class="mini-tag ${vClass}">${escapeHtml(vLabel)}</span>
+            ${pct ? `<span class="claim-confidence">${pct} confidence</span>` : ""}
+          </div>
+        </header>
+        <p class="claim-text">&ldquo;${escapeHtml(c.claim_text)}&rdquo;</p>
+        <details class="claim-details">
+          <summary>Reviewer analysis &amp; sources</summary>
+          <div class="claim-details-body">
+            <p class="claim-section-label">Why this verdict</p>
+            <p class="claim-rationale">${escapeHtml(rationale)}</p>
+            ${citationNotes ? `<p class="claim-section-label">Citation notes</p><p class="claim-rationale">${escapeHtml(citationNotes)}</p>` : ""}
+            ${sourceLinksHtml ? `<p class="claim-section-label">Sources</p><div class="claim-sources">${sourceLinksHtml}</div>` : ""}
+            ${warningPills ? `<p class="claim-section-label">Reviewer flags</p><div class="claim-warnings">${warningPills}</div>` : ""}
+          </div>
+        </details>
+      </article>`;
+  }).join("");
+}
+
+function bindClaimsFilters() {
+  ["claims-filter-verdict", "claims-filter-candidate"].forEach((id) => {
+    const el = $(id);
+    if (el) el.addEventListener("change", () => renderPublishedClaims(compareRawState));
+  });
+  const issueInput = $("claims-filter-issue");
+  if (issueInput) issueInput.addEventListener("input", () => renderPublishedClaims(compareRawState));
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
 async function init() {
   await loadRaceOptions();
+  bindTabNav();
   bindCompareControls();
+  bindClaimsFilters();
   await loadCompare();
 }
 

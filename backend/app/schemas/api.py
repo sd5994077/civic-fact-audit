@@ -121,6 +121,9 @@ class AddSourceRequest(BaseModel):
     publisher: str | None = Field(default=None, max_length=255)
     quality_score: float | None = Field(default=None, ge=0, le=1)
     is_direct_candidate_quote: bool = False
+    # Optional reviewer-provided excerpt — key quote from the source that supports the claim.
+    # Used as AI context fallback when the live URL cannot be fetched (paywalled / JS-rendered).
+    content_excerpt: str | None = Field(default=None, max_length=4000)
 
 
 class SourceRead(BaseModel):
@@ -131,6 +134,7 @@ class SourceRead(BaseModel):
     source_origin: SourceOrigin
     publisher: str | None
     quality_score: float
+    content_excerpt: str | None = None
     created_at: datetime
 
 
@@ -140,6 +144,10 @@ class EvaluateClaimRequest(BaseModel):
     rationale: str = Field(min_length=10)
     citation_notes: str | None = None
     approval_token: str | None = Field(default=None, min_length=1, max_length=4096)
+    # AI draft audit trail — populated by the frontend when the reviewer applied a draft
+    ai_draft_used: bool = False
+    ai_draft_model: str | None = Field(default=None, max_length=128)
+    ai_draft_suggested_verdict: str | None = Field(default=None, max_length=64)
 
 
 class AuthLoginRequest(BaseModel):
@@ -168,6 +176,89 @@ class ClaimEvaluationRead(BaseModel):
     citation_notes: str | None
     reviewer_id: str
     created_at: datetime
+    ai_draft_used: bool = False
+    ai_draft_model: str | None = None
+    ai_draft_suggested_verdict: str | None = None
+
+
+class ReviewDraftWarning(BaseModel):
+    code: str
+    message: str
+    severity: Literal['info', 'warning', 'critical'] = 'warning'
+
+
+class ReviewDraftSubclaim(BaseModel):
+    text: str = Field(min_length=3)
+    judgment: Literal['supported', 'mixed', 'unsupported', 'insufficient', 'unclear']
+    notes: str = Field(min_length=3)
+
+
+class ReviewDraftSourceAssessment(BaseModel):
+    source_id: uuid.UUID | None = None
+    url: str = Field(min_length=3)
+    source_class: SourceClass
+    source_origin: SourceOrigin
+    publisher: str | None = None
+    supports_claim: Literal['supports', 'contradicts', 'mixed', 'context_only', 'insufficient']
+    summary: str = Field(min_length=3)
+    excerpt: str | None = None
+    # Fetch verification: did the live URL respond and return content?
+    # Values: ok | truncated | empty | http_4xx | http_5xx | request_error | pdf_unparsed | unsupported_content_type | unknown
+    fetch_status: str = Field(default='unknown')
+
+
+class ReviewDraftResponse(BaseModel):
+    claim_id: uuid.UUID
+    suggested_verdict: Verdict
+    suggested_confidence: float = Field(ge=0, le=1)
+    model_confidence: float = Field(ge=0, le=1)
+    evidence_sufficiency: float = Field(ge=0, le=1)
+    green_lane_ready: bool
+    rationale: str = Field(min_length=10)
+    citation_notes: str = Field(min_length=10)
+    model: str = Field(default='gpt-4o-mini')  # which model generated this draft (for audit trail)
+    subclaims: list[ReviewDraftSubclaim] = Field(default_factory=list)
+    source_assessments: list[ReviewDraftSourceAssessment] = Field(default_factory=list)
+    warnings: list[ReviewDraftWarning] = Field(default_factory=list)
+    missing_evidence: list[str] = Field(default_factory=list)
+
+
+class ReviewDraftHistoryItem(BaseModel):
+    id: uuid.UUID
+    claim_id: uuid.UUID
+    model: str
+    suggested_verdict: Verdict
+    suggested_confidence: float = Field(ge=0, le=1)
+    model_confidence: float = Field(ge=0, le=1)
+    evidence_sufficiency: float = Field(ge=0, le=1)
+    green_lane_ready: bool
+    rationale: str
+    citation_notes: str
+    subclaims: list[ReviewDraftSubclaim] = Field(default_factory=list)
+    source_assessments: list[ReviewDraftSourceAssessment] = Field(default_factory=list)
+    warnings: list[ReviewDraftWarning] = Field(default_factory=list)
+    missing_evidence: list[str] = Field(default_factory=list)
+    created_at: datetime
+
+
+class ReviewDraftEvaluationSnapshot(BaseModel):
+    id: uuid.UUID
+    verdict: Verdict
+    confidence: float = Field(ge=0, le=1)
+    rationale: str
+    citation_notes: str | None
+    reviewer_id: str
+    created_at: datetime
+
+
+class ReviewDraftDiffResponse(BaseModel):
+    claim_id: uuid.UUID
+    draft: ReviewDraftHistoryItem | None = None
+    evaluation: ReviewDraftEvaluationSnapshot | None = None
+    verdict_match: bool | None = None
+    confidence_delta: float | None = None
+    rationale_changed: bool | None = None
+    citation_notes_changed: bool | None = None
 
 
 class PublishClaimResponse(BaseModel):
@@ -287,6 +378,7 @@ class BulkSourceAttachItem(BaseModel):
     publisher: str | None = Field(default=None, max_length=255)
     quality_score: float | None = Field(default=None, ge=0, le=1)
     is_direct_candidate_quote: bool = False
+    content_excerpt: str | None = Field(default=None, max_length=4000)
 
 
 class BulkSourceAttachRequest(BaseModel):

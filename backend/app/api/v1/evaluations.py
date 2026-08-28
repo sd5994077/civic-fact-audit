@@ -7,12 +7,24 @@ from sqlalchemy.orm import Session
 from app.core.rate_limiter import ADMIN_WRITE_LIMIT, WRITE_STANDARD_LIMIT, ip_rate_limit
 from app.db.database import get_db
 from app.models.enums import RaceStage
-from app.schemas.api import ClaimEvaluationRead, ClaimWorkbenchItem, ClaimWorkbenchState, ErrorResponse, EvaluateClaimRequest, ReviewQueueItem
+from app.schemas.api import (
+    ClaimEvaluationRead,
+    ClaimWorkbenchItem,
+    ClaimWorkbenchState,
+    ErrorResponse,
+    EvaluateClaimRequest,
+    ReviewDraftDiffResponse,
+    ReviewDraftHistoryItem,
+    ReviewDraftResponse,
+    ReviewQueueItem,
+)
 from app.schemas.api import PublishClaimResponse, PublishQueueItem
 from app.services.auth_dependency_service import require_admin, require_reviewer_or_admin
 from app.services.auth_service import AuthIdentity, AuthService
+from app.services.claim_ai_draft_service import ClaimAiDraftService
 from app.services.claim_workbench_service import ClaimWorkbenchService
 from app.services.evaluation_service import EvaluationService
+from app.services.review_draft_service import ReviewDraftService
 
 router = APIRouter(prefix='/claims')
 
@@ -20,7 +32,12 @@ router = APIRouter(prefix='/claims')
 @router.get(
     '/review-queue',
     response_model=list[ReviewQueueItem],
-    responses={400: {'model': ErrorResponse}, 404: {'model': ErrorResponse}},
+    responses={
+        400: {'model': ErrorResponse},
+        401: {'model': ErrorResponse},
+        403: {'model': ErrorResponse},
+        404: {'model': ErrorResponse},
+    },
 )
 def review_queue(
     state: str | None = Query(default=None, min_length=2, max_length=32),
@@ -30,7 +47,9 @@ def review_queue(
     require_minimum_evidence: bool = Query(default=True),
     limit: int = Query(default=200, ge=1, le=1000),
     db: Session = Depends(get_db),
+    identity: AuthIdentity = Depends(require_reviewer_or_admin),
 ) -> list[ReviewQueueItem]:
+    _ = identity
     rows = EvaluationService.list_review_queue(
         db,
         state=state,
@@ -77,6 +96,62 @@ def evaluate_claim(
         approval_reviewer_id=approval_reviewer_id,
     )
     return ClaimEvaluationRead.model_validate(evaluation, from_attributes=True)
+
+
+@router.post(
+    '/{claim_id}/review-draft',
+    response_model=ReviewDraftResponse,
+    responses={
+        401: {'model': ErrorResponse},
+        403: {'model': ErrorResponse},
+        404: {'model': ErrorResponse},
+        422: {'model': ErrorResponse},
+        429: {'model': ErrorResponse},
+        502: {'model': ErrorResponse},
+        503: {'model': ErrorResponse},
+    },
+)
+def review_draft(
+    claim_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    identity: AuthIdentity = Depends(require_reviewer_or_admin),
+    _rl: None = Depends(ip_rate_limit(WRITE_STANDARD_LIMIT, endpoint_key='review_draft')),
+) -> ReviewDraftResponse:
+    _ = identity
+    payload = ReviewDraftService.generate_review_draft(db, claim_id=claim_id)
+    ClaimAiDraftService.record_draft(db, claim_id=claim_id, payload=payload)
+    return ReviewDraftResponse.model_validate(payload)
+
+
+@router.get(
+    '/{claim_id}/review-drafts',
+    response_model=list[ReviewDraftHistoryItem],
+    responses={401: {'model': ErrorResponse}, 403: {'model': ErrorResponse}, 404: {'model': ErrorResponse}},
+)
+def review_draft_history(
+    claim_id: uuid.UUID,
+    limit: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    identity: AuthIdentity = Depends(require_reviewer_or_admin),
+) -> list[ReviewDraftHistoryItem]:
+    _ = identity
+    rows = ClaimAiDraftService.list_draft_history(db, claim_id=claim_id, limit=limit)
+    return [ReviewDraftHistoryItem.model_validate(row) for row in rows]
+
+
+@router.get(
+    '/{claim_id}/review-draft-diff',
+    response_model=ReviewDraftDiffResponse,
+    responses={401: {'model': ErrorResponse}, 403: {'model': ErrorResponse}, 404: {'model': ErrorResponse}},
+)
+def review_draft_diff(
+    claim_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    identity: AuthIdentity = Depends(require_reviewer_or_admin),
+) -> ReviewDraftDiffResponse:
+    _ = identity
+    payload = ClaimAiDraftService.get_draft_diff(db, claim_id=claim_id)
+    return ReviewDraftDiffResponse.model_validate(payload)
 
 
 @router.get(

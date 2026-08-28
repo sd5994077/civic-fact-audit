@@ -1,0 +1,17 @@
+{
+  "saved_at": "2026-06-12T14:18:08",
+  "note": "Baseline from 12-scenario stress test run after prompt calibration fix. All production models at 98-100%.",
+  "scores": {
+    "gpt-4o-mini": 100.0,
+    "gpt-5.4-mini": 98.3,
+    "claude-sonnet-4-6": 100.0,
+    "gemini-2.5-flash": 95.8,
+    "gemini-3.1-pro": 100.0
+  },
+  "scenario_ids": [
+    "voting_record_false",
+    "tcja_83pct",
+    "inflation_june2022",
+    "medicare_bankrupt"
+  ]
+}

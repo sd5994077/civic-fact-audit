@@ -75,6 +75,7 @@ class ClaimWorkbenchService:
         moderation_clear: bool,
         dual_control_ready_for_publish: bool,
         dual_control_blocking: bool,
+        no_dead_verification_sources: bool = True,
     ) -> list[dict[str, object]]:
         return [
             {'code': 'fact_checkable', 'label': 'Claim is fact-checkable', 'passed': fact_checkable, 'blocking': True},
@@ -106,6 +107,12 @@ class ClaimWorkbenchService:
                 'code': 'verification_secondary_present',
                 'label': 'Verification secondary source is attached',
                 'passed': verification_secondary_count > 0,
+                'blocking': True,
+            },
+            {
+                'code': 'no_dead_verification_sources',
+                'label': 'All verification source URLs are reachable (no confirmed 404s)',
+                'passed': no_dead_verification_sources,
                 'blocking': True,
             },
             {
@@ -193,6 +200,7 @@ class ClaimWorkbenchService:
                 moderation_clear=moderation_clear,
                 dual_control_ready_for_publish=dual_control_ready_for_publish,
                 dual_control_blocking=publish_gate_passed and not bool(row.get('is_published', False)),
+                no_dead_verification_sources=EvaluationService._PUBLISH_GATE_DEAD_SOURCE not in publish_gate_failures,
             )
             items.append(
                 {

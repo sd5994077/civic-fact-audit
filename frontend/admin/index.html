@@ -299,7 +299,7 @@
               <form id="workbench-source-form" class="stack-form compact" autocomplete="off">
                 <h4>Attach Source</h4>
                 <label>Claim ID<span class="hint" title="The claim you are attaching this source to. Pick a claim from the Workbench list to populate this automatically.">?</span><input id="workbench-source-claim-id" type="text" readonly required></label>
-                <label>Source URL<span class="hint" title="A direct link to a relevant record/report/article. Prefer neutral, record-based sources for verification.">?</span><input id="workbench-source-url" type="url" placeholder="https://www.congress.gov/" required></label>
+                <label>Source URL<span class="hint" title="A direct link to a relevant record/report/article. Prefer neutral, record-based sources for verification.">?</span><input id="workbench-source-url" type="url" placeholder="https://www.congress.gov/" required><span id="workbench-source-url-check" class="source-url-check-status"></span></label>
                 <label>Source Class
                   <span class="hint" title="Primary = original record/dataset/official filing. Secondary = independent reporting that corroborates the record.">?</span>
                   <select id="workbench-source-class" required>
@@ -316,6 +316,7 @@
                 </label>
                 <label>Publisher<span class="hint" title="Human-readable publisher/owner of the source (e.g., Congress.gov). Used for policy checks and reviewer clarity.">?</span><input id="workbench-source-publisher" type="text" placeholder="Congress.gov"></label>
                 <label class="inline-check"><input id="workbench-source-direct-quote" type="checkbox"> Direct candidate quote from official social channel <span class="hint" title="Only use when source_origin=candidate and the URL is an official social post. Do not use for verification evidence.">?</span></label>
+                <label>Key Excerpt (optional)<span class="hint" title="Paste the specific passage from this source that supports or contradicts the claim. Used as AI context fallback if the live URL cannot be fetched (e.g. paywalled or JS-rendered pages). Max 4000 characters.">?</span><textarea id="workbench-source-excerpt" maxlength="4000" rows="3" placeholder="Paste the relevant quote or passage from this source…"></textarea></label>
                 <p class="status-text">Use a real neutral record or reporting source; do not leave the sample example values in place.</p>
                 <button type="submit" class="primary-btn">Attach Source</button>
               </form>
@@ -326,6 +327,15 @@
                   <button id="workbench-recommendations-refresh" class="ghost-btn" type="button">Refresh Suggestions</button>
                 </div>
                 <p class="status-text">Suggestions are neutral starting points only. Verify relevance before attaching.</p>
+                <p class="recommendation-guidance">
+                  <strong>Attachable evidence</strong> links resolved to a specific record and passed
+                  anchor checks (matching amount/stat, program, and methodology context) — one-click
+                  attach is available and counts toward the publish gate's minimum verification sources.
+                  <strong>Research link only</strong> links are discovery aids (search pages, homepages,
+                  or records that didn't confirm the required anchors) — they cannot be one-click
+                  attached and do <em>not</em> count toward publish readiness; open the link, verify it
+                  manually, then attach it yourself via the form above if it genuinely supports the claim.
+                </p>
                 <p id="workbench-recommendations-status" class="status-text"></p>
                 <div id="workbench-recommendations-list" class="list"></div>
               </div>
@@ -333,6 +343,63 @@
                 <h4>Attached Sources</h4>
                 <p id="workbench-sources-list-status" class="status-text"></p>
                 <div id="workbench-sources-list" class="list"></div>
+              </div>
+
+              <div class="checklist-box">
+                <div class="panel-head">
+                  <h4>Draft Evidence Review</h4>
+                  <button id="workbench-review-draft-run" class="ghost-btn" type="button">Generate Draft</button>
+                </div>
+                <p class="status-text">AI drafts are reviewer aids only. A human reviewer must still submit the final evaluation.</p>
+                <p id="workbench-review-draft-status" class="status-text"></p>
+                <p id="workbench-review-draft-summary" class="status-text"></p>
+                <div class="action-row">
+                  <button id="workbench-review-draft-apply" class="ghost-btn" type="button">Apply Draft To Evaluation Form</button>
+                </div>
+                <h4 style="margin-top:0.7rem;">Subclaims</h4>
+                <div id="workbench-review-draft-subclaims" class="list"></div>
+                <h4 style="margin-top:0.7rem;">Source Assessments</h4>
+                <div id="workbench-review-draft-sources" class="list"></div>
+                <h4 style="margin-top:0.7rem;">Warnings</h4>
+                <ul id="workbench-review-draft-warnings" class="checklist"></ul>
+                <h4 style="margin-top:0.7rem;">Missing Evidence</h4>
+                <ul id="workbench-review-draft-missing" class="checklist"></ul>
+
+                <div class="panel-head" style="margin-top:0.9rem;">
+                  <h4>Draft History &amp; Diff vs Submitted Evaluation</h4>
+                  <button id="workbench-review-draft-history-refresh" class="ghost-btn" type="button">Refresh History</button>
+                </div>
+                <p class="status-text">Every generated draft is kept for this claim. The diff compares the most recent draft to the reviewer's latest submitted evaluation.</p>
+                <p id="workbench-review-draft-diff-status" class="status-text"></p>
+                <div id="workbench-review-draft-diff" class="list"></div>
+                <h4 style="margin-top:0.7rem;">Prior Drafts</h4>
+                <div id="workbench-review-draft-history-list" class="list"></div>
+              </div>
+
+              <div id="workbench-reviewer-checklist" class="stack-form" style="display:none;">
+                <h4>Reviewer Confirmation</h4>
+                <p id="reviewer-checklist-source-note" class="status-text"></p>
+                <ul class="checklist" style="margin:0.4rem 0 0.6rem;">
+                  <li>
+                    <label style="display:flex;gap:0.5rem;align-items:flex-start;cursor:pointer;">
+                      <input type="checkbox" id="reviewer-confirm-sources" style="margin-top:0.2rem;">
+                      I have opened each source link and confirmed the live content supports what is cited
+                    </label>
+                  </li>
+                  <li>
+                    <label style="display:flex;gap:0.5rem;align-items:flex-start;cursor:pointer;">
+                      <input type="checkbox" id="reviewer-confirm-claim" style="margin-top:0.2rem;">
+                      I have read the full claim text and understand what factual assertion is being evaluated
+                    </label>
+                  </li>
+                  <li>
+                    <label style="display:flex;gap:0.5rem;align-items:flex-start;cursor:pointer;">
+                      <input type="checkbox" id="reviewer-confirm-verdict" style="margin-top:0.2rem;">
+                      I agree with the verdict below (or have modified it to reflect my independent judgment)
+                    </label>
+                  </li>
+                </ul>
+                <p id="workbench-checklist-gate-status" class="status-text bad">Complete all three confirmations above to enable submit.</p>
               </div>
 
               <form id="workbench-review-form" class="stack-form" autocomplete="off">
@@ -351,7 +418,7 @@
                 <label>Confidence (0-1)<span class="hint" title="How confident you are in the verdict given the attached evidence. For 'insufficient', this is confidence in the insufficiency decision, not the claim's truth.">?</span><input id="workbench-review-confidence" type="number" min="0" max="1" step="0.01" value="0.70" required></label>
                 <label>Rationale<span class="hint" title="Short, neutral explanation of how the evidence supports the verdict. Avoid advocacy or endorsements.">?</span><textarea id="workbench-review-rationale" minlength="10" required></textarea></label>
                 <label>Citation Notes<span class="hint" title="List concrete sources checked and what each supports. Include URLs; call out missing denominator/methodology for numeric claims.">?</span><textarea id="workbench-review-citation-notes"></textarea></label>
-                <button type="submit" class="primary-btn">Submit Evaluation</button>
+                <button type="submit" id="workbench-review-submit-btn" class="primary-btn">Submit Evaluation</button>
               </form>
               <p id="workbench-review-submit-status" class="status-text"></p>
 
@@ -616,6 +683,7 @@
               <p id="publish-checklist-status" class="status-text"></p>
             </div>
             <pre id="publish-detail-json" class="json" hidden></pre>
+            <p class="status-text"><strong>Dual-control required:</strong> the admin executing publish must be a <em>different</em> account from the reviewer who wrote the evaluation. Same-account publish will be rejected with a 409.</p>
             <form id="publish-action-form" class="stack-form" autocomplete="off">
               <label>Claim ID<input id="publish-claim-id" type="text" readonly required></label>
               <label>Action
@@ -768,6 +836,6 @@
     </section>
   </main>
 
-  <script src="./admin.js?v=20260522a"></script>
+  <script src="./admin.js?v=20260530b"></script>
 </body>
 </html>

@@ -36,6 +36,24 @@ from app.services.source_service import SourceService
 router = APIRouter(prefix='/claims')
 
 
+@router.get(
+    '/url-check',
+    responses={
+        400: {'model': ErrorResponse},
+        401: {'model': ErrorResponse},
+        403: {'model': ErrorResponse},
+        429: {'model': ErrorResponse},
+    },
+)
+def url_check(
+    url: str = Query(..., description='URL to probe for reachability'),
+    identity: AuthIdentity = Depends(require_reviewer_or_admin),
+    _rl: None = Depends(ip_rate_limit(ADMIN_WRITE_LIMIT, endpoint_key='url_check')),
+) -> dict:
+    _ = identity
+    return SourceService.check_url_reachable(url)
+
+
 @router.post(
     '/extract',
     response_model=ExtractClaimsResponse,

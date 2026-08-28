@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>Civic Fact Audit Prototype</title>
-  <link rel="stylesheet" href="./styles.css?v=20260521a">
+  <link rel="stylesheet" href="./styles.css?v=20260614a">
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to main content</a>
@@ -22,10 +22,11 @@
       </div>
 
       <nav class="rail-nav" aria-label="Primary">
-        <button class="rail-link is-active" type="button">Texas Senate</button>
-        <button class="rail-link" type="button">Claim Matrix</button>
-        <button class="rail-link" type="button">Policy Stances</button>
-        <button class="rail-link" type="button">Methods</button>
+        <button class="rail-link is-active" data-tab="compare" type="button">Texas Senate</button>
+        <button class="rail-link" data-tab="claims" type="button">Published Claims</button>
+        <button class="rail-link" data-tab="matrix" type="button">Claim Matrix</button>
+        <button class="rail-link" data-tab="stances" type="button">Policy Stances</button>
+        <button class="rail-link" data-tab="methods" type="button">Methods</button>
         <a class="rail-link" href="/admin/">Admin Ops</a>
       </nav>
 
@@ -37,7 +38,7 @@
     </aside>
 
     <main class="workspace" id="main-content">
-      <header class="hero">
+      <header class="hero" id="compare-hero">
         <div class="hero-copy">
           <p class="eyebrow">Texas US Senate Runoff 2026</p>
           <h2>Truth should survive direct comparison.</h2>
@@ -66,7 +67,44 @@
 
       <section class="candidate-stage" id="candidate-cards" aria-label="Candidates side by side"></section>
 
-      <section class="compare-board" aria-label="Comparison controls">
+      <!-- Published Claims Tab -->
+      <section id="published-claims-view" hidden aria-label="Published fact-checked claims">
+        <div class="compare-board">
+          <div class="board-header">
+            <div>
+              <p class="eyebrow">Fact-Check Record</p>
+              <h3>Every published claim, verdict, and source.</h3>
+            </div>
+            <div class="board-legend">
+              <span class="legend-pill legend-supported">Supported</span>
+              <span class="legend-pill legend-mixed">Misleading / mixed</span>
+              <span class="legend-pill legend-alert">Contradicted</span>
+            </div>
+          </div>
+          <div class="claims-filter-bar">
+            <label class="claims-filter-label">Verdict
+              <select id="claims-filter-verdict">
+                <option value="">All verdicts</option>
+                <option value="unsupported">Contradicted</option>
+                <option value="mixed">Mixed / misleading</option>
+                <option value="supported">Supported</option>
+              </select>
+            </label>
+            <label class="claims-filter-label">Candidate
+              <select id="claims-filter-candidate">
+                <option value="">All candidates</option>
+              </select>
+            </label>
+            <label class="claims-filter-label">Issue contains
+              <input id="claims-filter-issue" type="text" placeholder="border, energy…">
+            </label>
+            <p id="claims-count" class="claims-count"></p>
+          </div>
+          <div id="claims-list" class="claims-list"></div>
+        </div>
+      </section>
+
+      <section class="compare-board" id="compare-controls-section" aria-label="Comparison controls">
         <div class="board-header">
           <div>
             <p class="eyebrow">Dashboard Controls</p>
@@ -117,7 +155,7 @@
         </form>
       </section>
 
-      <section class="contrast-band contrast-band-four" aria-label="Race contrast">
+      <section class="contrast-band contrast-band-four" id="compare-contrast" aria-label="Race contrast">
         <article>
           <span class="contrast-label">Most supported claims</span>
           <strong id="contrast-most-supported">Loading...</strong>
@@ -140,7 +178,7 @@
         </article>
       </section>
 
-      <section class="compare-board" aria-label="Issue-by-issue comparison">
+      <section class="compare-board" id="compare-matrix-board" aria-label="Issue-by-issue comparison">
         <div class="board-header">
           <div>
             <p class="eyebrow">Claim Matrix</p>
@@ -173,10 +211,138 @@
         </div>
       </section>
 
+      <!-- Policy Stances placeholder -->
+      <section id="stances-view" hidden aria-label="Policy stances">
+        <div class="compare-board">
+          <div class="board-header">
+            <div>
+              <p class="eyebrow">Policy Stances</p>
+              <h3>Where each candidate stands on the record.</h3>
+            </div>
+          </div>
+          <p class="note-copy" style="padding:1rem 0;">
+            Side-by-side policy stance comparison is coming in a future update.
+            Use the Claim Matrix tab to see verified claims by issue.
+          </p>
+        </div>
+      </section>
+
+      <!-- Methods tab -->
+      <section id="methods-view" hidden aria-label="Editorial methods">
+        <div class="compare-board methods-board">
+          <div class="board-header">
+            <div>
+              <p class="eyebrow">Editorial Methods</p>
+              <h3>How this fact-check works — and what it doesn't claim to do.</h3>
+            </div>
+          </div>
+
+          <div class="methods-body">
+
+            <div class="methods-block">
+              <h4>What we evaluate</h4>
+              <p>
+                Every claim on this page is a specific, verifiable statement made by a candidate in a speech,
+                interview, debate, or official communication. We only publish evaluations for claims that are
+                <strong>fact-checkable</strong> — meaning they assert a concrete, checkable fact, not an
+                opinion, a prediction, or a policy preference.
+              </p>
+              <p>
+                Claims are linked to the original source where possible. We do not evaluate intent,
+                character, or values.
+              </p>
+            </div>
+
+            <div class="methods-block">
+              <h4>Verdict definitions</h4>
+              <div class="methods-verdict-grid">
+                <div class="methods-verdict-row">
+                  <span class="legend-pill legend-supported">Supported</span>
+                  <p>The claim's core assertion is accurate and supported by primary sources. Minor omissions or rounding that do not materially change the meaning are noted but do not change the verdict.</p>
+                </div>
+                <div class="methods-verdict-row">
+                  <span class="legend-pill legend-mixed">Mixed / misleading</span>
+                  <p>The claim contains a verifiable kernel of fact but is framed, scoped, or contextualized in a way that creates a materially misleading impression. Common causes: cherry-picked timeframes, omitted denominators, projection presented as current fact.</p>
+                </div>
+                <div class="methods-verdict-row">
+                  <span class="legend-pill legend-alert">Contradicted</span>
+                  <p>The claim's central assertion is directly contradicted by primary source evidence — official records, peer-reviewed data, or verified transcripts.</p>
+                </div>
+                <div class="methods-verdict-row">
+                  <span class="mini-tag">Insufficient evidence</span>
+                  <p>The claim cannot be evaluated with available public evidence. This is not a finding of falsity — it means the record is incomplete or the claim is not verifiable without non-public information.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="methods-block">
+              <h4>Source requirements</h4>
+              <p>
+                Every published evaluation requires at minimum one <strong>primary verification source</strong>
+                and one <strong>secondary verification source</strong>. Primary sources include official
+                government records, congressional voting databases, peer-reviewed studies, and agency data.
+                Secondary sources include established news coverage that cites primary documentation.
+              </p>
+              <p>
+                Candidate-originated sources (campaign sites, press releases, candidate statements) are
+                catalogued as evidence of the claim but are not used as verification of fact.
+              </p>
+            </div>
+
+            <div class="methods-block">
+              <h4>Confidence scores</h4>
+              <p>
+                Each evaluation includes a confidence score (0–100%). This is the reviewer's confidence in
+                their editorial judgment given the available evidence — not a probability that the claim is
+                false. A score of 70% on a "Contradicted" verdict means the reviewer found strong evidence
+                but acknowledges the record may be incomplete.
+              </p>
+              <p>
+                Scores above 84% are reserved for cases where primary source evidence directly, unambiguously
+                contradicts or confirms the claim with no meaningful methodological dispute.
+              </p>
+            </div>
+
+            <div class="methods-block">
+              <h4>Dual-control review</h4>
+              <p>
+                No claim is published by the same person who evaluated it. The evaluator writes the rationale
+                and selects sources; a separate admin account executes the publish action. This separation is
+                enforced at the system level — the API rejects publish requests from the evaluating reviewer's
+                account.
+              </p>
+            </div>
+
+            <div class="methods-block">
+              <h4>What this page is not</h4>
+              <p>
+                This is not an endorsement of any candidate, party, or policy position. Fact-checking a claim
+                as "supported" means the candidate accurately described a fact — it says nothing about whether
+                the underlying policy is good. Fact-checking a claim as "contradicted" means the stated fact
+                is wrong — it does not imply the candidate is dishonest as a general matter.
+              </p>
+              <p>
+                Vote for whomever you decide. This page exists only to make the factual record visible.
+              </p>
+            </div>
+
+            <div class="methods-block methods-block-callout">
+              <h4>Corrections policy</h4>
+              <p>
+                If you believe an evaluation is wrong, the source link is broken, or a claim is missing
+                context, the correction request path is open. Every evaluation links to the sources used.
+                Verdicts are updated — not deleted — when new evidence changes the record; the prior
+                verdict is logged in the audit trail.
+              </p>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
     </main>
   </div>
 
-  <script src="./app.js?v=20260521a"></script>
+  <script src="./app.js?v=20260614a"></script>
 </body>
 </html>
-

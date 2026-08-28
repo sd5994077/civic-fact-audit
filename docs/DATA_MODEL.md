@@ -82,11 +82,14 @@ These policy fields let each shared frame declare what evidence classes are acce
 - `policy_flagged_at` (nullable timestamp when exclusion flag was set)
 - `publisher`
 - `quality_score` (0-1)
+- `content_excerpt` (nullable reviewer-provided quote/passage used when live fetch returns no readable text)
+- `fetch_status` (attach-time reachability/result marker such as `ok`, `gated`, `request_error`, `http_4xx`, `unknown`)
 - `created_at`
 - `updated_at`
 - unique: `(claim_id, url)`
 
 `source_class` describes evidence depth. `source_origin` describes who controls the source. Candidate-originated material may document what was said, but it is not sufficient verification on its own.
+URL normalization is applied on new writes for duplicate control, but historical stored evidence URLs are not rewritten in-place by migration.
 
 Recommendation metadata:
 - Source recommendation responses may include `source_category` (`primary_record`/`civic_research`/`fact_check`/`secondary_news`) for Workbench triage.
@@ -128,11 +131,28 @@ Public compare cards currently render a curated subset capped per side (candidat
 - `rationale`
 - `citation_notes`
 - `reviewer_id`
+- `ai_draft_used` (bool; whether the reviewer applied an AI draft before submitting this evaluation)
+- `ai_draft_model` (nullable model identifier recorded for audit trail)
+- `ai_draft_suggested_verdict` (nullable model verdict recorded for reviewer-vs-draft comparison)
 - `created_at`
 - `updated_at`
 
 Multiple evaluations per claim are allowed. The latest evaluation is used for scoring; prior rows remain as revision history.
 Evaluation writes require authenticated bearer token; reviewer identity is resolved server-side from reviewer account records.
+
+## ClaimAiDraft
+- `id` (UUID)
+- `claim_id` (FK)
+- `model` (model identifier that generated this draft, e.g. `gpt-4o-mini` or a merged `gpt-4o-mini+claude-sonnet-4-6` escalation label)
+- `suggested_verdict` (supported/mixed/unsupported/insufficient)
+- `suggested_confidence`, `model_confidence`, `evidence_sufficiency` (0-1)
+- `green_lane_ready` (bool)
+- `rationale`, `citation_notes`
+- `subclaims_payload`, `source_assessments_payload`, `warnings_payload`, `missing_evidence_payload` (nullable JSON-serialized text, following the same convention as `AdminAuditEvent` payload fields)
+- `created_at`
+- `updated_at`
+
+One row is written every time `POST /v1/claims/{claim_id}/review-draft` generates a draft, giving a full history rather than only the single latest-verdict summary recorded on `ClaimEvaluation`. `GET /v1/claims/{claim_id}/review-drafts` lists history; `GET /v1/claims/{claim_id}/review-draft-diff` compares the most recent draft to the claim's latest submitted evaluation (verdict match, confidence delta, whether rationale/citation notes were edited before submission). Draft history is a reviewer aid only — it never feeds scoring or publish gates.
 Evaluation overwrite dual-control:
 - request supports optional `approval_token` (action `evaluation_overwrite`).
 - first evaluation write is allowed without dual-control.

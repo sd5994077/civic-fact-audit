@@ -1,5 +1,13 @@
 # Roadmap
 
+## Current Handoff - 2026-06-15
+- Stopped after recovering the interrupted test run.
+- Verified backend suite is clean: `python -m pytest backend\tests` -> 418 passed.
+- Verified frontend smoke suite is clean: `npm test` -> 4 Playwright tests passed.
+- Applied recovery fix: review-draft escalation now requires both primary and secondary verification evidence before invoking the Anthropic second pass, preventing one-source drafts from making avoidable live model calls.
+- Added regression coverage for that escalation guard and for the dead-source publish gate (`verification_source_url_unreachable`).
+- Pickup item: review the large dirty worktree and decide which generated artifacts/temp files should be kept before committing logical chunks.
+
 ## Phase 0 - Foundations (Week 1)
 - [x] Confirm legal/ethical policy and moderation boundaries (`docs/MODERATION_POLICY.md`, moderation publish/evaluate gates).
 - [x] Stand up FastAPI + Postgres local development.
@@ -127,6 +135,13 @@
 - [x] Add recommendation role metadata (`attachable_evidence`, `discovery_only`, `candidate_quote_only`, `rejected`) so research links stay visible without being auto-attachable evidence.
 - [x] Gate Workbench one-click attach to `attachable_evidence` recommendations only, with clear research-only explanations for discovery links.
 - [x] Add deterministic Congress.gov bill-ID resolver v1 (API-keyed) for `tx_senate_congress_primary` so explicit bill citations can resolve from research links to official bill pages.
-- [ ] Add claim-type evidence anchors to move from topic-overlap-only checks to evidence sufficiency checks (start with funding/reimbursement and numeric voting-record claims).
-- [ ] Add deterministic page-level anchor extraction from fetched content to support robust amount/methodology checks before evidence attachment.
-- [ ] Add Workbench reviewer guidance text for discovery-only vs attachable recommendations and publish-gate impact.
+- [x] Add claim-type evidence anchors to move from topic-overlap-only checks to evidence sufficiency checks (funding/reimbursement anchors existed; added numeric voting-record anchors — `claimed_stat`/`denominator`/`methodology` — gating attach on methodology plus a matching stat or denominator, not just keyword presence).
+- [x] Add deterministic page-level anchor extraction from fetched content to support robust amount/methodology checks before evidence attachment (Federal Register resolver results are now re-checked against the real fetched document text, not just search-API metadata, before being marked attachable).
+- [x] Add Workbench reviewer guidance text for discovery-only vs attachable recommendations and publish-gate impact (persistent guidance banner, role pills, and per-recommendation missing-anchor notes on the Suggested Verification Links panel).
+
+## Phase 10 - Hybrid Review Assistant
+- [x] Add reviewer-authenticated AI draft endpoint for claim-level review packets (`POST /v1/claims/{id}/review-draft`).
+- [x] Add Workbench "Draft Evidence Review" UI with one-click prefill into evaluation fields.
+- [x] Enforce that AI drafts remain non-final reviewer assistance (no auto-evaluate, no auto-publish).
+- [x] Add persistent draft history and diffing between AI draft and reviewer-submitted evaluation (`claim_ai_drafts` table + `GET /v1/claims/{id}/review-drafts` + `GET /v1/claims/{id}/review-draft-diff`, surfaced in Workbench).
+- [x] Add deterministic numeric-claim denominator/methodology validators to complement model confidence (`_numeric_voting_anchor_assessment` in the source-recommendation service; see Phase 9).
