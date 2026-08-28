@@ -90,6 +90,71 @@ def test_review_draft_requires_reviewer_or_admin_auth(monkeypatch) -> None:
     app.dependency_overrides.clear()
 
 
+def test_review_queue_does_not_expose_unpublished_review_notes_anonymously(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides.pop(require_reviewer_or_admin, None)
+
+    def _must_not_query_queue(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError('Anonymous requests must be rejected before loading review-queue data.')
+
+    monkeypatch.setattr('app.api.v1.evaluations.EvaluationService.list_review_queue', _must_not_query_queue)
+
+    client = TestClient(app)
+    response = client.get('/v1/claims/review-queue')
+
+    assert response.status_code == 401
+    response_text = response.text
+    assert 'Unpublished reviewer rationale' not in response_text
+    assert 'Private citation notes' not in response_text
+    app.dependency_overrides.clear()
+
+
+def test_review_queue_returns_review_notes_to_authenticated_reviewer(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[require_reviewer_or_admin] = _override_reviewer
+    claim_id = uuid.uuid4()
+    candidate_id = uuid.uuid4()
+    monkeypatch.setattr(
+        'app.api.v1.evaluations.EvaluationService.list_review_queue',
+        lambda *_args, **_kwargs: [
+            {
+                'claim_id': claim_id,
+                'claim_text': 'A factual claim.',
+                'issue_tag': 'Public records',
+                'status': 'reviewed',
+                'statement_source_url': 'https://example.gov/statement',
+                'statement_published_at': '2026-08-01T00:00:00Z',
+                'candidate_id': candidate_id,
+                'candidate_name': 'Candidate A',
+                'candidate_party': None,
+                'candidate_office': 'Governor',
+                'candidate_state': 'TX',
+                'election_cycle': 2026,
+                'race_stage': None,
+                'primary_source_count': 1,
+                'secondary_source_count': 1,
+                'candidate_source_count': 0,
+                'verification_source_count': 2,
+                'latest_verdict': 'supported',
+                'latest_confidence': 0.9,
+                'latest_rationale': 'Unpublished reviewer rationale',
+                'latest_citation_notes': 'Private citation notes',
+                'latest_reviewer_id': 'reviewer@local',
+                'latest_evaluated_at': '2026-08-02T00:00:00Z',
+                'warnings': [],
+            }
+        ],
+    )
+
+    client = TestClient(app)
+    response = client.get('/v1/claims/review-queue')
+
+    assert response.status_code == 200
+    assert response.json()[0]['latest_rationale'] == 'Unpublished reviewer rationale'
+    assert response.json()[0]['latest_citation_notes'] == 'Private citation notes'
+    app.dependency_overrides.clear()
+
+
 def test_review_draft_returns_structured_payload(monkeypatch) -> None:
     app.dependency_overrides[get_db] = _override_db
     app.dependency_overrides[require_reviewer_or_admin] = _override_reviewer

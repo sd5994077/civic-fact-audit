@@ -33,11 +33,11 @@ _TRACKING_PARAMS = frozenset({
 })
 
 
-def normalize_url(raw: str) -> str:
-    """Return a canonical form of *raw* for storage and duplicate detection.
+def url_comparison_key(raw: str) -> str:
+    """Return a canonical comparison key without changing the stored URL.
 
     Rules applied (in order):
-    1. Force scheme to ``https``.
+    1. Treat ``http`` and ``https`` as equivalent.
     2. Lowercase scheme and host.
     3. Strip a trailing slash from the path (unless the path is just ``/``).
     4. Remove tracking/noise query parameters defined in ``_TRACKING_PARAMS``.
@@ -59,7 +59,7 @@ def normalize_url(raw: str) -> str:
         from urllib.parse import urlunparse
         return urlunparse((scheme, netloc, path, parsed.params, query, ''))
     except Exception:
-        return raw  # If parsing fails, store as-is
+        return raw
 
 
 class SourceService:
@@ -423,14 +423,22 @@ class SourceService:
 
     @staticmethod
     def add_source(db: Session, claim_id: uuid.UUID, payload: AddSourceRequest, *, commit: bool = True) -> list[Source]:
-        claim = db.get(Claim, claim_id)
+        # Serialize attachments for a claim so comparison-key duplicate checks
+        # remain reliable when reviewers submit near-equivalent URLs concurrently.
+        claim = SourceService._get_claim_for_source_mutation(db, claim_id, lock=True)
         if claim is None:
             raise AppError('claim_not_found', 'Claim does not exist.', status_code=404)
         probe = SourceService.validate_source_admission(payload)
 
-        # Normalize the URL before storage so near-duplicates (http/https, trailing
-        # slash, tracking params) are caught by the unique constraint.
-        canonical_url = normalize_url(str(payload.url))
+        supplied_url = str(payload.url)
+        comparison_key = url_comparison_key(supplied_url)
+        existing_urls = db.scalars(select(Source.url).where(Source.claim_id == claim.id)).all()
+        if any(url_comparison_key(str(existing_url)) == comparison_key for existing_url in existing_urls):
+            raise AppError(
+                'duplicate_source',
+                'This source URL is already attached to the claim.',
+                status_code=409,
+            )
 
         # Map probe result → fetch_status for storage.
         _probe_to_fetch_status = {'ok': 'ok', 'gated': 'gated', 'error': 'request_error', 'dead': 'http_4xx'}
@@ -439,7 +447,7 @@ class SourceService:
         quality_score = payload.quality_score
         if quality_score is None:
             quality_score = score_source_quality(
-                url=canonical_url,
+                url=supplied_url,
                 source_class=payload.source_class,
                 source_origin=payload.source_origin,
                 is_direct_candidate_quote=payload.is_direct_candidate_quote,
@@ -447,7 +455,7 @@ class SourceService:
 
         source = Source(
             claim_id=claim.id,
-            url=canonical_url,
+            url=supplied_url,
             source_class=payload.source_class,
             source_origin=payload.source_origin,
             publisher=payload.publisher,

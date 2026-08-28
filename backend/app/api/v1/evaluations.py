@@ -32,7 +32,12 @@ router = APIRouter(prefix='/claims')
 @router.get(
     '/review-queue',
     response_model=list[ReviewQueueItem],
-    responses={400: {'model': ErrorResponse}, 404: {'model': ErrorResponse}},
+    responses={
+        400: {'model': ErrorResponse},
+        401: {'model': ErrorResponse},
+        403: {'model': ErrorResponse},
+        404: {'model': ErrorResponse},
+    },
 )
 def review_queue(
     state: str | None = Query(default=None, min_length=2, max_length=32),
@@ -42,7 +47,9 @@ def review_queue(
     require_minimum_evidence: bool = Query(default=True),
     limit: int = Query(default=200, ge=1, le=1000),
     db: Session = Depends(get_db),
+    identity: AuthIdentity = Depends(require_reviewer_or_admin),
 ) -> list[ReviewQueueItem]:
+    _ = identity
     rows = EvaluationService.list_review_queue(
         db,
         state=state,
