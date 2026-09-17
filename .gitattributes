@@ -1,0 +1,11 @@
+# Normalize line endings so Windows checkouts don't produce spurious
+# CRLF-vs-LF diffs across the whole tree. Text files are stored as LF in
+# the repo and checked out as LF (not converted to CRLF).
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
