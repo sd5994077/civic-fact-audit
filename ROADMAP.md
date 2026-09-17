@@ -1,12 +1,11 @@
 # Roadmap
 
-## Current Handoff - 2026-06-15
-- Stopped after recovering the interrupted test run.
-- Verified backend suite is clean: `python -m pytest backend\tests` -> 418 passed.
-- Verified frontend smoke suite is clean: `npm test` -> 4 Playwright tests passed.
-- Applied recovery fix: review-draft escalation now requires both primary and secondary verification evidence before invoking the Anthropic second pass, preventing one-source drafts from making avoidable live model calls.
-- Added regression coverage for that escalation guard and for the dead-source publish gate (`verification_source_url_unreachable`).
-- Pickup item: review the large dirty worktree and decide which generated artifacts/temp files should be kept before committing logical chunks.
+## Current Status - 2026-08-28
+- Implementation phases 0 through 10 are complete. The next milestone is product validation, not additional broad platform development.
+- Verified backend suite: `python -m pytest backend\tests` -> 435 passed.
+- Verified frontend smoke suite: `npm test` -> 4 Playwright tests passed.
+- The remaining risk is operational: establish a small, independently reviewed, citation-backed pilot corpus before treating the project as a public service. See `docs/PROJECT_STATUS.md`.
+- 2026-09-17: Adopted the v2 AI-dev operating contract -- renamed `Agents.md` to `AGENTS.md` (case-sensitive filesystems / cross-tool: Codex CLI, ChatGPT Codex cloud, Claude Code CLI, Claude Cowork all read this name), added `CLAUDE.md` (`@AGENTS.md` import -- this repo had none before, so local Claude Code CLI sessions were never reading the rules), and added `.claude/settings.json` hooks (destructive-command confirmation + a Stop hook running the pytest/Playwright suites above). No test/lint commands changed; nothing was committed, staged, or reset as part of this.
 
 ## Phase 0 - Foundations (Week 1)
 - [x] Confirm legal/ethical policy and moderation boundaries (`docs/MODERATION_POLICY.md`, moderation publish/evaluate gates).

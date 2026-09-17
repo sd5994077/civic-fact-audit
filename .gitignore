@@ -19,3 +19,6 @@ blob-report/
 .vscode/
 .idea/
 Thumbs.db
+
+# Local Claude Code settings can contain pasted tokens/URLs -- never commit
+.claude/settings.local.json
