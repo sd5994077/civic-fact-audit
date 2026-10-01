@@ -68,7 +68,7 @@ Map claims into shared `IssueFrame` records before evidence parity work so candi
 Backfill non-curated evidence bundles after source attachment so compare/public views can distinguish stance links from verification links before later admin curation.
 
 ## 5) Human evaluation
-- Pull ready items from `GET /v1/claims/review-queue` once minimum evidence is attached.
+- Pull ready items from reviewer-authenticated `GET /v1/claims/review-queue` once minimum evidence is attached.
 - Sign in via `POST /v1/auth/login` and use returned bearer token.
 - Use `POST /v1/claims/{id}/evaluate`.
 - Send header: `Authorization: Bearer <access_token>`.

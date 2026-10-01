@@ -118,6 +118,13 @@ class SourceRecommendationService:
     _SEARCH_QUERY_KEYS = frozenset({'q', 'query', 'k', 'term', 'search'})
     _SEARCH_PATH_SEGMENTS = frozenset({'search', 'find', 'result', 'results'})
     _FUNDING_REQUIRED_CONTEXT_ANCHORS = 2
+    _NUMERIC_CLAIM_PERCENT_PATTERN = re.compile(r'(\d{1,3}(?:\.\d+)?)\s*(?:%|percent)', re.IGNORECASE)
+    _NUMERIC_CLAIM_FRACTION_PATTERN = re.compile(r'\b(\d{1,4})\s*(?:out of|/)\s*(\d{1,4})\b', re.IGNORECASE)
+    _NUMERIC_CLAIM_DENOMINATOR_CONTEXT_PATTERN = re.compile(
+        r'\b(\d{1,4})\s*(votes?|roll[\s-]?call\s+votes?|bills?|members?|senators?|times)\b',
+        re.IGNORECASE,
+    )
+    _NUMERIC_CLAIM_PERCENT_TOLERANCE_PTS = 1.5
     _USASPENDING_SEARCH_API_URL = 'https://api.usaspending.gov/api/v2/search/spending_by_award/'
     # USAspending /api/v2/search/spending_by_award/ requires award_type_codes and expects them
     # to come from a single award-type group. We keep this intentionally narrow and deterministic.
@@ -559,6 +566,112 @@ class SourceRecommendationService:
             1 for name in ('program', 'state', 'funding_context') if name in matched_anchors
         )
         return context_anchor_matches >= SourceRecommendationService._FUNDING_REQUIRED_CONTEXT_ANCHORS
+
+    @staticmethod
+    def _extract_claim_percentage(claim_text: str) -> float | None:
+        match = SourceRecommendationService._NUMERIC_CLAIM_PERCENT_PATTERN.search(claim_text or '')
+        if match is None:
+            return None
+        try:
+            return float(match.group(1))
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _extract_claim_fraction(claim_text: str) -> tuple[int, int] | None:
+        match = SourceRecommendationService._NUMERIC_CLAIM_FRACTION_PATTERN.search(claim_text or '')
+        if match is None:
+            return None
+        try:
+            numerator = int(match.group(1))
+            denominator = int(match.group(2))
+        except ValueError:
+            return None
+        if denominator <= 0:
+            return None
+        return numerator, denominator
+
+    @staticmethod
+    def _numeric_voting_anchor_assessment(
+        context: ClaimRecommendationContext,
+        lowered_text: str,
+    ) -> tuple[list[str], list[str]]:
+        """
+        Deterministic evidence-sufficiency check for numeric voting-record claims
+        (e.g. "voted with Trump 92% of the time", "ranked 95 out of 100 senators").
+
+        Anchors:
+          - claimed_stat: the specific percentage/fraction cited in the claim also
+            appears on the candidate evidence page (within tolerance).
+          - denominator: the page states a sample size / vote count the stat is
+            computed against, matching the claim's denominator when one is given.
+          - methodology: the page describes how the score/ranking was calculated
+            (reuses the existing methodology keyword list).
+        """
+        matched: list[str] = []
+        missing: list[str] = []
+        claim_text = context.claim_text or ''
+        claim_percentage = SourceRecommendationService._extract_claim_percentage(claim_text)
+        claim_fraction = SourceRecommendationService._extract_claim_fraction(claim_text)
+
+        stat_ok = False
+        if claim_percentage is not None:
+            for match in SourceRecommendationService._NUMERIC_CLAIM_PERCENT_PATTERN.finditer(lowered_text):
+                try:
+                    page_percentage = float(match.group(1))
+                except ValueError:
+                    continue
+                if abs(page_percentage - claim_percentage) <= SourceRecommendationService._NUMERIC_CLAIM_PERCENT_TOLERANCE_PTS:
+                    stat_ok = True
+                    break
+        if not stat_ok and claim_fraction is not None:
+            numerator, denominator = claim_fraction
+            for match in SourceRecommendationService._NUMERIC_CLAIM_FRACTION_PATTERN.finditer(lowered_text):
+                try:
+                    page_numerator = int(match.group(1))
+                    page_denominator = int(match.group(2))
+                except ValueError:
+                    continue
+                if page_numerator == numerator and page_denominator == denominator:
+                    stat_ok = True
+                    break
+        if stat_ok:
+            matched.append('claimed_stat')
+        else:
+            missing.append('claimed_stat')
+
+        denominator_ok = False
+        if claim_fraction is not None:
+            _, denominator = claim_fraction
+            for match in SourceRecommendationService._NUMERIC_CLAIM_DENOMINATOR_CONTEXT_PATTERN.finditer(lowered_text):
+                try:
+                    page_denominator = int(match.group(1))
+                except ValueError:
+                    continue
+                if page_denominator == denominator:
+                    denominator_ok = True
+                    break
+        else:
+            denominator_ok = SourceRecommendationService._NUMERIC_CLAIM_DENOMINATOR_CONTEXT_PATTERN.search(lowered_text) is not None
+        if denominator_ok:
+            matched.append('denominator')
+        else:
+            missing.append('denominator')
+
+        if any(pattern in lowered_text for pattern in SourceRecommendationService._METHODOLOGY_PATTERNS):
+            matched.append('methodology')
+        else:
+            missing.append('methodology')
+
+        return matched, missing
+
+    @staticmethod
+    def _numeric_voting_anchor_match_is_attachable(matched_anchors: list[str], missing_anchors: list[str]) -> bool:
+        # Methodology context is always required — a bare number with no explanation of
+        # how it was computed is not sufficient evidence for a numeric voting-record claim.
+        if 'methodology' in missing_anchors:
+            return False
+        return 'claimed_stat' in matched_anchors or 'denominator' in matched_anchors
 
     @staticmethod
     def _build_usaspending_search_payload(context: ClaimRecommendationContext) -> dict[str, Any]:
@@ -1247,6 +1360,14 @@ class SourceRecommendationService:
                             validation_note = f'Missing funding anchors: {", ".join(missing_anchors)}.'
                     else:
                         evidence_url = candidate_url
+                elif numeric_voting_claim and page_type not in SourceRecommendationService._NON_ATTACHABLE_PAGE_TYPES:
+                    voting_text = (validation.evidence_text or '').lower()
+                    matched_anchors, missing_anchors = SourceRecommendationService._numeric_voting_anchor_assessment(context, voting_text)
+                    if not SourceRecommendationService._numeric_voting_anchor_match_is_attachable(matched_anchors, missing_anchors):
+                        recommendation_role = 'discovery_only'
+                        validation_note = f'Missing numeric-claim anchors: {", ".join(missing_anchors)}.'
+                    else:
+                        evidence_url = candidate_url
             else:
                 # For resolver-produced URLs from trusted government databases, JS-rendered pages
                 # return sparse HTML and score low on topic overlap. Accept any HTTP 200 without
@@ -1277,9 +1398,25 @@ class SourceRecommendationService:
                     if previous_role == 'attachable_evidence':
                         validation_note = 'Resolved link is not a direct evidence page; kept as research link.'
                 # The resolver (USAspending, Federal Register, Congress) already ran its own anchor
-                # assessment before setting recommendation_role. Do not re-run the generic funding
-                # anchor check here — it uses the wrong thresholds for resolver-sourced records
-                # (e.g., FR metadata never contains dollar amounts).
+                # assessment before setting recommendation_role, using search-API metadata blurbs
+                # (title/abstract/description), not the real fetched evidence page. Re-check anchors
+                # against the actual page content for templates where full HTML is meaningful.
+                # USAspending award pages are JS-rendered and excluded via _is_resolver_trusted_url.
+                if (
+                    template.template_id == 'federal_register_primary'
+                    and recommendation_role == 'attachable_evidence'
+                ):
+                    page_text = (validation.evidence_text or '').lower()
+                    if page_text:
+                        page_matched, page_missing = SourceRecommendationService._funding_anchor_assessment(context, page_text)
+                        if not SourceRecommendationService._federal_register_item_is_attachable(context, page_matched, page_missing):
+                            recommendation_role = 'discovery_only'
+                            evidence_url = None
+                            missing_anchors = [m for m in page_missing if m != 'amount']
+                            validation_note = (
+                                'Resolved Federal Register record found, but the fetched document text did not '
+                                'confirm the required funding anchors.'
+                            )
 
             if (
                 template.template_id == 'usaspending_primary'

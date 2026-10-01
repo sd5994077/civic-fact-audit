@@ -32,5 +32,33 @@
     "youtube.com",
     "tiktok.com",
     "truthsocial.com"
+  ],
+  "review_draft_fetch_allowed_domains": [
+    "congress.gov",
+    "senate.gov",
+    "house.gov",
+    "govinfo.gov",
+    "federalregister.gov",
+    "usaspending.gov",
+    "lbb.texas.gov",
+    "tea.texas.gov",
+    "fec.gov",
+    "courtlistener.com",
+    "sec.gov",
+    "apnews.com",
+    "reuters.com",
+    "texastribune.org",
+    "npr.org",
+    "pbs.org",
+    "propublica.org",
+    "bbc.com",
+    "bbc.co.uk",
+    "ballotpedia.org",
+    "votesmart.org",
+    "opensecrets.org",
+    "pewresearch.org",
+    "factcheck.org",
+    "politifact.com",
+    "snopes.com"
   ]
 }

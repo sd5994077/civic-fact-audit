@@ -49,11 +49,16 @@ Config keys:
 - `partisan_publishers`
 - `partisan_domains`
 - `social_domains`
+- `review_draft_fetch_allowed_domains` (domain allowlist for runtime `POST /v1/claims/{id}/review-draft` content fetches)
 - `matching.publisher` and `matching.domain`
 
 Matching behavior:
 - publisher: `contains` (case-insensitive)
 - domain: `suffix` on normalized hostname (exact host or subdomain; userinfo/port stripped)
+
+Review-draft fetch policy:
+- Runtime review-draft source fetching only allows domains in `review_draft_fetch_allowed_domains`.
+- Hosts outside this list return `422 review_draft_source_url_not_allowlisted`.
 
 ## Legacy Cleanup and Auditability
 

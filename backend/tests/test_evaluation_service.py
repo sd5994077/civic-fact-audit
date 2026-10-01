@@ -32,6 +32,14 @@ class _FakeEval:
         self.reviewer_id = reviewer_id
 
 
+class _FakePublishGateDb:
+    def __init__(self, *, dead_source_count: int = 0) -> None:
+        self.dead_source_count = dead_source_count
+
+    def scalar(self, _stmt):  # type: ignore[no-untyped-def]
+        return self.dead_source_count
+
+
 def test_build_review_queue_query_has_race_filters_and_minimum_evidence_having() -> None:
     query = EvaluationService._build_review_queue_query(
         state='TX',
@@ -116,7 +124,7 @@ def test_publish_gate_failures_empty_when_all_rules_pass() -> None:
     claim = _FakeClaim(fact_checkable=True)
     latest_eval = _FakeEval(verdict=Verdict.supported, rationale='Looks good', citation_notes='Cited.')
     with patch('app.services.evaluation_service.SourceService.has_source_class', return_value=True):
-        failures = EvaluationService._publish_gate_failures(None, claim, latest_eval)  # type: ignore[arg-type]
+        failures = EvaluationService._publish_gate_failures(_FakePublishGateDb(), claim, latest_eval)  # type: ignore[arg-type]
     assert failures == []
 
 
@@ -124,7 +132,7 @@ def test_publish_gate_failures_include_expected_rules() -> None:
     claim = _FakeClaim(fact_checkable=False)
     latest_eval = _FakeEval(verdict=Verdict.insufficient, rationale=' ', citation_notes=' ')
     with patch('app.services.evaluation_service.SourceService.has_source_class', return_value=False):
-        failures = EvaluationService._publish_gate_failures(None, claim, latest_eval)  # type: ignore[arg-type]
+        failures = EvaluationService._publish_gate_failures(_FakePublishGateDb(), claim, latest_eval)  # type: ignore[arg-type]
     assert EvaluationService._PUBLISH_GATE_FACT_CHECKABLE in failures
     assert EvaluationService._PUBLISH_GATE_VERDICT in failures
     assert EvaluationService._PUBLISH_GATE_RATIONALE in failures
@@ -141,9 +149,36 @@ def test_publish_gate_failures_include_moderation_policy_rule() -> None:
         citation_notes='Voters should choose this person.',
     )
     with patch('app.services.evaluation_service.SourceService.has_source_class', return_value=True):
-        failures = EvaluationService._publish_gate_failures(None, claim, latest_eval)  # type: ignore[arg-type]
+        failures = EvaluationService._publish_gate_failures(_FakePublishGateDb(), claim, latest_eval)  # type: ignore[arg-type]
     assert EvaluationService._PUBLISH_GATE_MODERATION_POLICY in failures
     assert failures.count(EvaluationService._PUBLISH_GATE_MODERATION_POLICY) == 1
+
+
+def test_publish_gate_failures_include_dead_source_rule() -> None:
+    claim = _FakeClaim(fact_checkable=True)
+    latest_eval = _FakeEval(verdict=Verdict.supported, rationale='Looks good', citation_notes='Cited.')
+    with patch('app.services.evaluation_service.SourceService.has_source_class', return_value=True):
+        failures = EvaluationService._publish_gate_failures(
+            _FakePublishGateDb(dead_source_count=1),
+            claim,
+            latest_eval,
+        )  # type: ignore[arg-type]
+    assert EvaluationService._PUBLISH_GATE_DEAD_SOURCE in failures
+
+
+def test_publish_gate_failures_from_review_row_include_dead_source_rule() -> None:
+    failures = EvaluationService._publish_gate_failures_from_review_row(
+        {
+            'fact_checkable': True,
+            'latest_verdict': Verdict.supported,
+            'latest_rationale': 'Looks good',
+            'latest_citation_notes': 'Cited.',
+            'verification_primary_count': 1,
+            'verification_secondary_count': 1,
+            'dead_verification_source_count': 1,
+        }
+    )
+    assert EvaluationService._PUBLISH_GATE_DEAD_SOURCE in failures
 
 
 def test_publish_claim_moderation_failure_returns_violation_details(monkeypatch) -> None:
@@ -154,6 +189,9 @@ def test_publish_claim_moderation_failure_returns_violation_details(monkeypatch)
             if id_ == claim_id:
                 return _FakeClaim(fact_checkable=True)
             return None
+
+        def scalar(self, _stmt):  # type: ignore[no-untyped-def]
+            return 0
 
     latest_eval = _FakeEval(
         verdict=Verdict.supported,
@@ -215,6 +253,7 @@ def test_list_publish_queue_uses_verification_counts_from_review_row(monkeypatch
                 'secondary_source_count': 4,
                 'verification_primary_count': 3,
                 'verification_secondary_count': 2,
+                'dead_verification_source_count': 0,
             }
         ],
     )
@@ -226,6 +265,45 @@ def test_list_publish_queue_uses_verification_counts_from_review_row(monkeypatch
     assert len(rows) == 1
     assert rows[0]['verification_primary_count'] == 3
     assert rows[0]['verification_secondary_count'] == 2
+
+
+def test_list_publish_queue_surfaces_dead_source_gate_from_review_row(monkeypatch) -> None:
+    claim_id = uuid.uuid4()
+
+    monkeypatch.setattr(
+        'app.services.evaluation_service.EvaluationService.list_review_queue',
+        lambda *_args, **_kwargs: [
+            {
+                'claim_id': claim_id,
+                'claim_text': 'Claim text',
+                'issue_tag': 'Economy',
+                'candidate_name': 'Candidate A',
+                'candidate_party': 'Independent',
+                'statement_source_url': 'https://example.com/statement',
+                'statement_published_at': None,
+                'latest_verdict': Verdict.supported,
+                'latest_confidence': 0.9,
+                'latest_rationale': 'Looks good',
+                'latest_citation_notes': 'Cited.',
+                'latest_reviewer_id': 'reviewer@local',
+                'primary_source_count': 2,
+                'secondary_source_count': 2,
+                'verification_primary_count': 1,
+                'verification_secondary_count': 1,
+                'dead_verification_source_count': 1,
+                'fact_checkable': True,
+                'is_published': False,
+                'claim_published_at': None,
+                'published_by_reviewer_id': None,
+            }
+        ],
+    )
+
+    rows = EvaluationService.list_publish_queue(object())  # type: ignore[arg-type]
+
+    assert len(rows) == 1
+    assert rows[0]['publish_gate_passed'] is False
+    assert EvaluationService._PUBLISH_GATE_DEAD_SOURCE in rows[0]['publish_gate_failures']
 
 
 def test_publish_claim_blocks_when_approval_and_apply_reviewer_match(monkeypatch) -> None:
@@ -248,6 +326,9 @@ def test_publish_claim_blocks_when_approval_and_apply_reviewer_match(monkeypatch
             if id_ == claim_id:
                 return self.claim
             return None
+
+        def scalar(self, _stmt):  # type: ignore[no-untyped-def]
+            return 0
 
     latest_eval = _FakeEval(reviewer_id='reviewer@local')
     monkeypatch.setattr(
@@ -331,6 +412,9 @@ def test_publish_claim_allows_different_reviewers_and_records_audit_metadata(mon
                 return self.claim
             return None
 
+        def scalar(self, _stmt):  # type: ignore[no-untyped-def]
+            return 0
+
         def add(self, item):  # type: ignore[no-untyped-def]
             self.added.append(item)
 
@@ -388,6 +472,9 @@ def test_unpublish_claim_allows_different_reviewers_and_records_audit_metadata(m
                 return self.claim
             return None
 
+        def scalar(self, _stmt):  # type: ignore[no-untyped-def]
+            return 0
+
         def add(self, item):  # type: ignore[no-untyped-def]
             self.added.append(item)
 
@@ -441,6 +528,9 @@ def test_unpublish_claim_uses_published_by_reviewer_when_latest_evaluation_missi
                 return self.claim
             return None
 
+        def scalar(self, _stmt):  # type: ignore[no-untyped-def]
+            return 0
+
         def add(self, item):  # type: ignore[no-untyped-def]
             self.added.append(item)
 
@@ -492,6 +582,9 @@ def test_publish_claim_uses_lock_aware_latest_evaluation_lookup(monkeypatch) -> 
             if id_ == claim_id:
                 return self.claim
             return None
+
+        def scalar(self, _stmt):  # type: ignore[no-untyped-def]
+            return 0
 
         def add(self, item):  # type: ignore[no-untyped-def]
             self.added.append(item)

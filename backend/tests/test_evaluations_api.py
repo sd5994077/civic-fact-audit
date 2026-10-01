@@ -79,6 +79,256 @@ def test_evaluate_claim_returns_422_for_moderation_violation(monkeypatch) -> Non
     app.dependency_overrides.clear()
 
 
+def test_review_draft_requires_reviewer_or_admin_auth(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides.pop(require_reviewer_or_admin, None)
+    monkeypatch.setattr('app.api.v1.evaluations.ReviewDraftService.generate_review_draft', lambda *_args, **_kwargs: {})
+
+    client = TestClient(app)
+    response = client.post(f'/v1/claims/{uuid.uuid4()}/review-draft')
+    assert response.status_code == 401
+    app.dependency_overrides.clear()
+
+
+def test_review_queue_does_not_expose_unpublished_review_notes_anonymously(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides.pop(require_reviewer_or_admin, None)
+
+    def _must_not_query_queue(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError('Anonymous requests must be rejected before loading review-queue data.')
+
+    monkeypatch.setattr('app.api.v1.evaluations.EvaluationService.list_review_queue', _must_not_query_queue)
+
+    client = TestClient(app)
+    response = client.get('/v1/claims/review-queue')
+
+    assert response.status_code == 401
+    response_text = response.text
+    assert 'Unpublished reviewer rationale' not in response_text
+    assert 'Private citation notes' not in response_text
+    app.dependency_overrides.clear()
+
+
+def test_review_queue_returns_review_notes_to_authenticated_reviewer(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[require_reviewer_or_admin] = _override_reviewer
+    claim_id = uuid.uuid4()
+    candidate_id = uuid.uuid4()
+    monkeypatch.setattr(
+        'app.api.v1.evaluations.EvaluationService.list_review_queue',
+        lambda *_args, **_kwargs: [
+            {
+                'claim_id': claim_id,
+                'claim_text': 'A factual claim.',
+                'issue_tag': 'Public records',
+                'status': 'reviewed',
+                'statement_source_url': 'https://example.gov/statement',
+                'statement_published_at': '2026-08-01T00:00:00Z',
+                'candidate_id': candidate_id,
+                'candidate_name': 'Candidate A',
+                'candidate_party': None,
+                'candidate_office': 'Governor',
+                'candidate_state': 'TX',
+                'election_cycle': 2026,
+                'race_stage': None,
+                'primary_source_count': 1,
+                'secondary_source_count': 1,
+                'candidate_source_count': 0,
+                'verification_source_count': 2,
+                'latest_verdict': 'supported',
+                'latest_confidence': 0.9,
+                'latest_rationale': 'Unpublished reviewer rationale',
+                'latest_citation_notes': 'Private citation notes',
+                'latest_reviewer_id': 'reviewer@local',
+                'latest_evaluated_at': '2026-08-02T00:00:00Z',
+                'warnings': [],
+            }
+        ],
+    )
+
+    client = TestClient(app)
+    response = client.get('/v1/claims/review-queue')
+
+    assert response.status_code == 200
+    assert response.json()[0]['latest_rationale'] == 'Unpublished reviewer rationale'
+    assert response.json()[0]['latest_citation_notes'] == 'Private citation notes'
+    app.dependency_overrides.clear()
+
+
+def test_review_draft_returns_structured_payload(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[require_reviewer_or_admin] = _override_reviewer
+    claim_id = uuid.uuid4()
+    source_id = uuid.uuid4()
+    claim_id_arg = claim_id
+
+    def _fake_review_draft(_db, *, claim_id: uuid.UUID):  # type: ignore[no-untyped-def]
+        assert claim_id == claim_id_arg
+        return {
+            'claim_id': claim_id,
+            'suggested_verdict': 'mixed',
+            'suggested_confidence': 0.73,
+            'model_confidence': 0.9,
+            'evidence_sufficiency': 0.84,
+            'green_lane_ready': False,
+            'rationale': 'Evidence supports one component of the claim but not the superlative framing.',
+            'citation_notes': 'Primary legislative record and secondary analysis were reviewed.',
+            'subclaims': [
+                {
+                    'text': 'Candidate voted for the bill.',
+                    'judgment': 'supported',
+                    'notes': 'Roll call shows a yes vote.',
+                }
+            ],
+            'source_assessments': [
+                {
+                    'source_id': source_id,
+                    'url': 'https://www.senate.gov/legislative/LIS/roll_call_votes/vote1151/vote_115_1_00323.htm',
+                    'source_class': 'primary',
+                    'source_origin': 'verification',
+                    'publisher': 'U.S. Senate',
+                    'supports_claim': 'supports',
+                    'summary': 'Roll call includes the candidate as Yea.',
+                    'excerpt': 'Cornyn (R-TX), Yea',
+                }
+            ],
+            'warnings': [{'code': 'methodology_context_missing', 'message': 'Comparative denominator is not explicit.', 'severity': 'warning'}],
+            'missing_evidence': ['comparative_denominator_unresolved'],
+        }
+
+    monkeypatch.setattr('app.api.v1.evaluations.ReviewDraftService.generate_review_draft', _fake_review_draft)
+    recorded_calls: list[dict] = []
+    monkeypatch.setattr(
+        'app.api.v1.evaluations.ClaimAiDraftService.record_draft',
+        lambda _db, *, claim_id, payload: recorded_calls.append({'claim_id': claim_id, 'payload': payload}),
+    )
+
+    client = TestClient(app)
+    response = client.post(f'/v1/claims/{claim_id}/review-draft')
+    body = response.json()
+    assert response.status_code == 200
+    assert body['claim_id'] == str(claim_id)
+    assert body['suggested_verdict'] == 'mixed'
+    assert body['source_assessments'][0]['supports_claim'] == 'supports'
+    assert len(recorded_calls) == 1
+    assert recorded_calls[0]['claim_id'] == claim_id
+    app.dependency_overrides.clear()
+
+
+def test_review_draft_history_requires_reviewer_or_admin_auth() -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides.pop(require_reviewer_or_admin, None)
+
+    client = TestClient(app)
+    response = client.get(f'/v1/claims/{uuid.uuid4()}/review-drafts')
+    assert response.status_code == 401
+    app.dependency_overrides.clear()
+
+
+def test_review_draft_history_returns_list(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[require_reviewer_or_admin] = _override_reviewer
+    claim_id = uuid.uuid4()
+    draft_id = uuid.uuid4()
+
+    monkeypatch.setattr(
+        'app.api.v1.evaluations.ClaimAiDraftService.list_draft_history',
+        lambda _db, *, claim_id, limit=20: [
+            {
+                'id': draft_id,
+                'claim_id': claim_id,
+                'model': 'gpt-4o-mini',
+                'suggested_verdict': 'supported',
+                'suggested_confidence': 0.9,
+                'model_confidence': 0.9,
+                'evidence_sufficiency': 0.9,
+                'green_lane_ready': False,
+                'rationale': 'Supported by primary record.',
+                'citation_notes': 'Senate roll call record.',
+                'subclaims': [],
+                'source_assessments': [],
+                'warnings': [],
+                'missing_evidence': [],
+                'created_at': '2026-07-01T00:00:00Z',
+            }
+        ],
+    )
+
+    client = TestClient(app)
+    response = client.get(f'/v1/claims/{claim_id}/review-drafts')
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]['id'] == str(draft_id)
+    assert body[0]['model'] == 'gpt-4o-mini'
+    app.dependency_overrides.clear()
+
+
+def test_review_draft_diff_requires_reviewer_or_admin_auth() -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides.pop(require_reviewer_or_admin, None)
+
+    client = TestClient(app)
+    response = client.get(f'/v1/claims/{uuid.uuid4()}/review-draft-diff')
+    assert response.status_code == 401
+    app.dependency_overrides.clear()
+
+
+def test_review_draft_diff_returns_comparison(monkeypatch) -> None:
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[require_reviewer_or_admin] = _override_reviewer
+    claim_id = uuid.uuid4()
+    draft_id = uuid.uuid4()
+    eval_id = uuid.uuid4()
+
+    monkeypatch.setattr(
+        'app.api.v1.evaluations.ClaimAiDraftService.get_draft_diff',
+        lambda _db, *, claim_id: {
+            'claim_id': claim_id,
+            'draft': {
+                'id': draft_id,
+                'claim_id': claim_id,
+                'model': 'gpt-4o-mini',
+                'suggested_verdict': 'supported',
+                'suggested_confidence': 0.9,
+                'model_confidence': 0.9,
+                'evidence_sufficiency': 0.9,
+                'green_lane_ready': False,
+                'rationale': 'Draft rationale.',
+                'citation_notes': 'Draft citation.',
+                'subclaims': [],
+                'source_assessments': [],
+                'warnings': [],
+                'missing_evidence': [],
+                'created_at': '2026-07-01T00:00:00Z',
+            },
+            'evaluation': {
+                'id': eval_id,
+                'verdict': 'mixed',
+                'confidence': 0.8,
+                'rationale': 'Reviewer rationale.',
+                'citation_notes': 'Reviewer citation.',
+                'reviewer_id': 'reviewer@local',
+                'created_at': '2026-07-02T00:00:00Z',
+            },
+            'verdict_match': False,
+            'confidence_delta': -0.1,
+            'rationale_changed': True,
+            'citation_notes_changed': True,
+        },
+    )
+
+    client = TestClient(app)
+    response = client.get(f'/v1/claims/{claim_id}/review-draft-diff')
+    assert response.status_code == 200
+    body = response.json()
+    assert body['verdict_match'] is False
+    assert body['confidence_delta'] == -0.1
+    assert body['draft']['model'] == 'gpt-4o-mini'
+    assert body['evaluation']['verdict'] == 'mixed'
+    app.dependency_overrides.clear()
+
+
 def test_workbench_requires_reviewer_or_admin_auth(monkeypatch) -> None:
     app.dependency_overrides[get_db] = _override_db
     app.dependency_overrides.pop(require_reviewer_or_admin, None)

@@ -25,9 +25,25 @@ services:
       POSTGRES_DB: civic_fact_audit
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_REVIEW_DRAFT_MODEL: ${OPENAI_REVIEW_DRAFT_MODEL:-gpt-5-mini}
+      OPENAI_REVIEW_DRAFT_MAX_COMPLETION_TOKENS: ${OPENAI_REVIEW_DRAFT_MAX_COMPLETION_TOKENS:-1600}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_ESCALATION_MODEL: ${ANTHROPIC_ESCALATION_MODEL:-claude-sonnet-4-6}
+      ANTHROPIC_ESCALATION_MAX_TOKENS: ${ANTHROPIC_ESCALATION_MAX_TOKENS:-2500}
+      CIVIC_AI_DEGRADED_MODE: ${CIVIC_AI_DEGRADED_MODE:-false}
+      AUTH_SECRET_KEY: ${AUTH_SECRET_KEY:-change-me-in-prod}
+      AUTH_TOKEN_TTL_MINUTES: ${AUTH_TOKEN_TTL_MINUTES:-480}
+      REVIEWER_BOOTSTRAP_EMAIL: ${REVIEWER_BOOTSTRAP_EMAIL:-reviewer@local}
+      REVIEWER_BOOTSTRAP_PASSWORD: ${REVIEWER_BOOTSTRAP_PASSWORD:-change-me}
+      REVIEWER_BOOTSTRAP_NAME: ${REVIEWER_BOOTSTRAP_NAME:-Local Reviewer}
+      REVIEWER_BOOTSTRAP_ROLE: ${REVIEWER_BOOTSTRAP_ROLE:-admin}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       CONGRESS_API_KEY: ${CONGRESS_API_KEY:-}
     ports:
       - "8000:8000"
+    volumes:
+      - ./backend/app:/app/app
 
   web:
     build:
@@ -37,6 +53,8 @@ services:
       - api
     ports:
       - "3001:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
 
 volumes:
   postgres_data:

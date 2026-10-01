@@ -11,6 +11,7 @@ In practice:
 - Candidate websites, official campaign social accounts, debates, interviews, speeches, and press releases can be used to identify a claim.
 - Factual verdicts must be based on reliable verification sources.
 - AI may assist with extraction and preparation, but a verified human reviewer must make the final publishable adjudication.
+- Runtime AI review drafts are permitted as reviewer assistance (`POST /v1/claims/{claim_id}/review-draft`) when outputs remain non-final and human-confirmed.
 
 ## Operational Enforcement (API + Workflow)
 
@@ -157,6 +158,7 @@ Human reviewers should:
 - record rationale and citation notes clearly
 - leave a claim as `insufficient` when the evidence is not good enough
 - replace blocked partisan verification suggestions with neutral record-based sources before re-applying a proposal
+- treat AI draft verdict/rationale/confidence as editable suggestions, not adjudication
 
 ## Public Trust Language
 

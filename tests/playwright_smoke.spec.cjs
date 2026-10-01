@@ -67,6 +67,40 @@ async function startFrontendStaticServer(frontendRoot) {
   };
 }
 
+test("published claims loads all pages even without a comparison", async ({ page }) => {
+  const localServer = await startFrontendStaticServer(path.resolve(__dirname, "../frontend"));
+  const offsets = [];
+  await page.route("**/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/candidates")) {
+      return route.fulfill({ json: [{ id: "candidate-a", name: "Candidate A", state: "TX", office: "US Senate", election_cycle: 2026, race_stage: "primary_runoff" }] });
+    }
+    if (url.pathname.endsWith("/published-claims")) {
+      const offset = Number(url.searchParams.get("offset"));
+      offsets.push(offset);
+      const count = offset === 0 ? 100 : 1;
+      return route.fulfill({ json: Array.from({ length: count }, (_, index) => ({
+        claim_id: `claim-${offset + index}`, candidate_id: "candidate-a", candidate_name: "Candidate A",
+        claim_text: `Published claim ${offset + index}`, issue_tag: `issue-${(offset + index) % 11}`,
+        verdict: "supported", confidence: 0.95, rationale: "Official record.",
+        sources: [{ url: "https://example.com/record", publisher: "Record publisher", source_class: "primary" }],
+      })) });
+    }
+    return route.fulfill({ status: 404, json: { error: { message: "No comparison" } } });
+  });
+  try {
+    await page.goto(localServer.baseUrl);
+    await page.click('[data-tab="claims"]');
+    await expect(page.locator("#claims-count")).toHaveText("101 claims");
+    await expect(page.locator("#claims-list .claim-card")).toHaveCount(101);
+    expect(offsets).toEqual([0, 100]);
+    await page.fill("#claims-filter-issue", "issue-10");
+    await expect(page.locator("#claims-list .claim-card")).toHaveCount(9);
+  } finally {
+    await localServer.close();
+  }
+});
+
 test("cfa filters smoke", async ({ page, request }) => {
   let localServer = null;
   const webUrl = process.env.CFA_WEB_URL || "";

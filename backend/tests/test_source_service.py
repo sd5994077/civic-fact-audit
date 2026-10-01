@@ -244,6 +244,66 @@ def test_add_source_syncs_evidence_bundle(monkeypatch) -> None:
     assert db.rolled_back == 0
 
 
+def test_add_source_preserves_reviewer_supplied_http_url(monkeypatch) -> None:
+    claim_id = 'claim-1'
+    db = _FakeDbForAddSource(claim_id=claim_id)
+    supplied_url = 'http://example.gov/records/item/?record=7&utm_source=review'
+    monkeypatch.setattr(
+        'app.services.source_service.SourceService.validate_source_admission',
+        lambda _payload: {'status': 'ok'},
+    )
+    monkeypatch.setattr(
+        'app.services.source_service.EvidenceBundleService.sync_claim_bundle',
+        lambda *_args, **_kwargs: None,
+    )
+    payload = type(
+        'Payload',
+        (),
+        {
+            'url': supplied_url,
+            'source_class': SourceClass.primary,
+            'source_origin': SourceOrigin.verification,
+            'publisher': 'Example Agency',
+            'quality_score': 0.9,
+            'is_direct_candidate_quote': False,
+        },
+    )()
+
+    SourceService.add_source(db, claim_id, payload)
+
+    assert db.added[0].url == supplied_url
+
+
+def test_add_source_uses_non_destructive_url_key_for_duplicate_detection(monkeypatch) -> None:
+    claim_id = 'claim-1'
+    db = _FakeDbForAddSource(claim_id=claim_id)
+    db.scalar_values = ['https://example.gov/records/item?record=7']
+    monkeypatch.setattr(
+        'app.services.source_service.SourceService.validate_source_admission',
+        lambda _payload: {'status': 'ok'},
+    )
+    payload = type(
+        'Payload',
+        (),
+        {
+            'url': 'http://example.gov/records/item/?utm_source=review&record=7',
+            'source_class': SourceClass.primary,
+            'source_origin': SourceOrigin.verification,
+            'publisher': 'Example Agency',
+            'quality_score': 0.9,
+            'is_direct_candidate_quote': False,
+        },
+    )()
+
+    try:
+        SourceService.add_source(db, claim_id, payload)
+        assert False, 'Expected duplicate source rejection'
+    except AppError as exc:
+        assert exc.code == 'duplicate_source'
+
+    assert db.added == []
+
+
 def test_add_source_rolls_back_if_bundle_sync_fails(monkeypatch) -> None:
     def _fake_sync(_db, _claim_id, *, commit):
         assert commit is False

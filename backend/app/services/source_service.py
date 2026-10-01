@@ -1,8 +1,11 @@
 import uuid
 import json
 import re
+import ipaddress
+import socket
 from urllib.parse import parse_qs, urlparse
 
+import httpx
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -22,6 +25,43 @@ from app.schemas.api import AddSourceRequest, BulkSourceAttachItem
 from app.services.admin_audit_service import AdminAuditService
 from app.services.auth_service import AuthService
 from app.services.evidence_bundle_service import EvidenceBundleService
+
+
+# Query parameters that carry no documentary value — strip before storing or comparing URLs.
+_TRACKING_PARAMS = frozenset({
+    'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'utm_id',
+    'fbclid', 'gclid', '_ga', 'yclid', 'msclkid', 'ref', 'mc_cid', 'mc_eid',
+    'hsctatracking', 'igshid', 'twclid', 's', 'ncid',
+})
+
+
+def url_comparison_key(raw: str) -> str:
+    """Return a canonical comparison key without changing the stored URL.
+
+    Rules applied (in order):
+    1. Treat ``http`` and ``https`` as equivalent.
+    2. Lowercase scheme and host.
+    3. Strip a trailing slash from the path (unless the path is just ``/``).
+    4. Remove tracking/noise query parameters defined in ``_TRACKING_PARAMS``.
+    5. Re-sort remaining query parameters for a stable key order.
+    """
+    try:
+        parsed = urlparse(raw.strip())
+        scheme = 'https'
+        netloc = parsed.netloc.lower()
+        path = parsed.path.rstrip('/') or '/'
+        # Filter and sort query params
+        qs = parse_qs(parsed.query, keep_blank_values=True)
+        clean_qs = {k: v for k, v in qs.items() if k.lower() not in _TRACKING_PARAMS}
+        # Reconstruct query string with sorted keys for stability
+        sorted_pairs = sorted(
+            (k, v) for k, vals in clean_qs.items() for v in vals
+        )
+        query = '&'.join(f'{k}={v}' for k, v in sorted_pairs)
+        from urllib.parse import urlunparse
+        return urlunparse((scheme, netloc, path, parsed.params, query, ''))
+    except Exception:
+        return raw
 
 
 class SourceService:
@@ -104,6 +144,105 @@ class SourceService:
     def _eligible_verification_source_predicate():
         return and_(Source.source_origin == SourceOrigin.verification, Source.policy_flagged.is_(False))
 
+    # HTTP status codes that mean the URL is definitively gone / wrong.
+    _DEAD_URL_STATUSES: frozenset[int] = frozenset({404, 405, 410, 451})
+
+    # Status codes that mean the content is gated (paywall, login, bot check) but
+    # the URL itself is real -- reviewer can still provide an excerpt.
+    _GATED_URL_STATUSES: frozenset[int] = frozenset({401, 402, 403, 429})
+
+    @staticmethod
+    def _public_probe_target(url: str) -> tuple[httpx.URL, str, str]:
+        parsed = httpx.URL(url)
+        hostname = parsed.host
+        if parsed.scheme not in {'http', 'https'} or not hostname or parsed.userinfo:
+            raise ValueError('Only public HTTP(S) URLs without credentials can be probed.')
+        if hostname.lower().rstrip('.') in {'localhost', 'localhost.localdomain', 'metadata.google.internal'}:
+            raise ValueError('Local and metadata targets cannot be probed.')
+        try:
+            addresses = [ipaddress.ip_address(hostname)]
+        except ValueError:
+            addresses = [ipaddress.ip_address(row[4][0]) for row in socket.getaddrinfo(
+                hostname, parsed.port or (443 if parsed.scheme == 'https' else 80),
+                type=socket.SOCK_STREAM, proto=socket.IPPROTO_TCP,
+            )]
+        if not addresses or any(not address.is_global or address.is_multicast for address in addresses):
+            raise ValueError('Source host must resolve exclusively to public network addresses.')
+        # Pin the connection to validated DNS; preserve virtual hosting and TLS identity.
+        return parsed.copy_with(host=str(addresses[0])), parsed.netloc.decode('ascii'), hostname
+
+    @staticmethod
+    def check_url_reachable(url: str) -> dict[str, object]:
+        """
+        Performs a lightweight HTTP reachability probe on *url*.
+
+        Returns a dict with keys:
+          status   -- 'ok' | 'dead' | 'gated' | 'error'
+          code     -- HTTP status code (int) or None on network failure
+          message  -- human-readable summary
+        """
+        _DEAD = SourceService._DEAD_URL_STATUSES
+        _GATED = SourceService._GATED_URL_STATUSES
+        headers = {
+            'User-Agent': (
+                'Mozilla/5.0 (compatible; CivicFactAuditBot/1.0; '
+                '+https://civicfactaudit.org/bot)'
+            ),
+        }
+        try:
+            target, host_header, hostname = SourceService._public_probe_target(url)
+            with httpx.Client(timeout=8.0, follow_redirects=False, trust_env=False,
+                              limits=httpx.Limits(max_keepalive_connections=0)) as client:
+                method = 'HEAD'
+                for hop in range(6):
+                    request = client.build_request(method, target, headers={**headers, 'Host': host_header},
+                                                   extensions={'sni_hostname': hostname})
+                    resp = client.send(request, stream=True)
+                    code = resp.status_code
+                    location = resp.headers.get('location')
+                    resp.close()
+                    if code == 405 and method == 'HEAD':
+                        method = 'GET'
+                        continue
+                    if code in {301, 302, 303, 307, 308} and location:
+                        if hop == 5:
+                            raise ValueError('Too many source redirects.')
+                        url = str(httpx.URL(url).join(location))
+                        target, host_header, hostname = SourceService._public_probe_target(url)
+                        method = 'HEAD'
+                        continue
+                    break
+                else:
+                    raise ValueError('Too many source probe requests.')
+        except (ValueError, httpx.InvalidURL, socket.gaierror) as exc:
+            return {'status': 'error', 'code': None, 'message': str(exc)}
+        except httpx.TimeoutException:
+            return {'status': 'error', 'code': None, 'message': 'Request timed out -- server may be slow or blocking bots.'}
+        except httpx.RequestError as exc:
+            return {'status': 'error', 'code': None, 'message': f'Network error: {exc}'}
+
+        code = resp.status_code
+        if code in _DEAD:
+            return {
+                'status': 'dead',
+                'code': code,
+                'message': f'URL returned {code} -- the page does not exist or has been removed.',
+            }
+        if code in _GATED:
+            return {
+                'status': 'gated',
+                'code': code,
+                'message': f'URL returned {code} -- content is paywalled or requires login. Paste a key excerpt so the AI has context.',
+            }
+        if 200 <= code < 400:
+            return {'status': 'ok', 'code': code, 'message': 'URL is reachable.'}
+        # 5xx and anything else -- treat as transient / unknown
+        return {
+            'status': 'error',
+            'code': code,
+            'message': f'URL returned {code} -- server error or unexpected response.',
+        }
+
     @staticmethod
     def get_partisan_match(*, publisher: str | None, url: str) -> SourcePolicyRuleMatch | None:
         return find_partisan_rule_match(publisher=publisher, url=url)
@@ -159,7 +298,24 @@ class SourceService:
 
         matched_rule = SourceService.get_partisan_match(publisher=payload.publisher, url=str(payload.url))
         if matched_rule is None:
-            return
+            # No partisan match -- run URL reachability probe for non-social URLs.
+            # Social URLs (Twitter/X, YouTube, etc.) frequently rate-limit bots, so
+            # we skip the probe for those and trust the reviewer.
+            if not is_candidate_social_url:
+                probe = SourceService.check_url_reachable(str(payload.url))
+                if probe['status'] == 'dead':
+                    raise AppError(
+                        'source_url_not_found',
+                        probe['message'],
+                        status_code=422,
+                        details={
+                            'rejection_field': 'url',
+                            'http_status': probe['code'],
+                            'url': str(payload.url),
+                        },
+                    )
+                return probe  # caller uses this to set fetch_status
+            return None  # social URL — probe skipped
         matched_rule_payload = {
             'field': matched_rule.field,
             'match_type': matched_rule.match_type,
@@ -202,6 +358,7 @@ class SourceService:
                     'allowed_social_domains': list(policy.social_domains),
                 },
             )
+        return None  # partisan candidate social — no probe
 
     @staticmethod
     def _bulk_status_from_error_code(error_code: str) -> str:
@@ -309,15 +466,31 @@ class SourceService:
 
     @staticmethod
     def add_source(db: Session, claim_id: uuid.UUID, payload: AddSourceRequest, *, commit: bool = True) -> list[Source]:
-        claim = db.get(Claim, claim_id)
+        # Serialize attachments for a claim so comparison-key duplicate checks
+        # remain reliable when reviewers submit near-equivalent URLs concurrently.
+        claim = SourceService._get_claim_for_source_mutation(db, claim_id, lock=True)
         if claim is None:
             raise AppError('claim_not_found', 'Claim does not exist.', status_code=404)
-        SourceService.validate_source_admission(payload)
+        probe = SourceService.validate_source_admission(payload)
+
+        supplied_url = str(payload.url)
+        comparison_key = url_comparison_key(supplied_url)
+        existing_urls = db.scalars(select(Source.url).where(Source.claim_id == claim.id)).all()
+        if any(url_comparison_key(str(existing_url)) == comparison_key for existing_url in existing_urls):
+            raise AppError(
+                'duplicate_source',
+                'This source URL is already attached to the claim.',
+                status_code=409,
+            )
+
+        # Map probe result → fetch_status for storage.
+        _probe_to_fetch_status = {'ok': 'ok', 'gated': 'gated', 'error': 'request_error', 'dead': 'http_4xx'}
+        fetch_status = _probe_to_fetch_status.get(probe['status'], 'unknown') if probe else 'unknown'
 
         quality_score = payload.quality_score
         if quality_score is None:
             quality_score = score_source_quality(
-                url=str(payload.url),
+                url=supplied_url,
                 source_class=payload.source_class,
                 source_origin=payload.source_origin,
                 is_direct_candidate_quote=payload.is_direct_candidate_quote,
@@ -325,11 +498,13 @@ class SourceService:
 
         source = Source(
             claim_id=claim.id,
-            url=str(payload.url),
+            url=supplied_url,
             source_class=payload.source_class,
             source_origin=payload.source_origin,
             publisher=payload.publisher,
             quality_score=quality_score,
+            fetch_status=fetch_status,
+            content_excerpt=getattr(payload, 'content_excerpt', None) or None,
         )
         db.add(source)
         try:

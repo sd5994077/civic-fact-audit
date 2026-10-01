@@ -1,5 +1,14 @@
 # Roadmap
 
+## Current Status - 2026-10-01
+- Implementation phases 0 through 10 are complete. The next milestone is product validation, not additional broad platform development.
+- Verified backend suite: `python -m pytest backend/tests` -> 453 passed.
+- Verified frontend smoke suite: `npm test` -> 5 Playwright tests passed.
+- 2026-10-01 (initial check): Revalidated the local checkout with both suites and `docker compose config --quiet`. PR #9 remains open and mergeable with no reported CI checks; local `main` contains its full release branch plus six later commits and is 17 commits ahead of `origin/main`. GitHub synchronization and the manual unpublished-claim pilot remain outstanding; these checks do not establish deployment or editorial readiness.
+- 2026-10-01: Resolved all four PR #9 findings with public-IP-pinned URL probes, redirect validation, completed-warning and prompt-scoped draft checks, and a paginated published-claims dashboard feed. Removed branches already fully merged into GitHub main. Verified 453 backend tests and 5 Playwright tests; the unpublished human-review pilot remains outstanding.
+- The remaining risk is operational: establish a small, independently reviewed, citation-backed pilot corpus before treating the project as a public service. See `docs/PROJECT_STATUS.md`.
+- 2026-09-17: Adopted the v2 AI-dev operating contract -- renamed `Agents.md` to `AGENTS.md` (case-sensitive filesystems / cross-tool: Codex CLI, ChatGPT Codex cloud, Claude Code CLI, Claude Cowork all read this name), added `CLAUDE.md` (`@AGENTS.md` import -- this repo had none before, so local Claude Code CLI sessions were never reading the rules), and added `.claude/settings.json` hooks (destructive-command confirmation + a Stop hook running the pytest/Playwright suites above). No test/lint commands changed; nothing was committed, staged, or reset as part of this.
+
 ## Phase 0 - Foundations (Week 1)
 - [x] Confirm legal/ethical policy and moderation boundaries (`docs/MODERATION_POLICY.md`, moderation publish/evaluate gates).
 - [x] Stand up FastAPI + Postgres local development.
@@ -127,6 +136,13 @@
 - [x] Add recommendation role metadata (`attachable_evidence`, `discovery_only`, `candidate_quote_only`, `rejected`) so research links stay visible without being auto-attachable evidence.
 - [x] Gate Workbench one-click attach to `attachable_evidence` recommendations only, with clear research-only explanations for discovery links.
 - [x] Add deterministic Congress.gov bill-ID resolver v1 (API-keyed) for `tx_senate_congress_primary` so explicit bill citations can resolve from research links to official bill pages.
-- [ ] Add claim-type evidence anchors to move from topic-overlap-only checks to evidence sufficiency checks (start with funding/reimbursement and numeric voting-record claims).
-- [ ] Add deterministic page-level anchor extraction from fetched content to support robust amount/methodology checks before evidence attachment.
-- [ ] Add Workbench reviewer guidance text for discovery-only vs attachable recommendations and publish-gate impact.
+- [x] Add claim-type evidence anchors to move from topic-overlap-only checks to evidence sufficiency checks (funding/reimbursement anchors existed; added numeric voting-record anchors — `claimed_stat`/`denominator`/`methodology` — gating attach on methodology plus a matching stat or denominator, not just keyword presence).
+- [x] Add deterministic page-level anchor extraction from fetched content to support robust amount/methodology checks before evidence attachment (Federal Register resolver results are now re-checked against the real fetched document text, not just search-API metadata, before being marked attachable).
+- [x] Add Workbench reviewer guidance text for discovery-only vs attachable recommendations and publish-gate impact (persistent guidance banner, role pills, and per-recommendation missing-anchor notes on the Suggested Verification Links panel).
+
+## Phase 10 - Hybrid Review Assistant
+- [x] Add reviewer-authenticated AI draft endpoint for claim-level review packets (`POST /v1/claims/{id}/review-draft`).
+- [x] Add Workbench "Draft Evidence Review" UI with one-click prefill into evaluation fields.
+- [x] Enforce that AI drafts remain non-final reviewer assistance (no auto-evaluate, no auto-publish).
+- [x] Add persistent draft history and diffing between AI draft and reviewer-submitted evaluation (`claim_ai_drafts` table + `GET /v1/claims/{id}/review-drafts` + `GET /v1/claims/{id}/review-draft-diff`, surfaced in Workbench).
+- [x] Add deterministic numeric-claim denominator/methodology validators to complement model confidence (`_numeric_voting_anchor_assessment` in the source-recommendation service; see Phase 9).

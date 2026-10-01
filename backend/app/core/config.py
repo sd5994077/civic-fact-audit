@@ -22,6 +22,18 @@ class Settings(BaseSettings):
     postgres_password: str = _DEFAULT_DB_PASSWORD
 
     openai_api_key: str = ''
+    openai_review_draft_model: str = 'gpt-5-mini'
+    openai_review_draft_max_completion_tokens: int = 1600
+    anthropic_api_key: str = ''
+    anthropic_escalation_model: str = 'claude-sonnet-4-6'
+    anthropic_escalation_max_tokens: int = 2500
+    gemini_api_key: str = ''
+
+    # Circuit breaker — set CIVIC_AI_DEGRADED_MODE=true to:
+    #   • skip primary model and force escalation on every claim
+    #   • disable auto-publishing (green_lane_ready always False)
+    # Flip this when the weekly regression health check detects a model regression.
+    civic_ai_degraded_mode: bool = False
     congress_api_key: str = ''
     auth_secret_key: str = _DEFAULT_AUTH_SECRET
     auth_token_ttl_minutes: int = 480
