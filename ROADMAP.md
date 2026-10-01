@@ -1,9 +1,10 @@
 # Roadmap
 
-## Current Status - 2026-08-28
+## Current Status - 2026-10-01
 - Implementation phases 0 through 10 are complete. The next milestone is product validation, not additional broad platform development.
-- Verified backend suite: `python -m pytest backend\tests` -> 435 passed.
+- Verified backend suite: `python -m pytest backend/tests` -> 441 passed.
 - Verified frontend smoke suite: `npm test` -> 4 Playwright tests passed.
+- 2026-10-01: Revalidated the local checkout with both suites and `docker compose config --quiet`. PR #9 remains open and mergeable with no reported CI checks; local `main` contains its full release branch plus six later commits and is 17 commits ahead of `origin/main`. GitHub synchronization and the manual unpublished-claim pilot remain outstanding; these checks do not establish deployment or editorial readiness.
 - The remaining risk is operational: establish a small, independently reviewed, citation-backed pilot corpus before treating the project as a public service. See `docs/PROJECT_STATUS.md`.
 - 2026-09-17: Adopted the v2 AI-dev operating contract -- renamed `Agents.md` to `AGENTS.md` (case-sensitive filesystems / cross-tool: Codex CLI, ChatGPT Codex cloud, Claude Code CLI, Claude Cowork all read this name), added `CLAUDE.md` (`@AGENTS.md` import -- this repo had none before, so local Claude Code CLI sessions were never reading the rules), and added `.claude/settings.json` hooks (destructive-command confirmation + a Stop hook running the pytest/Playwright suites above). No test/lint commands changed; nothing was committed, staged, or reset as part of this.
 

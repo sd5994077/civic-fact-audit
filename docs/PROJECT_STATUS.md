@@ -2,7 +2,9 @@
 
 ## Current Position
 
-The software implementation roadmap is complete through Phase 10. The repository has a functioning FastAPI backend, PostgreSQL schema and migrations, reviewer/admin workflows, source-admission controls, audit logging, a public published-claims surface, and a browser-based Workbench. As of 2026-08-28, the automated baseline is 435 backend tests and 4 Playwright smoke tests passing.
+The software implementation roadmap is complete through Phase 10. The repository has a functioning FastAPI backend, PostgreSQL schema and migrations, reviewer/admin workflows, source-admission controls, audit logging, a public published-claims surface, and a browser-based Workbench. As of 2026-10-01, the verified automated baseline is 441 backend tests and 4 Playwright smoke tests passing. Compose configuration validation also passes.
+
+PR #9 remains open and mergeable, with no reported CI checks. Local `main` already contains the release branch and six subsequent commits, and is 17 commits ahead of `origin/main`. The remote release branch does not yet include those later documentation and operating-contract updates. The manual unpublished-claim pilot remains outstanding.
 
 That is implementation progress, not evidence that the service is ready for public use. There is no demonstrated, maintained corpus of independently reviewed, published claim evaluations; no operating editorial team; and no deployment, monitoring, correction, or governance record suitable for a public civic-information product.
 
