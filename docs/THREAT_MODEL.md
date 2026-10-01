@@ -142,3 +142,7 @@ All secrets are loaded from `.env` via `pydantic-settings`. `.env` is listed in 
 - [ ] Optionally add defence-in-depth reverse-proxy rate limiting (nginx `limit_req_zone`, Cloudflare) for additional protection
 - [ ] Confirm `.env` is not committed (check `.gitignore`)
 - [ ] Rotate `AUTH_SECRET_KEY` if any reviewer credentials are believed compromised (invalidates all live tokens)
+
+## URL reachability probe hardening (2026-10-01)
+
+The reviewer URL probe accepts only HTTP(S) URLs without embedded credentials and rejects local, metadata, non-public, multicast, and mixed public/private DNS targets before requesting them. Connections pin the validated IP while retaining the original Host header and TLS server identity, with environment proxy use and connection reuse disabled. Each redirect is revalidated; redirect/request chains are bounded. HEAD-to-GET fallback streams and closes the response without downloading its body. Unsafe or unresolved targets return a structured probe error. This control covers the URL-check and source-admission probe paths.

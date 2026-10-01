@@ -45,8 +45,8 @@ Build a transparent, nonpartisan candidate-claim auditing platform where every s
 ---
 
 ## Build & test commands
-Verified 2026-10-01 (see ROADMAP.md "Current Status"): 441 backend tests
-passed, 4 Playwright frontend tests passed. Run these before reporting any
+Verified 2026-10-01 (see ROADMAP.md "Current Status"): 453 backend tests
+passed, 5 Playwright frontend tests passed. Run these before reporting any
 change done:
 - Backend: `python -m pytest backend/tests`
 - Frontend: `npm test` (Playwright suite)

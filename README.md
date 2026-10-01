@@ -228,7 +228,7 @@ Tests 12 scenarios across false/misleading/truthful/mixed claim types at easy/me
 - Moderation policy enforcement with boundary phrase detection.
 - Audit event log for all admin/reviewer actions.
 - Texas 2026 U.S. Senate race data: roster ingest, statement batches, evidence attachment, and adjudication packet scripts.
-- 441 automated backend tests and 4 Playwright smoke tests verified on 2026-10-01, covering scoring, source policy and recommendation logic, review drafts, rate limiting, search, API key service, and core UI flows.
+- 453 automated backend tests and 5 Playwright smoke tests verified on 2026-10-01, covering scoring, source policy and recommendation logic, review drafts, rate limiting, search, API key service, and core UI flows.
 
 ## Project Status And Next Steps
 The implementation roadmap through Phase 10 is complete, but the product has not yet been validated as an operating fact-checking service. Do not add another broad feature phase before proving the editorial loop with a narrow pilot.

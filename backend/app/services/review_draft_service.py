@@ -97,8 +97,8 @@ class ReviewDraftService:
                 details={'claim_id': str(claim_id)},
             )
         source_payload = [ReviewDraftService._source_snapshot_payload(item) for item in source_snapshots]
-        has_primary = any(src.source_class == SourceClass.primary for src in verification_sources)
-        has_secondary = any(src.source_class == SourceClass.secondary for src in verification_sources)
+        has_primary = any(src.source_class == SourceClass.primary for src in source_snapshots)
+        has_secondary = any(src.source_class == SourceClass.secondary for src in source_snapshots)
         prompt_payload = {
             'claim_id': str(claim.id),
             'claim_text': claim.claim_text,
@@ -250,6 +250,7 @@ class ReviewDraftService:
             and evidence_sufficiency >= 0.9
             and suggested_verdict in {Verdict.supported, Verdict.mixed, Verdict.unsupported}
             and len(missing_evidence) == 0
+            and len(warnings) == 0
         )
         if suspicious_sources:
             model_confidence = min(model_confidence, 0.4)

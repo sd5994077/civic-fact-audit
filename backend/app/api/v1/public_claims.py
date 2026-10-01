@@ -9,10 +9,26 @@ from app.core.rate_limiter import WRITE_STANDARD_LIMIT, ip_rate_limit
 from app.db.database import get_db
 from app.models.entities import Candidate, Claim, ClaimEvaluation, Statement
 from app.models.enums import RaceStage
-from app.schemas.api import ErrorResponse, PublicClaimRead, PublicRaceSummaryRead
+from app.schemas.api import DashboardClaimRead, ErrorResponse, PublicClaimRead, PublicRaceSummaryRead
 from app.services.auth_dependency_service import ApiKeyIdentity, require_api_key
+from app.services.published_claim_service import PublishedClaimService
 
 router = APIRouter(prefix='/public')
+
+
+@router.get('/published-claims', response_model=list[DashboardClaimRead], responses={422: {'model': ErrorResponse}, 429: {'model': ErrorResponse}})
+def list_dashboard_claims(
+    state: str = Query(min_length=2, max_length=32),
+    office: str = Query(min_length=2, max_length=255),
+    election_cycle: int | None = Query(default=None, ge=1900, le=2100),
+    race_stage: RaceStage | None = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    _rl: None = Depends(ip_rate_limit(WRITE_STANDARD_LIMIT, endpoint_key='dashboard_claims')),
+) -> list[DashboardClaimRead]:
+    return PublishedClaimService.list_claims(db, state=state, office=office,
+        election_cycle=election_cycle, race_stage=race_stage, limit=limit, offset=offset)
 
 
 def _build_public_claims_query(

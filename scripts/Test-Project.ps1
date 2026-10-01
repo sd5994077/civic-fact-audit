@@ -4,7 +4,7 @@ param()
 $ErrorActionPreference = 'Continue'
 
 # Verified working as of ROADMAP.md's 2026-10-01 status note:
-#   backend: 441 passed | frontend/e2e: 4 Playwright tests passed
+#   backend: 453 passed | frontend/e2e: 5 Playwright tests passed
 # Keep this list in sync with AGENTS.md's "Build & test commands" section.
 $Commands = @(
     'python -m pytest backend/tests',

@@ -230,3 +230,7 @@ Admin audit events support admin-only visibility into candidate mutations, admin
 - `denominator_total`
 - `created_at`
 - `updated_at`
+
+## Published Dashboard Read Contract (2026-10-01)
+
+`GET /v1/public/published-claims` is an anonymous, rate-limited dashboard feed scoped by state, office, election cycle, and optional race stage. It returns only published, fact-checkable claims with a publication timestamp, including every claim rather than one representative per issue. `limit` (1–500, default 100) and `offset` paginate by publication time descending and claim ID; a race can contain only one candidate. Each `DashboardClaimRead` includes latest human evaluation, citation notes, admitted source links, and evidence-sufficiency warnings. Policy-flagged verification sources are excluded. Existing API-key-protected `/v1/public/claims` contracts are unchanged. No database schema migration is needed.

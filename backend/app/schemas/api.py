@@ -816,6 +816,12 @@ class PublicClaimRead(BaseModel):
     statement_published_at: datetime
 
 
+class DashboardClaimRead(PublicClaimRead):
+    citation_notes: str | None = None
+    sources: list[SourceRead] = Field(default_factory=list)
+    warnings: list[ParityWarningRead] = Field(default_factory=list)
+
+
 class PublicRaceSummaryRead(BaseModel):
     state: str | None
     office: str | None

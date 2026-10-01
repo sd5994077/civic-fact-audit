@@ -11,6 +11,8 @@ let proposalQueueRows = [];
 let authToken = localStorage.getItem("cfa_auth_token") || "";
 let compareState = null;
 let compareRawState = null;
+let publishedClaims = [];
+let publishedClaimsAbortController = null;
 let compareAbortController = null;
 const DEFAULT_RACE_KEY = "TX|US Senate|2026";
 const DEFAULT_RACE_STAGE = "primary_runoff";
@@ -806,6 +808,7 @@ async function loadReviewQueue() {
 }
 
 async function loadCompare() {
+  loadPublishedClaims();
   try {
     if (compareAbortController) {
       compareAbortController.abort();
@@ -846,7 +849,7 @@ async function loadCompare() {
     renderContrastBand(compare);
     renderIssueList(compare, bounded);
     renderPanel(compare, bounded);
-    renderPublishedClaims(compareRawState);
+    renderPublishedClaims();
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") return;
     if (err && typeof err === "object" && err.status === 404) {
@@ -1147,44 +1150,51 @@ function bindTabNav() {
 
 // ── Published Claims list ─────────────────────────────────────────────────────
 
-function buildClaimsFromCompare(compare) {
-  if (!compare) return [];
-  const candidateMap = new Map((compare.candidates || []).map((c) => [c.id, c]));
-  const claims = [];
-  for (const issue of compare.issues || []) {
-    for (const item of issue.items || []) {
-      const candidate = candidateMap.get(item.candidate_id);
-      claims.push({
-        claim_id: item.claim_id,
-        candidate_id: item.candidate_id,
-        candidate_name: candidate?.name ?? "Unknown",
-        candidate_party: candidate?.party ?? "",
-        issue_tag: issue.issue_tag,
-        claim_text: item.claim_text,
-        verdict: item.verdict,
-        confidence: item.confidence,
-        rationale: item.rationale,
-        citation_notes: item.citation_notes,
-        sources: item.sources || [],
-        warnings: item.warnings || [],
+async function loadPublishedClaims() {
+  if (publishedClaimsAbortController) publishedClaimsAbortController.abort();
+  const controller = new AbortController();
+  publishedClaimsAbortController = controller;
+  publishedClaims = [];
+  renderPublishedClaims();
+  const params = new URLSearchParams(buildCompareUrl().split("?")[1]);
+  ["limit_issues", "window_start", "window_end"].forEach((key) => params.delete(key));
+  params.set("limit", "100");
+  const rows = [];
+  try {
+    for (let offset = 0; ; offset += 100) {
+      params.set("offset", String(offset));
+      const res = await fetch(`/api/v1/public/published-claims?${params}`, {
+        headers: { Accept: "application/json" }, signal: controller.signal,
       });
+      if (!res.ok) throw new Error(`Published claims request failed: ${res.status}`);
+      const batch = await res.json();
+      rows.push(...batch);
+      if (batch.length < 100) break;
     }
+    if (controller.signal.aborted) return;
+    const verdictOrder = { unsupported: 0, mixed: 1, supported: 2 };
+    publishedClaims = rows.sort((a, b) =>
+      (verdictOrder[a.verdict] ?? 3) - (verdictOrder[b.verdict] ?? 3)
+      || (a.candidate_name ?? "").localeCompare(b.candidate_name ?? ""));
+    renderPublishedClaims();
+  } catch (err) {
+    if (controller.signal.aborted) return;
+    $("claims-count").textContent = "Unavailable";
+    $("claims-list").innerHTML = '<p class="note-copy">Published claims could not be loaded. Please retry.</p>';
   }
-  const ORDER = { unsupported: 0, mixed: 1, supported: 2 };
-  claims.sort((a, b) => {
-    const vDiff = (ORDER[a.verdict] ?? 3) - (ORDER[b.verdict] ?? 3);
-    return vDiff !== 0 ? vDiff : (a.candidate_name ?? "").localeCompare(b.candidate_name ?? "");
-  });
-  return claims;
 }
 
-function renderPublishedClaims(compare) {
+function renderPublishedClaims() {
   const listEl = $("claims-list");
   const countEl = $("claims-count");
   const candidateSelect = $("claims-filter-candidate");
   if (!listEl) return;
 
-  const allClaims = buildClaimsFromCompare(compare);
+  const allClaims = publishedClaims;
+  const selectedCandidate = candidateSelect?.value || "";
+  if (candidateSelect) {
+    candidateSelect.innerHTML = '<option value="">All candidates</option>';
+  }
 
   if (candidateSelect && candidateSelect.options.length === 1) {
     const names = [...new Map(allClaims.map((c) => [c.candidate_id, c.candidate_name])).entries()];
@@ -1197,6 +1207,9 @@ function renderPublishedClaims(compare) {
     });
   }
 
+  if (candidateSelect && Array.from(candidateSelect.options).some((opt) => opt.value === selectedCandidate)) {
+    candidateSelect.value = selectedCandidate;
+  }
   const verdictFilter = $("claims-filter-verdict")?.value ?? "";
   const candidateFilter = $("claims-filter-candidate")?.value ?? "";
   const issueFilter = ($("claims-filter-issue")?.value ?? "").trim().toLowerCase();
@@ -1263,10 +1276,10 @@ function renderPublishedClaims(compare) {
 function bindClaimsFilters() {
   ["claims-filter-verdict", "claims-filter-candidate"].forEach((id) => {
     const el = $(id);
-    if (el) el.addEventListener("change", () => renderPublishedClaims(compareRawState));
+    if (el) el.addEventListener("change", () => renderPublishedClaims());
   });
   const issueInput = $("claims-filter-issue");
-  if (issueInput) issueInput.addEventListener("input", () => renderPublishedClaims(compareRawState));
+  if (issueInput) issueInput.addEventListener("input", () => renderPublishedClaims());
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────

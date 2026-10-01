@@ -8,6 +8,37 @@ from app.models.enums import SourceClass, SourceOrigin
 from app.services.review_draft_service import ReviewDraftService, _SourceSnapshot
 
 
+@pytest.mark.parametrize('scenario', ['fetch_warning', 'secondary_outside_prompt'])
+def test_green_lane_uses_completed_warnings_and_prompt_sources(monkeypatch, scenario: str) -> None:
+    candidate = _FakeCandidate()
+    statement = _FakeStatement(candidate.id)
+    claim = _FakeClaim(statement.id)
+    sources = [_FakeSource() for _ in range(8 if scenario == 'secondary_outside_prompt' else 1)]
+    sources.append(_FakeSource(source_class=SourceClass.secondary))
+    db = _FakeDb(claim=claim, statement=statement, candidate=candidate, sources=sources)
+
+    def snapshot(source: _FakeSource) -> _SourceSnapshot:
+        return _SourceSnapshot(source.id, source.url, source.source_class, source.source_origin,
+                               source.publisher, 'pdf_unparsed' if source is sources[-1] else 'ok',
+                               '' if source is sources[-1] else 'Readable record', 'text/html')
+
+    clean_result = {
+        'suggested_verdict': 'supported', 'suggested_confidence': 0.95,
+        'model_confidence': 0.95, 'evidence_sufficiency': 0.95, 'green_lane_ready': True,
+        'rationale': 'Record supports claim.', 'citation_notes': 'Attached records.',
+        'subclaims': [], 'source_assessments': [], 'warnings': [], 'missing_evidence': [],
+    }
+    monkeypatch.setattr(ReviewDraftService, '_fetch_source_snapshot', snapshot)
+    monkeypatch.setattr(ReviewDraftService, '_generate_with_openai', lambda payload: dict(clean_result))
+    monkeypatch.setattr(ReviewDraftService, '_generate_with_anthropic', lambda payload: dict(clean_result))
+    payload = ReviewDraftService.generate_review_draft(db, claim_id=claim.id)
+    assert payload['green_lane_ready'] is False
+    if scenario == 'fetch_warning':
+        assert any(w['code'] == 'source_fetch_incomplete' for w in payload['warnings'])
+    else:
+        assert 'verification_secondary_source_required' in payload['missing_evidence']
+
+
 class _FakeCandidate:
     def __init__(self) -> None:
         self.id = uuid.uuid4()

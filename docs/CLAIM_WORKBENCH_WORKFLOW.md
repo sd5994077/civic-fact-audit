@@ -128,3 +128,7 @@ The smoke suite now includes a focused Workbench recommendation regression on cl
 - validates suggested verification link rendering
 - validates one-click attach from suggestion
 - validates verification coverage update (`primary >= 1`, `secondary >= 1`)
+
+### Draft readiness safeguards (2026-10-01)
+
+Draft evidence-class checks use only the maximum eight source snapshots actually supplied to the model. Sources outside that prompt cannot satisfy primary/secondary evidence requirements. Any normalized or server-generated warning disables green-lane readiness, including a PDF or unsupported content type that could not be read. Drafts remain advisory and cannot replace human adjudication.

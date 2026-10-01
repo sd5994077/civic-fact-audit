@@ -1,6 +1,8 @@
 import uuid
 import json
 import re
+import ipaddress
+import socket
 from urllib.parse import parse_qs, urlparse
 
 import httpx
@@ -150,6 +152,26 @@ class SourceService:
     _GATED_URL_STATUSES: frozenset[int] = frozenset({401, 402, 403, 429})
 
     @staticmethod
+    def _public_probe_target(url: str) -> tuple[httpx.URL, str, str]:
+        parsed = httpx.URL(url)
+        hostname = parsed.host
+        if parsed.scheme not in {'http', 'https'} or not hostname or parsed.userinfo:
+            raise ValueError('Only public HTTP(S) URLs without credentials can be probed.')
+        if hostname.lower().rstrip('.') in {'localhost', 'localhost.localdomain', 'metadata.google.internal'}:
+            raise ValueError('Local and metadata targets cannot be probed.')
+        try:
+            addresses = [ipaddress.ip_address(hostname)]
+        except ValueError:
+            addresses = [ipaddress.ip_address(row[4][0]) for row in socket.getaddrinfo(
+                hostname, parsed.port or (443 if parsed.scheme == 'https' else 80),
+                type=socket.SOCK_STREAM, proto=socket.IPPROTO_TCP,
+            )]
+        if not addresses or any(not address.is_global or address.is_multicast for address in addresses):
+            raise ValueError('Source host must resolve exclusively to public network addresses.')
+        # Pin the connection to validated DNS; preserve virtual hosting and TLS identity.
+        return parsed.copy_with(host=str(addresses[0])), parsed.netloc.decode('ascii'), hostname
+
+    @staticmethod
     def check_url_reachable(url: str) -> dict[str, object]:
         """
         Performs a lightweight HTTP reachability probe on *url*.
@@ -168,11 +190,32 @@ class SourceService:
             ),
         }
         try:
-            with httpx.Client(timeout=8.0, follow_redirects=True) as client:
-                resp = client.head(url, headers=headers)
-                # Some servers don't support HEAD -- fall back to GET with no body read
-                if resp.status_code == 405:
-                    resp = client.get(url, headers=headers)
+            target, host_header, hostname = SourceService._public_probe_target(url)
+            with httpx.Client(timeout=8.0, follow_redirects=False, trust_env=False,
+                              limits=httpx.Limits(max_keepalive_connections=0)) as client:
+                method = 'HEAD'
+                for hop in range(6):
+                    request = client.build_request(method, target, headers={**headers, 'Host': host_header},
+                                                   extensions={'sni_hostname': hostname})
+                    resp = client.send(request, stream=True)
+                    code = resp.status_code
+                    location = resp.headers.get('location')
+                    resp.close()
+                    if code == 405 and method == 'HEAD':
+                        method = 'GET'
+                        continue
+                    if code in {301, 302, 303, 307, 308} and location:
+                        if hop == 5:
+                            raise ValueError('Too many source redirects.')
+                        url = str(httpx.URL(url).join(location))
+                        target, host_header, hostname = SourceService._public_probe_target(url)
+                        method = 'HEAD'
+                        continue
+                    break
+                else:
+                    raise ValueError('Too many source probe requests.')
+        except (ValueError, httpx.InvalidURL, socket.gaierror) as exc:
+            return {'status': 'error', 'code': None, 'message': str(exc)}
         except httpx.TimeoutException:
             return {'status': 'error', 'code': None, 'message': 'Request timed out -- server may be slow or blocking bots.'}
         except httpx.RequestError as exc:
